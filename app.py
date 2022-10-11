@@ -69,8 +69,10 @@ for i, issue in enumerate(issues):
 issue_titles.sort(reverse=True)
 issue_titles = [""] + issue_titles
 query_params = initial_query_params()
-if "issue" in query_params:
-    default_index = issue_titles.index(str(query_params["issue"][0]))
+if "issue" in query_params and query_params["issue"]:
+    query_param_issue = str(query_params["issue"][0])
+    if query_param_issue in issue_titles:
+        default_index = issue_titles.index(query_param_issue)
 
 selected_issue = st.selectbox("Select Issue", options=issue_titles, index=default_index)
 
