@@ -103,7 +103,7 @@ if selected_issue:
             if response:
                 data = json.loads(response)
                 if "title" in data:
-                    issue_title = data["title"]
+                    issue_title = data["title"].strip()
                     st.markdown(f"**{issue_title}**")
                 BADGES = f"""
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue State" target="_blank"><img src="https://img.shields.io/github/issues/detail/state/streamlit/streamlit/{issue_number}?style=flat-square"></a>
