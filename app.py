@@ -59,6 +59,9 @@ default_index = 0
 for i, issue in enumerate(issues):
     if not issue:
         continue
+    if "gh-template" in issue:
+        # Ignore template
+        continue
     title_to_issue_folder[issue] = issue
     issue_titles.append(issue)
 
