@@ -2,6 +2,7 @@ import json
 import os
 import pathlib
 import re
+import sys
 import urllib.request
 
 import streamlit as st
@@ -15,7 +16,7 @@ st.caption(
     f"""
 A collection of reproducible scripts for bugs and issues in Streamlit.
 
-Running in Python {os.uname().release} with Streamlit {st.__version__}.
+Running in Python {sys.version} with Streamlit {st.__version__}.
 """
 )
 DEFAULT_SELECTION = ""
@@ -150,7 +151,7 @@ In case the app embedded below is not running, you can deploy it yourself [here]
 """,
         )
         st.caption(
-            f"[Open in new tab](https://share.streamlit.io/streamlit/st-issues/main/{DEFAULT_ISSUES_FOLDER}/{selected_issue_folder}/{DEFAULT_SCRIPT_NAME})"
+            f"[Open in a new tab](https://share.streamlit.io/streamlit/st-issues/main/{DEFAULT_ISSUES_FOLDER}/{selected_issue_folder}/{DEFAULT_SCRIPT_NAME})"
         )
         # embed streamlit docs in a streamlit app
         components.iframe(
