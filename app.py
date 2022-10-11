@@ -66,7 +66,8 @@ for i, issue in enumerate(issues):
     issue_titles.append(issue)
 
 # Add empty state:
-issue_titles = [""] + issue_titles.sort()
+issue_titles.sort()
+issue_titles = [""] + issue_titles
 query_params = initial_query_params()
 if "issue" in query_params:
     default_index = issue_titles.index(str(query_params["issue"][0]))
