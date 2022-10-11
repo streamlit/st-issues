@@ -83,7 +83,7 @@ In case the app embedded below is not running, you can deploy it yourself [here]
         )
         # embed streamlit docs in a streamlit app
         components.iframe(
-            "https://share.streamlit.io/streamlit/st-issues/main/{DEFAULT_ISSUES_FOLDER}/{selected_issue_folder}/{DEFAULT_SCRIPT_NAME}?embed=true",
+            f"https://share.streamlit.io/streamlit/st-issues/main/{DEFAULT_ISSUES_FOLDER}/{selected_issue_folder}/{DEFAULT_SCRIPT_NAME}?embed=true",
             height=650,
         )
     else:
