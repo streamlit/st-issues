@@ -10,7 +10,10 @@ iris_chart = (
     .encode(
         x="petalWidth",
         y="petalLength",
-        color=alt.Color("species", legend=alt.Legend(title=None, orient="top")),
+        color=alt.Color(
+            "species",
+            legend=alt.Legend(title=None, titlePadding=0, offset=10, orient="top"),
+        ),
     )
 )
 
