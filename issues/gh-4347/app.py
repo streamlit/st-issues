@@ -18,7 +18,6 @@ def main():
             data=df.to_csv().encode("utf-8"),
             file_name="filename.csv",
             mime="text/csv",
-            persist=True,  # <----------- here
         )
 
 
