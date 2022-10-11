@@ -2,7 +2,7 @@
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://issues.streamlitapp.com)
 
-A collection of Streamlit apps to explore potential features and replicate issues. The goal is to make is very easy to create and share reproducible examples. This repo is owned by the open-source team.
+A collection of Streamlit apps to explore potential features and replicate issues. The goal is to make it very easy to create and share reproducible examples. This repo is owned by the open-source team.
 
 ## How to add a new issue
 
