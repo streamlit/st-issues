@@ -127,7 +127,8 @@ if selected_issue:
                             "Add the following markdown badge to the issue on Github to provide a link to this app:"
                         )
                         st.code(
-                            f"[![Open in Streamlit Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://issues.streamlitapp.com/?issue={selected_issue})"
+                            f"[![Open in Streamlit Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://issues.streamlitapp.com/?issue={selected_issue})",
+                            language="markdown",
                         )
 
                     if "### Steps to reproduce" in issue_body:
