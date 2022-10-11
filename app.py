@@ -16,7 +16,7 @@ st.caption(
     f"""
 A collection of reproducible scripts for bugs and issues in Streamlit.
 
-Running in Python {platform.python_version()} with Streamlit {st.__version__}.
+Running with Python {platform.python_version()} and Streamlit {st.__version__}.
 """
 )
 DEFAULT_SELECTION = ""
