@@ -54,7 +54,7 @@ for issue_folder in os.listdir(path_to_issues):
 
 title_to_issue_folder = {}
 
-issue_titles = [""]
+issue_titles = []
 default_index = 0
 for i, issue in enumerate(issues):
     if not issue:
@@ -65,6 +65,8 @@ for i, issue in enumerate(issues):
     title_to_issue_folder[issue] = issue
     issue_titles.append(issue)
 
+# Add empty state:
+issue_titles = [""] + issue_titles.sort()
 query_params = initial_query_params()
 if "issue" in query_params:
     default_index = issue_titles.index(str(query_params["issue"][0]))
