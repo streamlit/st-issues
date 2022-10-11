@@ -128,8 +128,8 @@ if selected_issue:
                         if steps_to_reproduce:
                             with st.expander("Steps to reproduce"):
                                 st.markdown(steps_to_reproduce, unsafe_allow_html=True)
-        except Exception:
-            pass
+        except Exception as ex:
+            print(ex, flush=True)
 
     with st.expander("Source Code", expanded=True):
         with open(
