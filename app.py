@@ -2,7 +2,6 @@ import json
 import os
 import pathlib
 import re
-import time
 import urllib.request
 
 import streamlit as st
@@ -124,6 +123,13 @@ In case the app embedded below is not running, you can deploy it yourself [here]
                                 steps_to_reproduce,
                                 flags=re.DOTALL,
                             )
+                            # Remove Streamlit badge
+                            steps_to_reproduce = re.sub(
+                                r"\[!\[Open in Streamlit Cloud\]\(https://static.streamlit.io/badges/streamlit_badge_black_white.svg\)\]\(https:.*?\)",
+                                "",
+                                steps_to_reproduce,
+                            )
+
                             if steps_to_reproduce:
                                 with st.expander("Steps to reproduce"):
                                     st.markdown(
