@@ -14,7 +14,7 @@ st.title("🚧 Streamlit Issues")
 
 st.caption(
     f"""
-A collection of reproducible scripts for bugs and issues in Streamlit. Add your issue script [here](https://github.com/streamlit/st-issues).
+A collection of Streamlit apps to replicate issues and bugs. Add your issue script [here](https://github.com/streamlit/st-issues).
 
 Running with Python {platform.python_version()} and Streamlit {st.__version__}.
 """
