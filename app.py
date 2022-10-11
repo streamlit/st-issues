@@ -4,6 +4,7 @@ import pathlib
 import platform
 import re
 import urllib.request
+from typing import Union
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -69,6 +70,19 @@ selected_issue = st.selectbox("Select Issue", options=issue_titles, index=defaul
 
 st.experimental_set_query_params(issue=selected_issue)
 
+
+@st.experimental_memo(ttl=60 * 5)  # cache for 5 minutes
+def request_github_issue(issue_number: str) -> Union[str, None]:
+    try:
+        with urllib.request.urlopen(
+            f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}"
+        ) as response:
+            return response.read()
+    except Exception as ex:
+        print(ex, flush=True)
+    return None
+
+
 if selected_issue:
     selected_issue_folder = title_to_issue_folder[selected_issue]
     selected_issue_folder_path = path_to_issues.joinpath(
@@ -82,10 +96,9 @@ if selected_issue:
         issue_number = selected_issue_folder.replace("gh-", "")
         # Request issue from GitHub API and extract the body:
         try:
-            with urllib.request.urlopen(
-                f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}"
-            ) as request:
-                data = json.load(request)
+            response = request_github_issue(issue_number)
+            if response:
+                data = json.loads(response)
                 BADGES = f"""
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue State" target="_blank"><img src="https://img.shields.io/github/issues/detail/state/streamlit/streamlit/{issue_number}?style=flat-square"></a>
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Last Update" target="_blank"><img src="https://img.shields.io/github/issues/detail/last-update/streamlit/streamlit/{issue_number}?style=flat-square"></a>
