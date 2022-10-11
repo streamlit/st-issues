@@ -81,6 +81,9 @@ Therefore, it needs to be [deployed separately](https://share.streamlit.io/strea
 In case the app embedded below is not running, you can deploy it yourself [here](https://share.streamlit.io/deploy?repository=streamlit/st-issues&branch=main&mainModule={DEFAULT_ISSUES_FOLDER}/{selected_issue_folder}/{DEFAULT_SCRIPT_NAME}).
 """,
         )
+        st.caption(
+            f"[Open in new tab](https://share.streamlit.io/streamlit/st-issues/main/{DEFAULT_ISSUES_FOLDER}/{selected_issue_folder}/{DEFAULT_SCRIPT_NAME})"
+        )
         # embed streamlit docs in a streamlit app
         components.iframe(
             f"https://share.streamlit.io/streamlit/st-issues/main/{DEFAULT_ISSUES_FOLDER}/{selected_issue_folder}/{DEFAULT_SCRIPT_NAME}?embed=true",
