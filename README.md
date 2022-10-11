@@ -6,7 +6,7 @@ A collection of Streamlit apps to explore potential features and replicate issue
 
 ## How to add a new issue
 
-1. Create a new folder in [`issues`](./issues) with this naming pattern: `gh-<ISSUE_ID>`.
+1. Create a new folder in [`issues`](./issues) with this naming pattern: `gh-<GITHUB_ISSUE_ID>`.
 2. Create an `app.py` file in the created issue folder and use it to reproduce the issue.
 3. Once the issue is added, it should be automatically accessible from the [deployed issue explorer](https://issues.streamlitapp.com) after a page refresh.
 4. Make sure to link the issue app in the respective issue on Github. Tip:  Inside the `Issue Description` expander, you can find a markdown snippet that allows you to easily add a badge to the GitHub issue. Add this to the issue body in the `Steps to reproduce` section. 
