@@ -1,8 +1,8 @@
 import json
 import os
 import pathlib
+import platform
 import re
-import sys
 import urllib.request
 
 import streamlit as st
@@ -11,12 +11,11 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="Streamlit Issue", page_icon="🚧")
 st.title("🚧 Streamlit Issues")
 
-# Get python versio
 st.caption(
     f"""
 A collection of reproducible scripts for bugs and issues in Streamlit.
 
-Running in Python {sys.version} with Streamlit {st.__version__}.
+Running in Python {platform.python_version()} with Streamlit {st.__version__}.
 """
 )
 DEFAULT_SELECTION = ""
