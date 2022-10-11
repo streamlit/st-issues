@@ -109,7 +109,14 @@ In case the app embedded below is not running, you can deploy it yourself [here]
                     issue_body = data["body"]
                     if issue_body:
                         with st.expander("Issue Description"):
-                            st.markdown(data["body"], unsafe_allow_html=True)
+                            st.markdown(issue_body, unsafe_allow_html=True)
+                            st.markdown("---")
+                            st.caption(
+                                "Add the following markdown badge to the issue on Github to provide a link to this app:"
+                            )
+                            st.code(
+                                f"[![Open in Streamlit Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://streamlit-st-issues-app-1072je.streamlitapp.com/?issue={selected_issue})"
+                            )
 
                         if "### Steps to reproduce" in issue_body:
                             # Extract from issue body
