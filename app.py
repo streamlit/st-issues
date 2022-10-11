@@ -99,6 +99,9 @@ if selected_issue:
             response = request_github_issue(issue_number)
             if response:
                 data = json.loads(response)
+                if "title" in data:
+                    issue_title = data["title"]
+                    st.markdown(f"**{issue_title}**")
                 BADGES = f"""
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue State" target="_blank"><img src="https://img.shields.io/github/issues/detail/state/streamlit/streamlit/{issue_number}?style=flat-square"></a>
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Last Update" target="_blank"><img src="https://img.shields.io/github/issues/detail/last-update/streamlit/streamlit/{issue_number}?style=flat-square"></a>
