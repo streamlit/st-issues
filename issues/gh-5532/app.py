@@ -3,8 +3,6 @@ import streamlit.components.v1 as components
 import pydeck as pdk
 import requests
 
-st.set_page_config(layout="wide", initial_sidebar_state='collapsed')
-
 if __name__ == '__main__':
     # DATA_URL is a valid geojson object of CA zipcodes with some metadata, it's uncompressed size is ~8.8MB
     DATA_URL = 'https://gist.githubusercontent.com/KeeonTabrizi/99493a2d7a5347c7691bc743f4a58bb3/raw/9be1eaa9f8f6bff4ad60a57cfe43e9e05b99f8db/ca_zip_codes.json'
