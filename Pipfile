@@ -15,6 +15,7 @@ seaborn = "*"
 pydeck = "*"
 streamlit-extras = "*"
 pytz = "*"
+pydeck = "*"
 vega_datasets = "*"
 
 [dev-packages]
