@@ -137,7 +137,7 @@ if selected_issue:
                     if "### Steps To Reproduce" in issue_body:
                         steps_to_reproduce = issue_body.split("### Steps To Reproduce")[
                             1
-                        ].split("### Is this a regression")[0]
+                        ].split("### Is this a regression")[0].replace("###", "#####")
                     
                     # Old issue template
                     elif "### Steps to reproduce" in issue_body:
