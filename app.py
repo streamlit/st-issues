@@ -130,8 +130,17 @@ if selected_issue:
                             f"[![Open in Streamlit Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://issues.streamlitapp.com/?issue={selected_issue})",
                             language="markdown",
                         )
-
-                    if "### Steps to reproduce" in issue_body:
+                    
+                    steps_to_reproduce = None
+                    
+                    # New issue template
+                    if "### Steps To Reproduce" in issue_body:
+                        steps_to_reproduce = issue_body.split("### Steps To Reproduce")[
+                            1
+                        ].split("### Is this a regression")[0]
+                    
+                    # Old issue template
+                    elif "### Steps to reproduce" in issue_body:
                         # Extract from issue body
                         steps_to_reproduce = issue_body.split("### Steps to reproduce")[
                             1
@@ -150,9 +159,9 @@ if selected_issue:
                             steps_to_reproduce,
                         )
 
-                        if steps_to_reproduce:
-                            with st.expander("Steps to reproduce"):
-                                st.markdown(steps_to_reproduce, unsafe_allow_html=True)
+                    if steps_to_reproduce:
+                        with st.expander("Steps to reproduce"):
+                            st.markdown(steps_to_reproduce, unsafe_allow_html=True)
         except Exception as ex:
             print(ex, flush=True)
 
