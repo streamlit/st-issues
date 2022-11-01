@@ -22,4 +22,4 @@ st.write(df)
 
 
 # does not print data in a sorted manner
-st.write(df.set_index("a"))
+st.write(df.set_index("a").sort_index())
