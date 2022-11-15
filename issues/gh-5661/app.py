@@ -7,7 +7,8 @@ st.write("""
 
 from PIL import Image
 
-st.set_page_config(layout="wide")
+#st.set_page_config(layout="wide")
+st.write("Set the layout to wide mode")
 
 col1, col2 = st.columns(2)
 
