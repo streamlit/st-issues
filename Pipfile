@@ -16,6 +16,9 @@ pydeck = "*"
 streamlit-extras = "*"
 pytz = "*"
 vega_datasets = "*"
+ghapi = "*"
+stqdm = "*"
+
 
 [dev-packages]
 black = "*"
