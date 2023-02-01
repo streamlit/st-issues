@@ -3,7 +3,7 @@ import streamlit as st
 
 df = pd.DataFrame(data= {
     "State" : ["Taken", "Booked", "Free", "Free", "Free", "Reserved", "Reserved"],
-    "Till"  : ["2023-01-25 03:00"] + ["2023-01-25 06:00"] + ([""]*5),
+    "Till"  : ["2023-01-25 03:00"] + ["2023-01-25 06:00"] + ["2023-01-25 07:00"] + ([""]*4),
     "By"    : ["one@some-domain.com", "(two@some-domain.com)", "", "", "", "(three@some-domain.com)", "(four@some-domain.com)"]
 })
 
