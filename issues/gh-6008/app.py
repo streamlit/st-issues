@@ -26,4 +26,4 @@ df_styled = df.style \
                     .applymap(lambda c: "color: lightgray" if isinstance(c, str) and c and c[0]=="(" else "")
 
 st.write('State:')
-st.dataframe(df_styled, use_container_width=True)
+st.dataframe(df_styled)
