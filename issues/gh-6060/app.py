@@ -12,4 +12,4 @@ st.markdown(df.style.highlight_max(axis=0).to_html(), unsafe_allow_html=True)
 
 st.write("---")
 
-st.dataframe(df.style.highlight_max(axis=0, props='color:darkgrey;background-color:yellow;'))
+st.dataframe(df.style.highlight_max(axis=0, props='color:black;background-color:yellow;'))
