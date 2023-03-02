@@ -12,7 +12,7 @@ st.title("GitHub Issues Summary")
 
 # Paginate through all open issues in the streamlit/streamlit repo
 # and return them all as a list of dicts.
-@st.experimental_memo(ttl=60 * 60 * 6)  # cache for 6 hours
+@st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
 def get_all_github_issues():
     issues = []
     page = 1
