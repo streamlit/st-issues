@@ -79,7 +79,7 @@ selected_issue = st.selectbox("Select Issue", options=issue_titles, index=defaul
 st.experimental_set_query_params(issue=selected_issue)
 
 
-@st.experimental_memo(ttl=60 * 5)  # cache for 5 minutes
+@st.cache_data(ttl=60 * 5)  # cache for 5 minutes
 def request_github_issue(issue_number: str) -> Union[str, None]:
     try:
         with urllib.request.urlopen(
