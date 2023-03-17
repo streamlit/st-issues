@@ -7,3 +7,4 @@ chart = alt.Chart(pd.DataFrame(dict(x=list(range(10)),y=list(range(10))))).mark_
     y=alt.Y('y'),
 )
 st.altair_chart(alt.Chart.from_json(chart.to_json()))
+st.json(chart.to_json())
