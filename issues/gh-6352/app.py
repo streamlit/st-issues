@@ -23,7 +23,7 @@ if not "lst" in st.session_state:
 lst = st.session_state["lst"]
 
 # Let user pick what to edit and if anything selected - show a field to change name
-selected = st.selectbox("Select item", [""]+lst, key="something_else", format_func=lambda a: f"#{a.id} {a.name}" if a else "")
+selected = st.selectbox("Select item", [""]+lst, format_func=lambda a: f"#{a.id} {a.name}" if a else "")
 if selected:
     index = lst.index(selected)
     st.text_input("New name", selected.name, key="new_name", on_change=partial(on_change, index))
