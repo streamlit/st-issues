@@ -18,6 +18,7 @@ pytz = "*"
 vega_datasets = "*"
 ghapi = "*"
 stqdm = "*"
+psutil = "*"
 
 
 [dev-packages]
