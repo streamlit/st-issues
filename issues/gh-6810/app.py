@@ -1,8 +1,6 @@
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(layout="wide")
-
 df = pd.DataFrame(
     {
         "ID": [1, 2, 3, 4, 5],
