@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import time
 
+st.button("Rerun")
+
 if "df" not in st.session_state:
     with st.spinner("Load data"):
         time.sleep(5)
@@ -11,5 +13,4 @@ if "df" not in st.session_state:
 st.dataframe(st.session_state.df)
 
 # Do something else that takes some time:
-st.button("Rerun")
 time.sleep(5)
