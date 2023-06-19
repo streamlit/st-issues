@@ -11,4 +11,5 @@ if "df" not in st.session_state:
 st.dataframe(st.session_state.df)
 
 # Do something else that takes some time:
+st.button("Rerun")
 time.sleep(5)
