@@ -97,80 +97,81 @@ if selected_issue:
         selected_issue_folder
     ).resolve()
 
-    if (
-        selected_issue_folder.startswith("gh-")
-        and selected_issue_folder.replace("gh-", "").isnumeric()
-    ):
-        issue_number = selected_issue_folder.replace("gh-", "")
-        # Request issue from GitHub API and extract the body:
-        try:
-            response = request_github_issue(issue_number)
-            if response:
-                data = json.loads(response)
-                if "title" in data:
-                    issue_title = data["title"].strip()
-                    st.markdown(f"**{issue_title}**")
-                BADGES = f"""
+    with st.container():
+        if (
+            selected_issue_folder.startswith("gh-")
+            and selected_issue_folder.replace("gh-", "").isnumeric()
+        ):
+            issue_number = selected_issue_folder.replace("gh-", "")
+            # Request issue from GitHub API and extract the body:
+            try:
+                response = request_github_issue(issue_number)
+                if response:
+                    data = json.loads(response)
+                    if "title" in data:
+                        issue_title = data["title"].strip()
+                        st.markdown(f"**{issue_title}**")
+                    BADGES = f"""
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue State" target="_blank"><img src="https://img.shields.io/github/issues/detail/state/streamlit/streamlit/{issue_number}?style=flat-square"></a>
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Last Update" target="_blank"><img src="https://img.shields.io/github/issues/detail/last-update/streamlit/streamlit/{issue_number}?style=flat-square"></a>
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Created at" target="_blank"><img src="https://img.shields.io/github/issues/detail/age/streamlit/streamlit/{issue_number}?style=flat-square"></a>
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Comments" target="_blank"><img src="https://img.shields.io/github/issues/detail/comments/streamlit/streamlit/{issue_number}?style=flat-square"></a>
 <a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Labels" target="_blank"><img src="https://img.shields.io/github/issues/detail/label/streamlit/streamlit/{issue_number}?style=flat-square&label=%20"></a>
 """
-                st.markdown(BADGES, unsafe_allow_html=True)
-                issue_body = data["body"]
-                if issue_body:
-                    with st.expander("Issue Description"):
-                        st.markdown(issue_body, unsafe_allow_html=True)
-                        st.markdown("---")
-                        st.caption(
-                            "Add the following markdown badge to the issue on Github to provide a link to this app:"
-                        )
-                        st.code(
-                            f"[![Open in Streamlit Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://issues.streamlitapp.com/?issue={selected_issue})",
-                            language="markdown",
-                        )
-                    
-                    steps_to_reproduce = None
-                    
-                    # New issue template
-                    if "### Steps To Reproduce" in issue_body:
-                        steps_to_reproduce = issue_body.split("### Steps To Reproduce")[
-                            1
-                        ].split("### Is this a regression")[0].replace("###", "#####")
-                    
-                    # Old issue template
-                    elif "### Steps to reproduce" in issue_body:
-                        # Extract from issue body
-                        steps_to_reproduce = issue_body.split("### Steps to reproduce")[
-                            1
-                        ].split("###")[0]
-                        # Remove markdown code blocks via regex
-                        steps_to_reproduce = re.sub(
-                            r"```.*?```",
-                            "```\nSee the code below...\n```",
-                            steps_to_reproduce,
-                            flags=re.DOTALL,
-                        )
-                        # Remove Streamlit badge
-                        steps_to_reproduce = re.sub(
-                            r"\[!\[Open in Streamlit Cloud\]\(https://static.streamlit.io/badges/streamlit_badge_black_white.svg\)\]\(https:.*?\)",
-                            "",
-                            steps_to_reproduce,
-                        )
-
-                    if steps_to_reproduce:
-                        with st.expander("Steps to reproduce"):
-                            st.markdown(steps_to_reproduce, unsafe_allow_html=True)
-        except Exception as ex:
-            print(ex, flush=True)
-
-    with st.expander("Source Code", expanded=True):
-        with open(
-            selected_issue_folder_path.joinpath(DEFAULT_SCRIPT_NAME).resolve(),
-            encoding="UTF-8",
-        ) as f:
-            st.code(f.read(), language="python")
+                    st.markdown(BADGES, unsafe_allow_html=True)
+                    issue_body = data["body"]
+                    if issue_body:
+                        with st.expander("Issue Description"):
+                            st.markdown(issue_body, unsafe_allow_html=True)
+                            st.markdown("---")
+                            st.caption(
+                                "Add the following markdown badge to the issue on Github to provide a link to this app:"
+                            )
+                            st.code(
+                                f"[![Open in Streamlit Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://issues.streamlitapp.com/?issue={selected_issue})",
+                                language="markdown",
+                            )
+                        
+                        steps_to_reproduce = None
+                        
+                        # New issue template
+                        if "### Steps To Reproduce" in issue_body:
+                            steps_to_reproduce = issue_body.split("### Steps To Reproduce")[
+                                1
+                            ].split("### Is this a regression")[0].replace("###", "#####")
+                        
+                        # Old issue template
+                        elif "### Steps to reproduce" in issue_body:
+                            # Extract from issue body
+                            steps_to_reproduce = issue_body.split("### Steps to reproduce")[
+                                1
+                            ].split("###")[0]
+                            # Remove markdown code blocks via regex
+                            steps_to_reproduce = re.sub(
+                                r"```.*?```",
+                                "```\nSee the code below...\n```",
+                                steps_to_reproduce,
+                                flags=re.DOTALL,
+                            )
+                            # Remove Streamlit badge
+                            steps_to_reproduce = re.sub(
+                                r"\[!\[Open in Streamlit Cloud\]\(https://static.streamlit.io/badges/streamlit_badge_black_white.svg\)\]\(https:.*?\)",
+                                "",
+                                steps_to_reproduce,
+                            )
+    
+                        if steps_to_reproduce:
+                            with st.expander("Steps to reproduce"):
+                                st.markdown(steps_to_reproduce, unsafe_allow_html=True)
+            except Exception as ex:
+                print(ex, flush=True)
+    
+        with st.expander("Source Code", expanded=True):
+            with open(
+                selected_issue_folder_path.joinpath(DEFAULT_SCRIPT_NAME).resolve(),
+                encoding="UTF-8",
+            ) as f:
+                st.code(f.read(), language="python")
 
     if (
         selected_issue_folder_path.joinpath("requirements.txt").exists()
