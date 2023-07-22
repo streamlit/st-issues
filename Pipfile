@@ -32,4 +32,4 @@ watchdog = "*"
 python_version = "3.9"
 
 [scripts]
-app = "streamlit run ./app.py"
+app = "streamlit run ./🚧_Streamlit_Issue_Explorer.py"
