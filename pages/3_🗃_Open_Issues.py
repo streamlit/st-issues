@@ -155,7 +155,7 @@ else:
             ]
         ],
         column_config={
-            "title": st.column_config.TextColumn("Title", width=300),
+            "title": st.column_config.TextColumn("Title", width=315),
             "type": "Type",
             "updated_at": st.column_config.DatetimeColumn(
                 "Last Updated", format="distance"
