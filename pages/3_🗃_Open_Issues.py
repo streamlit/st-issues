@@ -84,6 +84,7 @@ for issue in all_issues:
 link_qs_labels = "+".join([quote("label:" + label) for label in filter_labels])
 link = f"https://github.com/streamlit/streamlit/issues?q={quote('is:open')}+{quote('is:issue')}+{link_qs_labels}"
 
+st.markdown("")  # Add some space to prevent issue in embedded mode
 st.caption(
     f"**{len(filtered_issues)} issues** found based on the selected filters. [View on GitHub ↗️]({link})"
 )
