@@ -1,10 +1,17 @@
 import json
+import pathlib
 import urllib.request
 from typing import List
 from urllib.parse import quote
 
 import pandas as pd
 import streamlit as st
+
+DEFAULT_ISSUES_FOLDER = "issues"
+PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
+PATH_TO_ISSUES = (
+    pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
+)
 
 st.set_page_config(
     page_title="Open Issues",
@@ -121,14 +128,23 @@ def labels_to_type(labels: List[str]):
         return "❓"
 
 
+def get_reproducible_example(issue_number: int):
+    issue_folder_name = f"gh-{issue_number}"
+    if PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir():
+        return "/?issue=" + issue_folder_name
+    return None
+
+
 df = pd.DataFrame.from_dict(filtered_issues)
 if df.empty:
     st.markdown("No issues found")
 else:
+    st.dataframe(df)
     df["labels"] = df["labels"].map(
         lambda x: [label["name"] if label else "" for label in x]
     )
     df["type"] = df["labels"].map(labels_to_type)
+    df["reproducible_example"] = df["number"].map(get_reproducible_example)
     df["title"] = df["type"] + df["title"]
     df["reaction_types"] = df["reactions"].map(reactions_to_str)
     df["total_reactions"] = (
@@ -150,6 +166,7 @@ else:
                 "reaction_types",
                 "comments",
                 "labels",
+                "reproducible_example",
                 # "author_association",
                 "state",
             ]
@@ -173,6 +190,9 @@ else:
             "state": "State",
             "comments": st.column_config.NumberColumn("Comments", format="%d 💬"),
             "html_url": st.column_config.LinkColumn("Url", width="medium"),
+            "reproducible_example": st.column_config.LinkColumn(
+                "Reproducible Example", width="medium"
+            ),
         },
         hide_index=True,
     )
