@@ -139,7 +139,6 @@ df = pd.DataFrame.from_dict(filtered_issues)
 if df.empty:
     st.markdown("No issues found")
 else:
-    st.dataframe(df)
     df["labels"] = df["labels"].map(
         lambda x: [label["name"] if label else "" for label in x]
     )
