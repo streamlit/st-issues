@@ -73,17 +73,27 @@ if "label" in query_params:
 filter_labels = st.sidebar.multiselect(
     "Filter by label", list(all_labels), default=default_filters
 )
+filter_missing_labels = st.sidebar.checkbox(
+    "Filter issues that require feature labels", value=False
+)
 
 st.experimental_set_query_params(label=filter_labels)
 
 filtered_issues = []
 for issue in all_issues:
     filtered_out = False
-    issue_labels = [label["name"] for label in issue["labels"]]
-    print(issue_labels)
+    issue_labels: List[str] = [label["name"] for label in issue["labels"]]
+    if filter_missing_labels:
+        filtered_out = False
+        for label in issue_labels:
+            if label.startswith("feature:") or label.startswith("area:"):
+                filtered_out = True
+                break
+
     for filter_label in filter_labels:
         if filter_label not in issue_labels:
             filtered_out = True
+
     if not filtered_out:
         filtered_issues.append(issue)
 
