@@ -1,7 +1,8 @@
 import json
 import pathlib
+import re
 import urllib.request
-from typing import List
+from typing import List, Optional
 from urllib.parse import quote
 
 import pandas as pd
@@ -145,6 +146,31 @@ def get_reproducible_example(issue_number: int):
     return None
 
 
+def get_view_count(issue_number: int) -> Optional[int]:
+    if issue_number < 7188:
+        # We only added the view count badge after issue 7188
+        return None
+    url = f"https://hits.seeyoufarm.com/api/count/keep/badge.svg?url=https://github.com/streamlit/streamlit/issues/{issue_number}"
+    # Load the SVG and extract the view count
+    try:
+        with urllib.request.urlopen(url) as response:
+            if not response or response.status != 200:
+                return None
+
+            data = response.read().decode("utf-8")
+
+            if match := re.search(r"([0-9]+) / ([0-9]+)", data):
+                return int(match.group(2))
+        return None
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
+def get_view_counts(issue_numbers_series: pd.Series) -> pd.Series:
+    return issue_numbers_series.map(get_view_count)
+
+
 df = pd.DataFrame.from_dict(filtered_issues)
 if df.empty:
     st.markdown("No issues found")
@@ -161,6 +187,7 @@ else:
     )
     df["author_avatar"] = df["user"].map(lambda x: x["avatar_url"])
     df["assignee_avatar"] = df["assignee"].map(lambda x: x["avatar_url"] if x else None)
+    df["views"] = get_view_counts(df["number"])
     df = df.sort_values(by=["total_reactions", "updated_at"], ascending=[False, False])
     st.dataframe(
         df[
@@ -174,6 +201,7 @@ else:
                 "assignee_avatar",
                 "reaction_types",
                 "comments",
+                "views",
                 "labels",
                 "reproducible_example",
                 # "author_association",
@@ -202,6 +230,7 @@ else:
             "reproducible_example": st.column_config.LinkColumn(
                 "Reproducible Example", width="medium"
             ),
+            "views": st.column_config.NumberColumn("Views", format="%d 👁️", width=100),
         },
         hide_index=True,
     )
