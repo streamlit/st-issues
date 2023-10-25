@@ -1,6 +1,6 @@
 import streamlit as st
 
-c1, c2 = st.columns(columns or [2, 5])
+c1, c2 = st.columns([2, 5])
 c1.markdown('Username: :red[*]')
 
 params = {}
