@@ -10,8 +10,8 @@ def updated():
 
 def update_value():
     # Uncomment/comment the below lines to go from correct to incorrect behavior
-    st.session_state.thingy = st.session_state.thingy + dt.timedelta(days=1)
-    # st.session_state.thingy = dt.datetime.now()
+    # st.session_state.thingy = st.session_state.thingy + dt.timedelta(days=1)
+    st.session_state.thingy = dt.datetime.now()
 
 
 def main():
