@@ -22,3 +22,5 @@ if st.session_state.stage == 1:
     st.title("Your text")
     for i, line in enumerate(st.session_state.lines):
         st.write(f"{i}. {line}")
+
+st.write(st.session_state)
