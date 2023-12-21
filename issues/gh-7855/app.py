@@ -1,10 +1,11 @@
 import streamlit as st
+import random 
 
 with st.form(key="async_testing_config"):
         # Components : Select async api endpoints for testing.
         components = st.multiselect(
             "Select async api endpoints",
-           ["a", "b", "c"],
+           random.choices(["a", "b", "c", "d", "e"], k=4),
             key="components"
         )
 
