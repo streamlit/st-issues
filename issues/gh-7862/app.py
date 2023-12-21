@@ -24,3 +24,9 @@ if st.session_state.stage == 1:
         st.write(f"{i}. {line}")
 
 st.write(st.session_state)
+
+text = st.text_area("Input your text 2", height=30)
+st.button(
+    "Begin 2"
+)
+st.write(text)
