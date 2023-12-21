@@ -11,5 +11,4 @@ with st.form(key="async_testing_config"):
         # Submitted - BOOLEAN
         Submitted = st.form_submit_button("Submit")
         if Submitted:
-            print("project id: ", project_id)
-            print("endpoints: ",components)
+            st.write("endpoints: ",components)
