@@ -14,7 +14,6 @@ def main():
 
     index = 1
     while(True):
-        text_container.empty()
         with text_container:
             st.write(f"Hello {index}")
         index += 1
