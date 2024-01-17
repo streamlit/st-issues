@@ -226,7 +226,7 @@ else:
             "labels": "Labels",
             "state": "State",
             "comments": st.column_config.NumberColumn("Comments", format="%d 💬"),
-            "html_url": st.column_config.LinkColumn("Url", width="medium", display_text="Open Issue"),
+            "html_url": st.column_config.LinkColumn("Url", display_text="Open Issue"),
             "reproducible_example": st.column_config.LinkColumn(
                 "Reproducible Example", width="medium"
             ),
