@@ -114,7 +114,6 @@ def get_overall_issues() -> pd.DataFrame:
                 "created_at",
                 "updated_at",
                 "reactions_total_count",
-                "reactions_total_count",
                 "reactions_plus1",
                 "reactions_minus1",
                 "reactions_laugh",
@@ -127,8 +126,7 @@ def get_overall_issues() -> pd.DataFrame:
                 "html_url",
                 "title"]
                 ]
-            st.write(df.columns )
-            st.write(str(df))
+            st.write(df)
             raw_issues.append(df)
             break
 
