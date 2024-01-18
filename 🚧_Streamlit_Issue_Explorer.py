@@ -31,7 +31,7 @@ def initial_query_params() -> dict:
         "initial_query_params" not in st.session_state
         or not st.session_state["initial_query_params"]
     ):
-        st.session_state["initial_query_params"] = st.experimental_get_query_params()
+        st.session_state["initial_query_params"] = st.query_params.to_dict()
     return st.session_state["initial_query_params"]
 
 
@@ -76,8 +76,7 @@ selected_issue = st.selectbox("Select Issue", options=issue_titles, index=defaul
 
 print("Selected issue:", selected_issue, flush=True)
 
-st.experimental_set_query_params(issue=selected_issue)
-
+st.query_params["issue"] = selected_issue
 
 @st.cache_data(ttl=60 * 5)  # cache for 5 minutes
 def request_github_issue(issue_number: str) -> dict:
