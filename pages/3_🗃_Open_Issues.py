@@ -77,7 +77,7 @@ def initial_query_params(key: str) -> List[str]:
     return st.session_state["initial_query_params"]
 
 
-default_filters = initial_query_params()
+default_filters = initial_query_params("label")
 print("Found label in query params", default_filters, flush=True)
 
 
