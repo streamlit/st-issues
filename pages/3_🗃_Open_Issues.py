@@ -81,7 +81,8 @@ default_filters = initial_query_params("label")
 
 for label in default_filters:
     if label not in all_labels:
-        st.warning(f"Label `{label}` does not exist {default_filters}"  )
+        st.warning(f"Label `{label}` does not exist")
+        print(default_filters, flush=True)
         default_filters.remove(label)
 
 filter_labels = st.sidebar.multiselect(
