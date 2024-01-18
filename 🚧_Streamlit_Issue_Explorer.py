@@ -76,6 +76,8 @@ if "issue" in query_params and query_params["issue"]:
 
 selected_issue = st.selectbox("Select Issue", options=issue_titles, index=default_index)
 
+print("Selected issue:", selected_issue, flush=True)
+
 st.experimental_set_query_params(issue=selected_issue)
 
 

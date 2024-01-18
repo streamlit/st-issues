@@ -78,6 +78,8 @@ filter_missing_labels = st.sidebar.checkbox(
     "Filter issues that require feature labels", value=False
 )
 
+print("Show issues with labels:", filter_labels, flush=True)
+
 st.experimental_set_query_params(label=filter_labels)
 
 filtered_issues = []
