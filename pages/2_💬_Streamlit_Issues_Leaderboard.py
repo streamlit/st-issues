@@ -104,6 +104,11 @@ def get_overall_issues() -> pd.DataFrame:
 
         for page in pages:
             df = pd.json_normalize(page)
+            # Replace special chars in columns to facilitate access in namedtuples
+            df.columns = [
+                col.replace(".", "_").replace("+1", "plus1").replace("-1", "minus1")
+                for col in df.columns
+            ]
             df = df[[
                 "number",
                 "created_at",
@@ -122,7 +127,8 @@ def get_overall_issues() -> pd.DataFrame:
                 "html_url",
                 "title"]
                 ]
-            raw_issues += df
+            st.dataframe(df)
+            raw_issues.append(df)
             break
 
         # Parse into a dataframe
@@ -132,11 +138,7 @@ def get_overall_issues() -> pd.DataFrame:
         full_df.created_at = pd.to_datetime(full_df.created_at)
         full_df.updated_at = pd.to_datetime(full_df.updated_at)
 
-        # Replace special chars in columns to facilitate access in namedtuples
-        full_df.columns = [
-            col.replace(".", "_").replace("+1", "plus1").replace("-1", "minus1")
-            for col in full_df.columns
-        ]
+  
 
     return full_df
 
