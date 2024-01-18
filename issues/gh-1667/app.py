@@ -19,9 +19,20 @@ base = alt.Chart(dataframe).encode(alt.X('Job Number:O'))
 chart_test_count = base.mark_line().encode(alt.Y('Test Count:N'))
 chart_test_failures = base.mark_line().encode(alt.Y('Test Failures:N'))
 
+st.markdown("**Doesn't work:")
 st.write((chart_test_count + chart_test_failures).resolve_scale(y='independent'))
+
+st.markdown("**Doesn't work:")
 st.altair_chart((chart_test_count + chart_test_failures).resolve_scale(y='independent'))
 
+st.markdown("**Works:")
+st.altair_chart((chart_test_count + chart_test_failures).resolve_scale(y='independent').properties(width=650,height=400))
+
+st.markdown("**Works:")
 st.altair_chart(chart_test_count)
+
+st.markdown("**Works:")
 st.altair_chart(chart_test_failures)
+
+st.markdown("**Works:")
 st.altair_chart(chart_test_count | chart_test_failures)
