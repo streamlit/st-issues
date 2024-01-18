@@ -90,7 +90,6 @@ CACHE_TIME = 60 * 60 * 72 # 3 days
 def get_overall_issues() -> pd.DataFrame:
 
     with st.spinner("🙋 Crawling issues..."):
-
         # Get raw data
         raw_issues = list()
 
@@ -104,26 +103,42 @@ def get_overall_issues() -> pd.DataFrame:
         )
 
         for page in pages:
-            st.write(list(page))
-            st.json(json.loads(page))
-            raw_issues += page
+            df = pd.json_normalize(page)
+            df = df[[
+                "number",
+                "created_at",
+                "updated_at",
+                "reactions_total_count",
+                "reactions_total_count",
+                "reactions_plus1",
+                "reactions_minus1",
+                "reactions_laugh",
+                "reactions_hooray",
+                "reactions_confused",
+                "reactions_heart",
+                "reactions_rocket",
+                "reactions_eyes",
+                "comments",
+                "html_url",
+                "title"]
+                ]
+            raw_issues += df
             break
 
         # Parse into a dataframe
-        df = pd.json_normalize(raw_issues)
-        st.write(raw_issues)
+        full_df = pd.concat(raw_issues)
 
         # Make sure types are properly understood
-        df.created_at = pd.to_datetime(df.created_at)
-        df.updated_at = pd.to_datetime(df.updated_at)
+        full_df.created_at = pd.to_datetime(full_df.created_at)
+        full_df.updated_at = pd.to_datetime(full_df.updated_at)
 
         # Replace special chars in columns to facilitate access in namedtuples
-        df.columns = [
+        full_df.columns = [
             col.replace(".", "_").replace("+1", "plus1").replace("-1", "minus1")
-            for col in df.columns
+            for col in full_df.columns
         ]
 
-    return df
+    return full_df
 
 
 def _reactions_formatter(
