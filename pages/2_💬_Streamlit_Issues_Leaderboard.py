@@ -212,6 +212,7 @@ def get_overall_reactions(issue_numbers: list):
     reactions_dfs = list()
     for issue_number in stqdm(issue_numbers, desc="🤯 Crawling reactions..."):
         reactions_df = _get_overall_reactions(issue_number)
+        st.dataframe(reactions_df)
         if not reactions_df.empty:
             reactions_df = reactions_df[
                 ["created_at", "content", "user.login", "user.id", "user.avatar_url"]
@@ -260,6 +261,7 @@ all_issues = get_overall_issues()
 # Only query issues which had at least 1 reaction
 issue_numbers = all_issues.query("reactions_total_count > 0").number.unique().tolist()
 reactions_df = get_overall_reactions(issue_numbers)
+st.dataframe(reactions_df)
 
 one, two, three, four = st.columns((2, 2, 3, 2))
 
