@@ -103,7 +103,9 @@ def get_overall_issues() -> pd.DataFrame:
         )
 
         for page in pages:
+            st.write(page)
             raw_issues += page
+            break
 
         # Parse into a dataframe
         df = pd.json_normalize(raw_issues)
