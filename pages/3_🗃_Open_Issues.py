@@ -78,8 +78,6 @@ def initial_query_params(key: str) -> List[str]:
 
 
 default_filters = initial_query_params("label")
-print("Found label in query params", default_filters, flush=True)
-
 
 filter_labels = st.sidebar.multiselect(
     "Filter by label", list(all_labels), default=default_filters
