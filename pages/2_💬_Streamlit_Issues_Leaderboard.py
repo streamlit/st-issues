@@ -127,6 +127,7 @@ def get_overall_issues() -> pd.DataFrame:
                 "html_url",
                 "title"]
                 ]
+            st.write(df.columns )
             st.write(str(df))
             raw_issues.append(df)
             break
