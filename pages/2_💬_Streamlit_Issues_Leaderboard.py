@@ -82,10 +82,10 @@ TODAY = datetime.date.today()
 A_WEEK_AGO = TODAY - datetime.timedelta(days=7)
 A_MONTH_AGO = TODAY - datetime.timedelta(days=30)
 REPO_CREATION = datetime.date(2019, 1, 1)
-TWENTY_FOUR_HOURS = 60 * 60 * 24
+CACHE_TIME = 60 * 60 * 72 # 3 days
 
 
-@st.cache_data(ttl=TWENTY_FOUR_HOURS, show_spinner=False, persist="disk")
+@st.cache_data(ttl=CACHE_TIME, show_spinner=False)
 def get_overall_issues() -> pd.DataFrame:
 
     with st.spinner("🙋 Crawling issues..."):
@@ -187,7 +187,7 @@ def _get_issue_html(issue, rank: int, sort_by: str) -> str:
 """
 
 
-@st.cache_data(ttl=TWENTY_FOUR_HOURS, show_spinner=False, persist="disk")
+@st.cache_data(ttl=CACHE_TIME, show_spinner=False)
 def _get_overall_reactions(issue_number: int):
     # Get raw data
     raw_reactions = list()
