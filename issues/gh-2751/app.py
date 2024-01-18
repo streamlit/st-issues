@@ -3,8 +3,6 @@ import numpy as np
 import altair as alt
 import streamlit as st
 
-st.set_page_config( layout='wide')
-
 x = np.linspace(10,100, 10)
 y1 = 5*x
 y2 = 1/x
