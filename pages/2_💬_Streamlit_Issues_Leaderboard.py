@@ -107,6 +107,7 @@ def get_overall_issues() -> pd.DataFrame:
 
         # Parse into a dataframe
         df = pd.json_normalize(raw_issues)
+        st.write(raw_issues)
 
         # Make sure types are properly understood
         df.created_at = pd.to_datetime(df.created_at)
