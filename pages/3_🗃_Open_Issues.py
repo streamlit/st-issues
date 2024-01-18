@@ -47,7 +47,7 @@ def get_all_github_issues():
                 issues.extend(data)
                 page += 1
             else:
-                print(f"Failed to retrieve data: {response.status_code}")
+                print(f"Failed to retrieve data: {response.status_code}:", response.text)
                 break
         except Exception as ex:
             print(ex, flush=True)
