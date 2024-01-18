@@ -104,6 +104,7 @@ def get_overall_issues() -> pd.DataFrame:
         )
 
         for page in pages:
+            st.write(type(page))
             st.json(json.loads(page))
             raw_issues += page
             break
