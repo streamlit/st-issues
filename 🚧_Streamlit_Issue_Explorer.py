@@ -1,11 +1,9 @@
-import json
 import os
 import pathlib
 import platform
 import re
-import urllib.request
-from typing import Union
 
+import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -82,15 +80,49 @@ st.experimental_set_query_params(issue=selected_issue)
 
 
 @st.cache_data(ttl=60 * 5)  # cache for 5 minutes
-def request_github_issue(issue_number: str) -> Union[str, None]:
+def request_github_issue(issue_number: str) -> dict:
+    headers = {
+        'Authorization': 'token ' + st.secrets["github"]["token"]
+    }
     try:
-        with urllib.request.urlopen(
-            f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}"
-        ) as response:
-            return response.read()
+        response = requests.get(
+            f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}",
+            headers=headers,
+            timeout=100
+        )
+            
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"Failed to retrieve data: {response.status_code}")
     except Exception as ex:
         print(ex, flush=True)
     return None
+
+def get_all_github_issues():
+    issues = []
+    page = 1
+
+    headers = {
+        'Authorization': 'token ' + st.secrets["github"]["token"]
+    }
+
+    while True:
+        try:
+            response = requests.get(
+                f"https://api.github.com/repos/streamlit/streamlit/issues?state=open&per_page=100&page={page}",
+                headers=headers
+            )
+             
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Failed to retrieve data: {response.status_code}")
+                break
+        except Exception as ex:
+            print(ex, flush=True)
+            break
+    return issues
 
 
 if selected_issue:
@@ -107,9 +139,8 @@ if selected_issue:
             issue_number = selected_issue_folder.replace("gh-", "")
             # Request issue from GitHub API and extract the body:
             try:
-                response = request_github_issue(issue_number)
-                if response:
-                    data = json.loads(response)
+                data = request_github_issue(issue_number)
+                if data:
                     if "title" in data:
                         issue_title = data["title"].strip()
                         st.markdown(f"**{issue_title}**")

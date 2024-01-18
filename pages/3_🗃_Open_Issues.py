@@ -1,4 +1,3 @@
-import json
 import pathlib
 import re
 import urllib.request
@@ -6,6 +5,7 @@ from typing import List, Optional
 from urllib.parse import quote
 
 import pandas as pd
+import requests
 import streamlit as st
 
 DEFAULT_ISSUES_FOLDER = "issues"
@@ -27,17 +27,28 @@ st.set_page_config(
 def get_all_github_issues():
     issues = []
     page = 1
+
+    headers = {
+        'Authorization': 'token ' + st.secrets["github"]["token"]
+    }
+
     while True:
         try:
-            with urllib.request.urlopen(
-                f"https://api.github.com/repos/streamlit/streamlit/issues?state=open&per_page=100&page={page}"
-            ) as response:
-                if response:
-                    data = json.loads(response.read())
-                    if not data:
-                        break
-                    issues.extend(data)
-                    page += 1
+            response = requests.get(
+                f"https://api.github.com/repos/streamlit/streamlit/issues?state=open&per_page=100&page={page}",
+                headers=headers,
+                timeout=100
+            )
+             
+            if response.status_code == 200:
+                data = response.json()
+                if not data:
+                    break
+                issues.extend(data)
+                page += 1
+            else:
+                print(f"Failed to retrieve data: {response.status_code}")
+                break
         except Exception as ex:
             print(ex, flush=True)
             break

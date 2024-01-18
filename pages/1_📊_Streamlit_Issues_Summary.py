@@ -1,9 +1,9 @@
-import streamlit as st
-import json
-import urllib.request
 from urllib.parse import quote
+
 import altair as alt
 import pandas as pd
+import requests
+import streamlit as st
 
 st.set_page_config(page_title="GitHub Issues Summary", page_icon="📊")
 
@@ -12,21 +12,32 @@ st.title("GitHub Issues Summary")
 
 # Paginate through all open issues in the streamlit/streamlit repo
 # and return them all as a list of dicts.
-@st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
+@st.cache_data(ttl=60 * 60 * 24)  # cache for 1 day
 def get_all_github_issues():
     issues = []
     page = 1
+
+    headers = {
+        'Authorization': 'token ' + st.secrets["github"]["token"]
+    }
+
     while True:
         try:
-            with urllib.request.urlopen(
-                f"https://api.github.com/repos/streamlit/streamlit/issues?state=open&per_page=100&page={page}"
-            ) as response:
-                if response:
-                    data = json.loads(response.read())
-                    if not data:
-                        break
-                    issues.extend(data)
-                    page += 1
+            response = requests.get(
+                f"https://api.github.com/repos/streamlit/streamlit/issues?state=open&per_page=100&page={page}",
+                headers=headers,
+                timeout=100
+            )
+             
+            if response.status_code == 200:
+                data = response.json()
+                if not data:
+                    break
+                issues.extend(data)
+                page += 1
+            else:
+                print(f"Failed to retrieve data: {response.status_code}")
+                break
         except Exception as ex:
             print(ex, flush=True)
             break
