@@ -79,7 +79,10 @@ def initial_query_params(key: str) -> List[str]:
 
 default_filters = initial_query_params("label")
 
-print("default_filters:", default_filters, flush=True)
+for label in default_filters:
+    if label not in all_labels:
+        st.warning(f"Label `{label}` does not exist")
+        default_filters.remove(label)
 
 filter_labels = st.sidebar.multiselect(
     "Filter by label", list(all_labels), default=default_filters

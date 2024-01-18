@@ -205,6 +205,11 @@ def _get_overall_reactions(issue_number: int):
 
     # Parse into a dataframe
     reactions_df = pd.json_normalize(raw_reactions)
+    if not reactions_df.empty:
+        reactions_df = reactions_df[
+                    ["created_at", "content", "user.login", "user.id", "user.avatar_url"]
+                ]
+        reactions_df["issue_number"] = issue_number
     return reactions_df
 
 
@@ -212,12 +217,7 @@ def get_overall_reactions(issue_numbers: list):
     reactions_dfs = list()
     for issue_number in stqdm(issue_numbers, desc="🤯 Crawling reactions..."):
         reactions_df = _get_overall_reactions(issue_number)
-        st.dataframe(reactions_df)
         if not reactions_df.empty:
-            reactions_df = reactions_df[
-                ["created_at", "content", "user.login", "user.id", "user.avatar_url"]
-            ]
-            reactions_df["issue_number"] = issue_number
             reactions_dfs.append(reactions_df)
 
     return pd.concat(reactions_dfs)
@@ -257,6 +257,7 @@ def format_reaction_in_widget(reaction: str) -> str:
 
 # Get all issues
 all_issues = get_overall_issues()
+st.dataframe(all_issues)
 
 # Only query issues which had at least 1 reaction
 issue_numbers = all_issues.query("reactions_total_count > 0").number.unique().tolist()
