@@ -80,6 +80,7 @@ def initial_query_params() -> dict:
 default_filters = []
 query_params = initial_query_params()
 if "label" in query_params:
+    print("Found label in query params", query_params, flush=True)
     default_filters = query_params["label"]
 
 filter_labels = st.sidebar.multiselect(
