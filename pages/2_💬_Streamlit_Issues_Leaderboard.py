@@ -126,9 +126,7 @@ def get_overall_issues() -> pd.DataFrame:
                 "html_url",
                 "title"]
                 ]
-            st.write(df)
             raw_issues.append(df)
-            break
 
         # Parse into a dataframe
         full_df = pd.concat(raw_issues)
@@ -136,8 +134,6 @@ def get_overall_issues() -> pd.DataFrame:
         # Make sure types are properly understood
         full_df.created_at = pd.to_datetime(full_df.created_at)
         full_df.updated_at = pd.to_datetime(full_df.updated_at)
-
-  
 
     return full_df
 
