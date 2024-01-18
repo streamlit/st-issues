@@ -67,6 +67,7 @@ for i, issue in enumerate(issues):
 issue_titles.sort(reverse=True)
 issue_titles = [""] + issue_titles
 query_params = initial_query_params()
+print("query_params", query_params, flush=True)
 if "issue" in query_params and query_params["issue"]:
     query_param_issue = str(query_params["issue"][0])
     if query_param_issue in issue_titles:
