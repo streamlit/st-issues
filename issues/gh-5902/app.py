@@ -3,8 +3,6 @@ import plotly.graph_objects as go
 import numpy as np
 import streamlit as st
 # without a token you'll get an empty plot, they are free to get at mapbox.com
-mapbox_token = open(".mapbox_token").read()
-st.set_page_config(layout="wide")
 
 periods_dt = ["201604", "201605"]
 period = st.select_slider("Period",periods_dt,value=periods_dt[0])
@@ -71,7 +69,7 @@ def create_plot(df, dt):
     colours = ['red', 'blue']
     fig = plotting_values(df, opacity_sorted,opacity, colours)
     fig.update_layout(title=f"{dt}", showlegend=False, height=1000,hoverlabel_align='left',  margin={"r":0,"l":0,"b":0, 't':30})
-    fig.update_mapboxes(zoom=1.9, accesstoken=mapbox_token)
+    fig.update_mapboxes(zoom=1.9, accesstoken="pk.eyJ1IjoidGhpYWdvdCIsImEiOiJjamh3bm85NnkwMng4M3dydnNveWwzeWNzIn0.vCBDzNsEF2uFSFk2AM0WZQ")
     return fig
 
 _fig = create_plot(df_plot, period)
