@@ -274,12 +274,10 @@ def format_reaction_in_widget(reaction: str) -> str:
 
 # Get all issues
 all_issues = get_overall_issues()
-st.dataframe(all_issues)
 
 # Only query issues which had at least 1 reaction
 issue_numbers = all_issues.query("reactions_total_count > 0").number.unique().tolist()
 reactions_df = get_overall_reactions(issue_numbers)
-st.dataframe(reactions_df)
 
 one, two, three, four = st.columns((2, 2, 3, 2))
 
