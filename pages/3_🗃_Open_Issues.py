@@ -64,7 +64,7 @@ for issue in all_issues:
         all_labels.add(label["name"])
 
 
-def initial_query_params() -> dict:
+def initial_query_params(key: str) -> List[str]:
     """
     When page is first loaded, or if current params are empty, sync url params to
     session state. Afterwards, just return local copy.
@@ -73,15 +73,13 @@ def initial_query_params() -> dict:
         "initial_query_params" not in st.session_state
         or not st.session_state["initial_query_params"]
     ):
-        st.session_state["initial_query_params"] = st.query_params.to_dict()
+        st.session_state["initial_query_params"] = st.query_params.get_all(key)
     return st.session_state["initial_query_params"]
 
 
-default_filters = []
-query_params = initial_query_params()
-if "label" in query_params:
-    print("Found label in query params", query_params, flush=True)
-    default_filters = query_params["label"]
+default_filters = initial_query_params()
+print("Found label in query params", default_filters, flush=True)
+
 
 filter_labels = st.sidebar.multiselect(
     "Filter by label", list(all_labels), default=default_filters
