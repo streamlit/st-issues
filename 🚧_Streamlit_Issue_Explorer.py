@@ -28,11 +28,11 @@ def initial_query_params() -> dict:
     session state. Afterwards, just return local copy.
     """
     if (
-        "initial_query_params" not in st.session_state
-        or not st.session_state["initial_query_params"]
+        "initial_query_params_issue" not in st.session_state
+        or not st.session_state["initial_query_params_issue"]
     ):
-        st.session_state["initial_query_params"] = st.query_params.to_dict()
-    return st.session_state["initial_query_params"]
+        st.session_state["initial_query_params_issue"] = st.query_params.to_dict()
+    return st.session_state["initial_query_params_issue"]
 
 
 path_of_script = pathlib.Path(__file__).parent.resolve()

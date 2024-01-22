@@ -70,16 +70,14 @@ def initial_query_params(key: str) -> List[str]:
     session state. Afterwards, just return local copy.
     """
     if (
-        "initial_query_params" not in st.session_state
-        or not st.session_state["initial_query_params"]
+        "initial_query_params_labels" not in st.session_state
+        or not st.session_state["initial_query_params_labels"]
     ):
-        st.session_state["initial_query_params"] = st.query_params.get_all(key)
-    return st.session_state["initial_query_params"]
+        st.session_state["initial_query_params_labels"] = st.query_params.get_all(key)
+    return st.session_state["initial_query_params_labels"]
 
 
 default_filters = initial_query_params("label")
-
-st.write(default_filters, type(default_filters), flush=True)
 
 for label in default_filters:
     if label not in all_labels:
