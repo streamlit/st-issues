@@ -5,4 +5,4 @@ with st.form("Form"):
     submit = st.form_submit_button("Submit", disabled=True)
 
 if submit:  
-    "## 😵 Disabled form was submitted ?"
+    st.write("## 😵 Disabled form was submitted ?")
