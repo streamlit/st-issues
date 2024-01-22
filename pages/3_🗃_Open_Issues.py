@@ -79,6 +79,8 @@ def initial_query_params(key: str) -> List[str]:
 
 default_filters = initial_query_params("label")
 
+st.write(default_filters, type(default_filters), flush=True)
+
 for label in default_filters:
     if label not in all_labels:
         st.warning(f"Label `{label}` does not exist")
