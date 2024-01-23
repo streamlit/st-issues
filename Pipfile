@@ -19,7 +19,7 @@ vega_datasets = "*"
 ghapi = "*"
 stqdm = "*"
 psutil = "*"
-
+streamlit-folium="*"
 
 [dev-packages]
 black = "*"
