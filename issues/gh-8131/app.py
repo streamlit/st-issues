@@ -2,9 +2,10 @@ import streamlit as st
 
 help = """Some code block:
 
-
+```
 select * 
 from table
+```
 
 """
 
