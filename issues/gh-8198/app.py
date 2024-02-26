@@ -1,7 +1,7 @@
 import streamlit as st
 
 # it doesn't work
-placeholder = st.empty()
+placeholder = st._bottom.empty()
 user_input = placeholder.chat_input(placeholder="your first question")
 if user_input:
     st.write(f"text input: {user_input}")
