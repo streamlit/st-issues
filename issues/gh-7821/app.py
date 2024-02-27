@@ -40,3 +40,12 @@ clipboard_js = """
 """
 # Display the custom CSS and JavaScript
 st.components.v1.html(table_html + clipboard_js, scrolling=True)
+
+
+js = """
+<script>
+    console.log("Hello world!");
+</script>
+"""
+
+st.components.v1.html(js)
