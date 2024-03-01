@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+
 # Contains data of more than two data types
 mixedData = {'mixed': ['10', 20, 30]}
 # Contains data of single data types
