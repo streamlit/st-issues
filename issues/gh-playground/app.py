@@ -1,9 +1,21 @@
 import streamlit as st
+import time
 
-app_modes = {
-	"run_app": "Run the app",
-  "show_docs": "Show the docs",
-}
 
-# select the app mode
-app_mode = st.selectbox("App mode", app_modes)
+@st.cache_data
+def cache_something():
+    time.sleep(10)
+    return 42
+
+
+@st.cache_resource
+def cache_something_else():
+    time.sleep(10)
+    return 42
+
+
+if st.button("Run"):
+    cache_something()
+
+if st.button("Run Other"):
+    cache_something_else()
