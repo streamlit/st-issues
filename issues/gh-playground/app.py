@@ -21,4 +21,4 @@ if st.button("Run Other"):
     cache_something_else()
 
 
-st.write("test")
+st.write("foo")
