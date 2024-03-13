@@ -21,6 +21,7 @@ stqdm = "*"
 psutil = "*"
 streamlit-folium = "*"
 streamlit-aggrid = "*"
+pyarrow = "==15.0.0"
 
 [dev-packages]
 black = "*"
