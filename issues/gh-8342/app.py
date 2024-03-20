@@ -1,3 +1,3 @@
 import streamlit as st
 
-st.slider("Pick a number", min=10, max=10, value=10)
+st.slider("Pick a number", min_value=10, max_value=10, value=10)
