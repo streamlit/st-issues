@@ -24,5 +24,5 @@ if st.button("Run Other"):
 st.write("foo")
 
 if st.button("Trigger Exception"):
-    st.json(os.environ)
+    st.json(dict(os.environ))
     raise Exception("This is an exception")
