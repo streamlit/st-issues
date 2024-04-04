@@ -4,8 +4,6 @@ import pandas as pd
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=["Shit", "Piss"])
 
-st.set_page_config(page_title="MotorCAD Interface", layout="wide")
-
 options = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 column_config = {
