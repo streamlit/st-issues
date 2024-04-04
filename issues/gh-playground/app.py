@@ -23,5 +23,5 @@ if st.button("Run Other"):
 
 st.write("foo")
 
-if st.button("Exception"):
-    raise Exception("Hello World")
+if st.button("Trigger Exception"):
+    raise Exception("This is an exception")
