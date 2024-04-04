@@ -4,6 +4,17 @@ import pandas as pd
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=["Shit", "Piss"])
 
+def update():
+    if "data" not in st.session_state:
+        return
+    for row in st.session_state.shit["added_rows"]:
+        st.session_state.data.loc[len(st.session_state.data)] = [row["Shit"], None]
+    
+    # The code below is required, otherwise the data_editor breaks.
+    # Its commented out to show the behaviour.
+
+    # st.session_state.data.reset_index(drop=True, inplace=True)
+
 options = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 column_config = {
@@ -32,13 +43,3 @@ st.write("st.dataframe which displays actual dataframe values")
 st.dataframe(st.session_state.data)
 
 
-def update():
-    if "data" not in st.session_state:
-        return
-    for row in st.session_state.shit["added_rows"]:
-        st.session_state.data.loc[len(st.session_state.data)] = [row["Shit"], None]
-    
-    # The code below is required, otherwise the data_editor breaks.
-    # Its commented out to show the behaviour.
-
-    # st.session_state.data.reset_index(drop=True, inplace=True)
