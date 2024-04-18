@@ -8,6 +8,7 @@ df = pd.DataFrame(
         ["G", "H", "I"],
     ],
     columns=range(3, 0, -1)
+)
 
 df = st.data_editor(
     df,
