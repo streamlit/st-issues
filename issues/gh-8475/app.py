@@ -10,9 +10,9 @@ d = st.date_input(
     "Select your vacation for next year",
     (jan_1, datetime.date(next_year, 1, 7)),
     jan_1,
-    dec_31
+    dec_31,
+    key="my_data_input",
 )
 
 st.write(d)
-
 st.write(st.session_state)
