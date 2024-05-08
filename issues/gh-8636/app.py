@@ -12,23 +12,11 @@ df = pd.DataFrame(
 )
 st.dataframe(
     df,
-    column_config={
-        "name": "App name",
-        "stars": st.column_config.NumberColumn(
-            "Github Stars",
-            help="Number of stars on GitHub",
-            format="%d ⭐",
-        ),
-        "url": st.column_config.LinkColumn("App URL"),
-        "views_history": st.column_config.LineChartColumn(
-            "Views (past 30 days)", y_min=0, y_max=5000
-        ),
-    },
     column_order={
       "stars",
       "name",
       "url",
       "views_history"
     },
-    hide_index=False,
+    hide_index=True,
 )
