@@ -30,5 +30,5 @@ st.dataframe(
       "url",
       "views_history"
     },
-    hide_index=True,
+    hide_index=False,
 )
