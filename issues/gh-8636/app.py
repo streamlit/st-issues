@@ -24,11 +24,11 @@ st.dataframe(
             "Views (past 30 days)", y_min=0, y_max=5000
         ),
     },
-    column_order={
+    column_order=[
       "stars",
       "name",
       "url",
       "views_history"
-    },
+    ],
     hide_index=True,
 )
