@@ -15,7 +15,7 @@ st.header("In form")
 with st.form("agent_form"):
       st.text_area(
           label="Ask the AI a Question (or ask for a Code Refactor to be done): ",
-          key="p_agent_user_input",
+          key="p_agent_user_input_in_form",
       )
       col1, col2 = st.columns(2)
       with col1:
