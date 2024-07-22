@@ -8,3 +8,7 @@ def show_dialog():
 
 if st.button("Open"):
     show_dialog()
+
+st.markdown("\n[1,2,3]\n")
+st.code("\n[1,2,3]\n")
+st.json([1, 2, 3])
