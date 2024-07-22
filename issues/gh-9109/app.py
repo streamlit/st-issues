@@ -21,8 +21,3 @@ try:
     raise ExceptionGroup("exception group", [ValueError()])
 except ValueError:
     "x", x
-
-
-match x:
-    case _:
-        "x", x
