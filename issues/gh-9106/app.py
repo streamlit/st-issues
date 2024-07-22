@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 
 np.random.seed(1)
+pd.set_option("styler.render.max_elements", 10000)
 
 weather = pd.DataFrame(
     np.c_[
