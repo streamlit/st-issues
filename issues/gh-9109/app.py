@@ -19,7 +19,7 @@ else:
 
 try:
     raise ExceptionGroup("exception group", [ValueError()])
-except* ValueError:
+except ValueError:
     "x", x
 
 
