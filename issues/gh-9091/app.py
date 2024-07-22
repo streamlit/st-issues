@@ -9,6 +9,8 @@ chart = alt.Chart(source, width=100, height=100).mark_point().encode(
     y="Miles_per_Gallon:Q",
 )
 
+st.altair_chart(chart.facet(column="Origin:N"), use_container_width=True)
+
 with st.echo():
     st.altair_chart(chart.facet(column="Origin:N"), use_container_width=True)
 with st.echo():
