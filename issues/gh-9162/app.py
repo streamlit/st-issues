@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(layout="wide")
 st.write(f'Streamlit {st.__version__}')
 df = pd.DataFrame({'x': [1, 2, 3], 'y': [10, 18, 13]})
 g = px.bar(df, x='x', y='y')
