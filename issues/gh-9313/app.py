@@ -21,7 +21,7 @@ dummy_analysis2 = Analysis(2, "dummy2", "bar")
 dummy_analysis3 = Analysis(3, "dummy3", "line")
 dummy_analysis4 = Analysis(4, "dummy4", "bar")
 
-@st.cache_data()
+@st.cache_resource
 def get_analysis() -> Analysis:
     """
     Dummy function to get an analysis object.
