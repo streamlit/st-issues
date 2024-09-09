@@ -4,7 +4,7 @@ radio_value = st.radio("Select1", ["Egg", "Spam", "Bacon", "Sausage"])
 st.write(radio_value)
 
 if st.button("Rerun"):
-    st.experimental_rerun()
+    st.rerun()
 
 radio_value = st.radio("Select2", ["Egg", "Spam", "Bacon", "Sausage"])
 st.write(radio_value)
