@@ -7,10 +7,9 @@ selected_bus_name = query_params.get("buses", ["MP"])
 st.query_params.hours = int(selected_hours)
 st.query_params.buses = selected_bus_name
 
-num_hours = st.sidebar.slider("Select Number of Hours", min_value=1, max_value=72, value=selected_hours,
-                              on_change=update_refresh_time)
+num_hours = st.sidebar.slider("Select Number of Hours", min_value=1, max_value=72, value=selected_hours)
 bus_names = st.sidebar.multiselect("Select Event Buses", ["MP", "UP", "Maha", "Hary", "Telum"],
-                                  default=selected_bus_name, on_change=update_refresh_time)
+                                  default=selected_bus_name)
 st.query_params.hours = int(num_hours)
 st.query_params.buses = bus_names
 
