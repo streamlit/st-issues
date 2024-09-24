@@ -1,7 +1,8 @@
 import pathlib
 import re
 import urllib.request
-from typing import List, Optional
+from datetime import date, datetime
+from typing import List, Literal, Optional
 from urllib.parse import quote
 
 import pandas as pd
@@ -24,22 +25,20 @@ st.set_page_config(
 # Paginate through all open issues in the streamlit/streamlit repo
 # and return them all as a list of dicts.
 @st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
-def get_all_github_issues():
+def get_all_github_issues(state: Literal["open", "closed"] = "open"):
     issues = []
     page = 1
 
-    headers = {
-        'Authorization': 'token ' + st.secrets["github"]["token"]
-    }
+    headers = {"Authorization": "token " + st.secrets["github"]["token"]}
 
     while True:
         try:
             response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/issues?state=open&per_page=100&page={page}",
+                f"https://api.github.com/repos/streamlit/streamlit/issues?state={state}&per_page=100&page={page}",
                 headers=headers,
-                timeout=100
+                timeout=100,
             )
-             
+
             if response.status_code == 200:
                 data = response.json()
                 if not data:
@@ -47,7 +46,9 @@ def get_all_github_issues():
                 issues.extend(data)
                 page += 1
             else:
-                print(f"Failed to retrieve data: {response.status_code}:", response.text)
+                print(
+                    f"Failed to retrieve data: {response.status_code}:", response.text
+                )
                 break
         except Exception as ex:
             print(ex, flush=True)
@@ -55,8 +56,21 @@ def get_all_github_issues():
     return issues
 
 
+filter_closed_issues_by_dates = st.sidebar.date_input(
+    "Filter closed issues by dates", value=(), max_value=date.today()
+)
+if filter_closed_issues_by_dates:
+    if len(filter_closed_issues_by_dates) == 1:
+        filter_closed_issues_by_dates = (filter_closed_issues_by_dates[0], date.today())
+
 # Ignore Pull Requests
-all_issues = [issue for issue in get_all_github_issues() if "pull_request" not in issue]
+all_issues = [
+    issue
+    for issue in get_all_github_issues(
+        state="closed" if filter_closed_issues_by_dates else "open"
+    )
+    if "pull_request" not in issue
+]
 all_labels = set()
 
 for issue in all_issues:
@@ -111,17 +125,16 @@ for issue in all_issues:
         if filter_label not in issue_labels:
             filtered_out = True
 
+    if issue["state"] == "closed" and filter_closed_issues_by_dates:
+        start_date, end_date = filter_closed_issues_by_dates
+        if (
+            datetime.fromisoformat(issue["closed_at"].strip("Z")).date() < start_date
+            or datetime.fromisoformat(issue["closed_at"].strip("Z")).date() > end_date
+        ):
+            filtered_out = True
+
     if not filtered_out:
         filtered_issues.append(issue)
-
-
-link_qs_labels = "+".join([quote("label:" + label) for label in filter_labels])
-link = f"https://github.com/streamlit/streamlit/issues?q={quote('is:open')}+{quote('is:issue')}+{link_qs_labels}"
-
-st.markdown("")  # Add some space to prevent issue in embedded mode
-st.caption(
-    f"**{len(filtered_issues)} issues** found based on the selected filters. [View on GitHub ↗️]({link})"
-)
 
 
 REACTION_EMOJI = {
@@ -205,6 +218,15 @@ else:
     df["assignee_avatar"] = df["assignee"].map(lambda x: x["avatar_url"] if x else None)
     df["views"] = get_view_counts(df["number"])
     df = df.sort_values(by=["total_reactions", "updated_at"], ascending=[False, False])
+
+    link_qs_labels = "+".join([quote("label:" + label) for label in filter_labels])
+    link = f"https://github.com/streamlit/streamlit/issues?q={quote('is:open')}+{quote('is:issue')}+{link_qs_labels}"
+
+    st.markdown("")  # Add some space to prevent issue in embedded mode
+    st.caption(
+        f"**{len(filtered_issues)} issues** with **{df['total_reactions'].sum()} reactions** based on the selected filters. [View on GitHub ↗️]({link})"
+    )
+
     st.dataframe(
         df[
             [
