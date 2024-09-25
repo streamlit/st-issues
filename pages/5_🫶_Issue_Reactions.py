@@ -22,7 +22,7 @@ st.set_page_config(
 
 st.title("🫶 Issue Reactions")
 st.caption(
-    "This page analyzes issue reactions (emoji reaction or comment) over time and by feature label."
+    "This page analyzes user reactions on Github issues (emoji reaction or comment)."
 )
 
 
