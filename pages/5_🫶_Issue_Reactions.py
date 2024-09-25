@@ -21,6 +21,9 @@ st.set_page_config(
 )
 
 st.title("🫶 Issue Reactions")
+st.caption(
+    "This page analyzes issue reactions (emoji reaction or comment) over time and by feature label."
+)
 
 
 # Paginate through all open issues in the streamlit/streamlit repo
