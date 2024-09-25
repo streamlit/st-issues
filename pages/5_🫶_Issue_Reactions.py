@@ -169,14 +169,6 @@ with col3:
 
 st.divider()
 
-# Add a new section for feature labels chart
-
-col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
-
-with col2.popover("Modify", use_container_width=True):
-    top_x = st.slider("Show top", min_value=1, max_value=100, value=25)
-
-col1.markdown(f"##### Top {top_x} Feature Labels by Reactions")
 
 # Process data for feature labels
 # Only use issues with state "open"
@@ -196,8 +188,18 @@ for _, issue in feature_labels.iterrows():
             )
 
 label_df = pd.DataFrame(label_reactions)
-top_labels = label_df.groupby("label")["reactions"].sum().nlargest(top_x).reset_index()
 
+# Get the number of unique labels:
+unique_labels = len(label_df["label"].unique())
+
+col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
+
+with col2.popover("Modify", use_container_width=True):
+    top_x = st.slider("Show top", min_value=1, max_value=unique_labels, value=15)
+
+col1.markdown(f"##### Top {top_x} Feature Labels by Reactions")
+
+top_labels = label_df.groupby("label")["reactions"].sum().nlargest(top_x).reset_index()
 # Create the bar chart for top 10 feature labels
 fig_labels = px.bar(
     top_labels,
