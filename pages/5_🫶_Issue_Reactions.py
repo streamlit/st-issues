@@ -16,7 +16,7 @@ PATH_TO_ISSUES = (
 
 st.set_page_config(
     page_title="Issue Reactions Over Time",
-    page_icon="🫶",
+    page_icon="👍",
     initial_sidebar_state="collapsed",
 )
 
