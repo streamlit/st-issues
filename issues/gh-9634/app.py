@@ -42,7 +42,7 @@ def main():
                 chat_placeholder.empty()
                 with chat_placeholder.container():
                     time.sleep(.005)
-                    with st.chat_message(name="assistant", avatar="KI.svg"):
+                    with st.chat_message(name="assistant"):
                         st.markdown(complete_result + " ")
                 # except StopException:
                 #     print("Exception: Stop Exception.")
