@@ -57,15 +57,17 @@ def main():
                 st.write(result["content"])
                 st.rerun()
 
-    except StopException:
+    except StopException as ex:
         print(f"Halt. Exception: Stop Exception.")
         traceback.print_exc()
+        st.exception(ex)
 
     except Exception as ex:
         print(
             f"Exception raised: {ex}. Traceback: {traceback.print_exc()}"
         )
         st.caption(":red[_Bei der Textgenerierung kam es zu einem unerwartetem Fehler._]")
+        st.exception(ex)
 
 
 
