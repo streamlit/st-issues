@@ -24,6 +24,13 @@ class DataFetcher:
     def clear_cache(self):
         self._get_data.clear()
 
+@st.cache_data(show_spinner="Fetching data...", ttl=None)
+def get_data_2(param):
+    # Simulate a time-consuming operation
+    time.sleep(2)
+    # Use the param in the returned data
+    return f"Data for '{param}'."
+        
 def main():
     st.title("Streamlit Cache Clear Bug Demo")
 
@@ -40,6 +47,13 @@ def main():
 
     st.write("Note: If cache is working, only the first fetch for each unique category should take ~2 seconds.")
     st.write("If cache is cleared successfully, the next fetch after clearing should take ~2 seconds for all categories.")
+
+    if st.button("Fetch Data 2"):
+        get_data_2(param)
+
+    if st.button("Clear Cache 2"):
+        get_data_2.clear()
+        st.success("Cache 2 cleared")
 
 if __name__ == "__main__":
     main()
