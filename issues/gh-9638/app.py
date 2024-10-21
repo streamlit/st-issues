@@ -1,4 +1,4 @@
-import classDef as cd
+import .classDef as cd
 import streamlit as st
 
 def initObj():
