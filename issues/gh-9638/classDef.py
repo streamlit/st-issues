@@ -1,0 +1,2 @@
+class testclass():
+    testfield = True
