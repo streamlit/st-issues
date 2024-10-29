@@ -92,6 +92,11 @@ with col2.popover("Modify", use_container_width=True):
         max_value=all_issues_df["closed_at"].max().date(),
     )
 
+    # Filter who closed the issue:
+    closed_by_filter = st.text_input(
+        "Closed by", value=st.query_params.get("closed_by", "")
+    )
+
     # Filter data based on selected date range
     start_date, end_date = date_range
     if start_date and end_date:
@@ -101,6 +106,16 @@ with col2.popover("Modify", use_container_width=True):
         ]
     else:
         df_filtered = all_issues_df
+
+    if closed_by_filter:
+        # Closed by contains a json string, we need to extract the name from it in the login
+        df_filtered = df_filtered[
+            df_filtered["closed_by"].apply(
+                lambda x: closed_by_filter.lower() in x.get("login", "").lower()
+                if x
+                else False
+            )
+        ]
 
 col1.markdown(
     f"##### Total Reactions on Closed Issues (Grouped by {time_grouping})",
