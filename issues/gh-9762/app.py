@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(layout='wide')
-
 narrow_dataframe = pd.DataFrame({'narrow_col_1':[1,2,3],'narrow_col_2':[4,5,6],'narrow_col_3':[7,8,9]})
 wider_dataframe = pd.DataFrame({'wider_col_1':[1,2,3],'wider_col_2':[4,5,6],'wider_col_3':[7,8,9],'wider_col_4':[10,11,12],'wider_col_5':[13,14,15],'wider_col_6':[16,17,18],'wider_col_7':[19,20,21],'wider_col_8':[22,23,24],'wider_col_9':[25,26,27]})
 full_width_dataframe = pd.DataFrame({'full_width_col_1':[1,2,3],'full_width_col_2':[4,5,6],'full_width_col_3':[7,8,9],'full_width_col_4':[10,11,12],'full_width_col_5':[13,14,15],'full_width_col_6':[16,17,18],'full_width_col_7':[19,20,21],'full_width_col_8':[22,23,24],'full_width_col_9':[25,26,27]})
