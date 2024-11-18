@@ -1,5 +1,4 @@
 import datetime
-import json
 from typing import Iterable
 
 import pandas as pd
@@ -83,12 +82,11 @@ TODAY = datetime.date.today()
 A_WEEK_AGO = TODAY - datetime.timedelta(days=7)
 A_MONTH_AGO = TODAY - datetime.timedelta(days=30)
 REPO_CREATION = datetime.date(2019, 1, 1)
-CACHE_TIME = 60 * 60 * 72 # 3 days
+CACHE_TIME = 60 * 60 * 72  # 3 days
 
 
 @st.cache_data(ttl=CACHE_TIME, show_spinner=False)
 def get_overall_issues() -> pd.DataFrame:
-
     with st.spinner("🙋 Crawling issues..."):
         # Get raw data
         raw_issues = list()
@@ -109,23 +107,25 @@ def get_overall_issues() -> pd.DataFrame:
                 col.replace(".", "_").replace("+1", "plus1").replace("-1", "minus1")
                 for col in df.columns
             ]
-            df = df[[
-                "number",
-                "created_at",
-                "updated_at",
-                "reactions_total_count",
-                "reactions_plus1",
-                "reactions_minus1",
-                "reactions_laugh",
-                "reactions_hooray",
-                "reactions_confused",
-                "reactions_heart",
-                "reactions_rocket",
-                "reactions_eyes",
-                "comments",
-                "html_url",
-                "title"]
+            df = df[
+                [
+                    "number",
+                    "created_at",
+                    "updated_at",
+                    "reactions_total_count",
+                    "reactions_plus1",
+                    "reactions_minus1",
+                    "reactions_laugh",
+                    "reactions_hooray",
+                    "reactions_confused",
+                    "reactions_heart",
+                    "reactions_rocket",
+                    "reactions_eyes",
+                    "comments",
+                    "html_url",
+                    "title",
                 ]
+            ]
             raw_issues.append(df)
 
         # Parse into a dataframe
@@ -143,7 +143,6 @@ def _reactions_formatter(
     counts: Iterable[int],
     grayscale_mask: Iterable[bool],
 ) -> str:
-
     reactions = "&nbsp;&nbsp;  ·  &nbsp;&nbsp;".join(
         [
             f"{reaction} {count}"
@@ -157,7 +156,6 @@ def _reactions_formatter(
 
 
 def _get_issue_html(issue, rank: int, sort_by: str) -> str:
-
     separator = f"{inline_space(2)}·{inline_space(2)}"
     import html
 
@@ -224,8 +222,8 @@ def _get_overall_reactions(issue_number: int):
     reactions_df = pd.json_normalize(raw_reactions)
     if not reactions_df.empty:
         reactions_df = reactions_df[
-                    ["created_at", "content", "user.login", "user.id", "user.avatar_url"]
-                ]
+            ["created_at", "content", "user.login", "user.id", "user.avatar_url"]
+        ]
         reactions_df["issue_number"] = issue_number
     return reactions_df
 
@@ -275,8 +273,8 @@ def format_reaction_in_widget(reaction: str) -> str:
 # Get all issues
 all_issues = get_overall_issues()
 
-# Only query issues which had at least 1 reaction
-issue_numbers = all_issues.query("reactions_total_count > 0").number.unique().tolist()
+# Only query issues which had at least 5 reaction
+issue_numbers = all_issues.query("reactions_total_count >= 5").number.unique().tolist()
 reactions_df = get_overall_reactions(issue_numbers)
 
 one, two, three, four = st.columns((2, 2, 3, 2))
