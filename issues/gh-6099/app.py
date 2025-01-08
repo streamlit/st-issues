@@ -63,4 +63,4 @@ histogram = (
     interval
 )
 
-st.altair_chart(line_chart & view | histogram)
+st.altair_chart(line_chart & view | histogram, theme=None)
