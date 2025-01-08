@@ -1,9 +1,29 @@
 import pandas as pd
 import altair as alt
+import numpy as np
+from datetime import datetime
+from pandas import DataFrame, bdate_range
 
 alt.renderers.enable('mimetype')
 
-data = pd._testing.makeTimeDataFrame(freq='H')
+def makeTimeDataFrame(nper=10, freq="B", columns=None, start_date=None):
+    if columns is None:
+        columns = ["A", "B", "C", "D"]
+
+    if start_date is None:
+        start_date = datetime(2000, 1, 1)
+
+    # Create a range of dates
+    date_index = bdate_range(start=start_date, periods=nper, freq=freq)
+
+    # For each column, generate nper random numbers
+    data = {col: np.random.randn(nper) for col in columns}
+
+    # Build DataFrame
+    df = DataFrame(data, index=date_index, columns=columns)
+    return df
+    
+data = makeTimeDataFrame(freq='H')
 data = data.reset_index().melt(id_vars="index")
 
 interval = alt.selection_interval(encodings=["x"])
