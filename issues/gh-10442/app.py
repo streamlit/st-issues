@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(layout="wide")
-
 # Create a sample dataframe with 3 columns Col1, Col2, Col3
 df = pd.DataFrame({
     'Col1': ['A', 'B', 'C'],
