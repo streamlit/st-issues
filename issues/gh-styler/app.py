@@ -474,7 +474,7 @@ show_styler(styled_df_9)
 colored_header("❌ Hide Columns")
 
 df13 = pd.DataFrame([[1, 2], [3, 4], [5, 6]], index=["a", "b", "c"], columns=["A", "B"])
-styled_df_9 = df13.style.hide_columns(["A"])
+styled_df_9 = df13.style.hide(["A"], axis="columns") 
 
 show_styler(styled_df_9)
 
