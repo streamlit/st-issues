@@ -500,7 +500,7 @@ def color_negative_red(val):
 
 
 styled_df_9 = (
-    df14.style.applymap(color_negative_red).apply(highlight_max).set_precision(2)
+    df14.style.applymap(color_negative_red).apply(highlight_max).format(precision=2)
 )
 
 show_styler(styled_df_9)
