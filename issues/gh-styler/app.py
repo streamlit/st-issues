@@ -5,8 +5,6 @@ import pandas as pd
 
 import streamlit as st
 
-st.set_page_config(page_title="Pandas Styler - Playground", page_icon=":panda:")
-
 HEADER_COLOR_CYCLE = itertools.cycle(
     [
         "#00c0f2",  # light-blue-70",
