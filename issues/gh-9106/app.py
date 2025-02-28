@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 
 np.random.seed(1)
-pd.set_option("styler.render.max_elements", 10000)
 
 weather = pd.DataFrame(
     np.c_[
@@ -17,11 +16,12 @@ weather = pd.DataFrame(
 
 colnames = {"A": "Temperature (°C)", "B": "Humidity (%)", "C": "Pressure (hPa)"}
 
-st.dataframe(
-    weather.style
-    # do your stuff here
-    .background_gradient(cmap="coolwarm")
+styled_df = (
+    weather.style.background_gradient(cmap="coolwarm")
     .set_properties(**{"text-align": "center", "width": "110px"})
-    # then rename the header
     .format_index(colnames.get, axis=1)
 )
+
+st.table(styled_df)
+st.dataframe(styled_df)
+st.html(styled_df.to_html())
