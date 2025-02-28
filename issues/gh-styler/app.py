@@ -61,14 +61,14 @@ def show_styler(styled_df):
 
     st.markdown("---")
 
-    st.markdown("Via st.dataframe:")
-    st.dataframe(styled_df)
-
-    st.markdown("---")
-
     st.markdown("Via st.table:")
     st.table(styled_df)
 
+    st.markdown("---")
+
+    st.markdown("Via st.dataframe:")
+    st.dataframe(styled_df)
+    
     TABLE_COUNTER += 1
 
 
