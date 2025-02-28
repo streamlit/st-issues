@@ -330,7 +330,7 @@ colored_header("✅ Builtin Styles: Highlight Null")
 
 df2.iloc[0, 2] = np.nan
 df2.iloc[4, 3] = np.nan
-styled_df_7 = df2.loc[:4].style.highlight_null(null_color="yellow")
+styled_df_7 = df2.loc[:4].style.highlight_null(color="yellow")
 
 show_styler(styled_df_7)
 
