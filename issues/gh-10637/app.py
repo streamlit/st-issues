@@ -8,7 +8,7 @@ class Status(str, enum.Enum):
     error = "Error status"
 
     def __str__(self):
-        return self.name
+        return self.value
 
 df = pd.DataFrame(
     {"pipeline": ["Success", "Error", "Running"], "status": [Status.success, Status.error, Status.running]}
