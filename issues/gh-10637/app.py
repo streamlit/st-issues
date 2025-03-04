@@ -30,4 +30,8 @@ def status_highlight(value: Status):
 
 df = df.style.map(status_highlight, subset=["status"])
 
+
+st.dataframe(df, column_config={"status": st.column_config.TextColumn("Status column")}, hide_index=True)
+
+df["status"] = df["status"].astype(str)
 st.dataframe(df, column_config={"status": st.column_config.TextColumn("Status column")}, hide_index=True)
