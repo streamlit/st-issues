@@ -35,3 +35,4 @@ st.dataframe(df, column_config={"status": st.column_config.TextColumn("Status co
 
 df.data["status"] = df.data["status"].astype(str)
 st.dataframe(df, column_config={"status": st.column_config.TextColumn("Status column")}, hide_index=True)
+st.html(df.to_html())
