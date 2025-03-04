@@ -26,6 +26,21 @@ st.caption(
 )
 
 
+# Function to determine issue type based on labels
+def get_issue_type(labels):
+    is_bug = any(label["name"] == "type:bug" for label in labels)
+    is_enhancement = any(label["name"] == "type:enhancement" for label in labels)
+    
+    if is_bug and is_enhancement:
+        return ["Bug", "Enhancement"]
+    elif is_bug:
+        return "Bug"
+    elif is_enhancement:
+        return "Enhancement"
+    else:
+        return []
+
+
 # Paginate through all open issues in the streamlit/streamlit repo
 # and return them all as a list of dicts.
 @st.cache_data(ttl=60 * 60 * 48)  # cache for 48 hours
@@ -204,20 +219,6 @@ if event_data and "selection" in event_data and event_data["selection"]["points"
     
     # Create a dataframe with the required columns
     if not selected_issues.empty:
-        # Function to determine issue type based on labels
-        def get_issue_type(labels):
-            is_bug = any(label["name"] == "type:bug" for label in labels)
-            is_enhancement = any(label["name"] == "type:enhancement" for label in labels)
-            
-            if is_bug and is_enhancement:
-                return "Bug & Enhancement"
-            elif is_bug:
-                return "Bug"
-            elif is_enhancement:
-                return "Enhancement"
-            else:
-                return "Other"
-        
         issues_df = pd.DataFrame({
             "Title": selected_issues["title"],
             "Reactions": selected_issues["total_reactions"],
@@ -337,20 +338,6 @@ if feature_event_data and "selection" in feature_event_data and feature_event_da
     
     # Create a dataframe with the required columns
     if not selected_feature_issues.empty:
-        # Function to determine issue type based on labels
-        def get_issue_type(labels):
-            is_bug = any(label["name"] == "type:bug" for label in labels)
-            is_enhancement = any(label["name"] == "type:enhancement" for label in labels)
-            
-            if is_bug and is_enhancement:
-                return "Bug & Enhancement"
-            elif is_bug:
-                return "Bug"
-            elif is_enhancement:
-                return "Enhancement"
-            else:
-                return "Other"
-        
         feature_issues_df = pd.DataFrame({
             "Title": selected_feature_issues["title"],
             "Reactions": selected_feature_issues["total_reactions"],
