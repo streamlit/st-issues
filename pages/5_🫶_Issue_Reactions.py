@@ -212,9 +212,9 @@ if event_data and "selection" in event_data and event_data["selection"]["points"
             if is_bug and is_enhancement:
                 return "Bug & Enhancement"
             elif is_bug:
-                return "🐛 Bug"
+                return "Bug"
             elif is_enhancement:
-                return "🚀 Enhancement"
+                return "Enhancement"
             else:
                 return "Other"
         
@@ -250,6 +250,7 @@ if event_data and "selection" in event_data and event_data["selection"]["points"
                 "Link": st.column_config.LinkColumn(
                     display_text="issues/([0-9]+)",
                 ),
+                "Type": st.column_config.ListColumn(),
             },
             hide_index=True,
         )
@@ -344,9 +345,9 @@ if feature_event_data and "selection" in feature_event_data and feature_event_da
             if is_bug and is_enhancement:
                 return "Bug & Enhancement"
             elif is_bug:
-                return "🐛 Bug"
+                return "Bug"
             elif is_enhancement:
-                return "🚀 Enhancement"
+                return "Enhancement"
             else:
                 return "Other"
         
@@ -371,6 +372,7 @@ if feature_event_data and "selection" in feature_event_data and feature_event_da
                 "Link": st.column_config.LinkColumn(
                     display_text="issues/([0-9]+)",
                 ),
+                "Type": st.column_config.ListColumn(),
             },
             hide_index=True,
         )
