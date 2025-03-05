@@ -21,6 +21,8 @@ stqdm = "*"
 psutil = "*"
 streamlit-folium = "*"
 streamlit-aggrid = "*"
+humanize = "*"
+coverage = "*"
 
 [dev-packages]
 black = "*"
