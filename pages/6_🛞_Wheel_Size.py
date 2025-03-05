@@ -31,7 +31,12 @@ time_period = st.sidebar.selectbox(
     index=3,
 )
 workflow_runs_limit = st.sidebar.slider(
-    "Number of workflow runs", min_value=100, max_value=1000, value=100, step=100
+    "Number of workflow runs",
+    min_value=100,
+    max_value=500,
+    value=100,
+    step=100,
+    help="This is equivalent to the number of commits to develop to include in the analysis.",
 )
 
 
