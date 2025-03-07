@@ -2,9 +2,10 @@ import pathlib
 import re
 import urllib.request
 from datetime import date, datetime
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 from urllib.parse import quote
 
+import altair as alt
 import pandas as pd
 import requests
 import streamlit as st
@@ -105,6 +106,9 @@ filter_labels = st.sidebar.multiselect(
 filter_missing_labels = st.sidebar.checkbox(
     "Filter issues that require feature labels", value=False
 )
+
+# Add checkbox for showing statistics
+show_statistics = st.sidebar.checkbox("Show issue statistics", value=False)
 
 print("Show issues with labels:", filter_labels, flush=True)
 
@@ -272,3 +276,228 @@ else:
         },
         hide_index=True,
     )
+
+    # Display statistics if checkbox is checked
+    if show_statistics:
+        st.divider()
+        st.subheader("📊 Issue Statistics")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            # Age statistics
+            if not df.empty:
+                # Fix: Convert created_at to datetime and handle timezone properly
+                df["age_days"] = df["created_at"].apply(
+                    lambda x: (
+                        datetime.now(
+                            datetime.fromisoformat(x.replace("Z", "+00:00")).tzinfo
+                        )
+                        - datetime.fromisoformat(x.replace("Z", "+00:00"))
+                    ).days
+                )
+
+                st.metric("Average age (days)", round(df["age_days"].mean(), 1))
+                st.metric("Oldest issue (days)", df["age_days"].max())
+
+        with col2:
+            # Reaction and comment statistics
+            if not df.empty:
+                st.metric(
+                    "Average reactions per issue",
+                    round(df["total_reactions"].mean(), 1),
+                )
+                st.metric("Most reactions on an issue", df["total_reactions"].max())
+
+        with col3:
+            if "views" in df.columns and not df["views"].isna().all():
+                st.metric("Average views per issue", round(df["views"].mean(), 1))
+                st.metric("Most viewed issue", df["views"].max())
+
+        # Categorized statistics (similar to Streamlit Issues Summary)
+        if not df.empty and "labels" in df.columns:
+            # Create category dictionaries
+            categories: Dict[str, Dict[str, int]] = {
+                "priority": {},
+                "status": {},
+                "feature": {},
+                "area": {},
+                "type": {},
+            }
+
+            # Count issues by category
+            for _, issue in df.iterrows():
+                issue_counted = {cat: False for cat in categories.keys()}
+
+                for label in issue["labels"]:
+                    if ":" in label:
+                        category, value = label.split(":", 1)
+                        if category in categories:
+                            categories[category][value] = (
+                                categories[category].get(value, 0) + 1
+                            )
+                            issue_counted[category] = True
+                    elif label.startswith("type:"):
+                        # Handle type labels separately
+                        value = label[5:]  # Remove 'type:' prefix
+                        categories["type"][value] = categories["type"].get(value, 0) + 1
+                        issue_counted["type"] = True
+
+                # Count issues without specific category labels
+                for cat in categories.keys():
+                    if not issue_counted[cat]:
+                        categories[cat]["(not specified)"] = (
+                            categories[cat].get("(not specified)", 0) + 1
+                        )
+
+            # Display category charts
+            st.subheader("Issues by Category")
+
+            # Create tabs for different categories
+            tabs = st.tabs(["Priority", "Status", "Feature", "Area", "Type"])
+
+            # Helper function to create horizontal bar chart
+            def create_horizontal_bar_chart(data_df, title, x_field, y_field):
+                # Set minimum bar height and spacing
+                bar_height = 15  # Minimum height for each bar in pixels
+                bar_padding = 1  # Padding between bars (proportion of bar height)
+
+                # Calculate chart height based on number of items
+                chart_height = max(200, len(data_df) * (bar_height * (1 + bar_padding)))
+
+                # Create the chart with improved styling
+                chart = (
+                    alt.Chart(data_df, title=title)
+                    .mark_bar(
+                        cornerRadiusTopRight=3,
+                        cornerRadiusBottomRight=3,
+                        height=bar_height,
+                    )
+                    .encode(
+                        x=alt.X(f"{x_field}:Q", title="Count"),
+                        y=alt.Y(
+                            f"{y_field}:N",
+                            title=title,
+                            sort="-x",
+                            axis=alt.Axis(labelLimit=200),  # Allow longer labels
+                        ),
+                        tooltip=[y_field, x_field],
+                        color=alt.Color(
+                            f"{x_field}:Q", legend=None, scale=alt.Scale(scheme="blues")
+                        ),
+                    )
+                    .properties(height=chart_height)
+                    .configure_axis(labelFontSize=12, titleFontSize=14)
+                    .configure_title(fontSize=16, anchor="start")
+                )
+
+                return chart
+
+            # Priority tab
+            with tabs[0]:
+                if categories["priority"]:
+                    priority_df = pd.DataFrame(
+                        list(categories["priority"].items()),
+                        columns=["Priority", "Count"],
+                    )
+                    # Filter out "(not specified)" entries
+                    priority_df = priority_df[
+                        priority_df["Priority"] != "(not specified)"
+                    ]
+                    if not priority_df.empty:
+                        priority_df = priority_df.sort_values("Count", ascending=False)
+                        st.altair_chart(
+                            create_horizontal_bar_chart(
+                                priority_df, "Priority", "Count", "Priority"
+                            ),
+                            use_container_width=True,
+                        )
+                    else:
+                        st.write("No priority data available")
+                else:
+                    st.write("No priority data available")
+
+            # Status tab
+            with tabs[1]:
+                if categories["status"]:
+                    status_df = pd.DataFrame(
+                        list(categories["status"].items()), columns=["Status", "Count"]
+                    )
+                    # Filter out "(not specified)" entries
+                    status_df = status_df[status_df["Status"] != "(not specified)"]
+                    if not status_df.empty:
+                        status_df = status_df.sort_values("Count", ascending=False)
+                        st.altair_chart(
+                            create_horizontal_bar_chart(
+                                status_df, "Status", "Count", "Status"
+                            ),
+                            use_container_width=True,
+                        )
+                    else:
+                        st.write("No status data available")
+                else:
+                    st.write("No status data available")
+
+            # Feature tab
+            with tabs[2]:
+                if categories["feature"]:
+                    feature_df = pd.DataFrame(
+                        list(categories["feature"].items()),
+                        columns=["Feature", "Count"],
+                    )
+                    # Filter out "(not specified)" entries
+                    feature_df = feature_df[feature_df["Feature"] != "(not specified)"]
+                    if not feature_df.empty:
+                        feature_df = feature_df.sort_values("Count", ascending=False)
+                        st.altair_chart(
+                            create_horizontal_bar_chart(
+                                feature_df, "Feature", "Count", "Feature"
+                            ),
+                            use_container_width=True,
+                        )
+                    else:
+                        st.write("No feature data available")
+                else:
+                    st.write("No feature data available")
+
+            # Area tab
+            with tabs[3]:
+                if categories["area"]:
+                    area_df = pd.DataFrame(
+                        list(categories["area"].items()), columns=["Area", "Count"]
+                    )
+                    # Filter out "(not specified)" entries
+                    area_df = area_df[area_df["Area"] != "(not specified)"]
+                    if not area_df.empty:
+                        area_df = area_df.sort_values("Count", ascending=False)
+                        st.altair_chart(
+                            create_horizontal_bar_chart(
+                                area_df, "Area", "Count", "Area"
+                            ),
+                            use_container_width=True,
+                        )
+                    else:
+                        st.write("No area data available")
+                else:
+                    st.write("No area data available")
+
+            # Type tab
+            with tabs[4]:
+                if categories["type"]:
+                    type_df = pd.DataFrame(
+                        list(categories["type"].items()), columns=["Type", "Count"]
+                    )
+                    # Filter out "(not specified)" entries
+                    type_df = type_df[type_df["Type"] != "(not specified)"]
+                    if not type_df.empty:
+                        type_df = type_df.sort_values("Count", ascending=False)
+                        st.altair_chart(
+                            create_horizontal_bar_chart(
+                                type_df, "Type", "Count", "Type"
+                            ),
+                            use_container_width=True,
+                        )
+                    else:
+                        st.write("No type data available")
+                else:
+                    st.write("No type data available")
