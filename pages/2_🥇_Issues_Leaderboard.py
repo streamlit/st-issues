@@ -26,7 +26,7 @@ def reactions_formatter(reactions: Iterable[str], counts: Iterable[int]) -> None
     )
 
 
-st.title("Github Issues Leaderboard")
+st.title("🥇 Github Issues Leaderboard")
 
 api = GhApi(token=st.secrets.github.token)
 
