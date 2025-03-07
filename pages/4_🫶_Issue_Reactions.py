@@ -135,7 +135,9 @@ with col2.popover("Modify", use_container_width=True):
 col1.markdown(
     f"##### Total Reactions on Closed Issues (Grouped by {time_grouping})",
 )
-st.caption("Click on a bar to view the issues closed in that time period.")
+st.caption(
+    ":material/keyboard_arrow_down: Click on a bar to view the issues closed in that time period."
+)
 
 # Group data based on selected time grouping
 if time_grouping == "Day":
