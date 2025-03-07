@@ -228,7 +228,7 @@ else:
 
     st.markdown("")  # Add some space to prevent issue in embedded mode
     st.caption(
-        f"**{len(filtered_issues)} issues** with **{df['total_reactions'].sum()} reactions** based on the selected filters. [View on GitHub ↗️]({link})"
+        f"**{len(filtered_issues)} issues** with **{df['total_reactions'].sum()} reactions** based on the selected filters. [View on GitHub :material/open_in_new:]({link})"
     )
 
     st.dataframe(
