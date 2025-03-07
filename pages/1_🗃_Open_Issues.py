@@ -307,12 +307,14 @@ else:
                     "Average reactions per issue",
                     round(df["total_reactions"].mean(), 1),
                 )
-                st.metric("Most reactions on an issue", df["total_reactions"].max())
+                st.metric(
+                    "Most reactions on an issue", int(df["total_reactions"].max())
+                )
 
         with col3:
             if "views" in df.columns and not df["views"].isna().all():
                 st.metric("Average views per issue", round(df["views"].mean(), 1))
-                st.metric("Most viewed issue", df["views"].max())
+                st.metric("Most viewed issue", int(df["views"].max()))
 
         # Categorized statistics (similar to Streamlit Issues Summary)
         if not df.empty and "labels" in df.columns:
