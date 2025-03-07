@@ -136,7 +136,7 @@ col1.markdown(
     f"##### Total Reactions on Closed Issues (Grouped by {time_grouping})",
 )
 st.caption(
-    ":material/keyboard_arrow_down: Click on a bar to view the issues closed in that time period."
+    ":material/web_traffic: Click on a bar to view the issues closed in that time period."
 )
 
 # Group data based on selected time grouping
@@ -313,7 +313,7 @@ with col2.popover("Modify", use_container_width=True):
 
 col1.markdown(f"##### Top {top_x} Feature Labels by Reactions")
 st.caption(
-    ":material/keyboard_arrow_down: Click on a bar to view all open issues with that label."
+    ":material/web_traffic: Click on a bar to view all open issues with that label."
 )
 
 top_labels = label_df.groupby("label")["reactions"].sum().nlargest(top_x).reset_index()
