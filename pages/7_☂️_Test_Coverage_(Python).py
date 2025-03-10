@@ -407,7 +407,6 @@ def display_coverage_details(coverage_data, html_report_url=None):
             color_continuous_scale=["red", "orange", "green"],
             range_color=[0, 100],
             hover_data=["Lines Covered", "Lines Missed", "Total Lines"],
-            title="Coverage Treemap by Directory and File",
         )
 
         st.plotly_chart(fig, use_container_width=True)
@@ -434,7 +433,6 @@ def display_coverage_details(coverage_data, html_report_url=None):
                 "Coverage %": "Coverage Percentage",
                 "Filename": "Filename",
             },
-            title="Coverage Percentage by File",
         )
 
         fig.update_layout(yaxis={"categoryorder": "total descending"})
