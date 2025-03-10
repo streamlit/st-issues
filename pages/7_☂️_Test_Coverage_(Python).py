@@ -439,7 +439,7 @@ def display_coverage_details(coverage_data, html_report_url=None):
         st.plotly_chart(fig, use_container_width=True)
 
         # Display coverage distribution
-        st.subheader("Coverage Distribution")
+        st.subheader("Coverage Distribution of Files")
 
         # Create coverage bins
         bins = [0, 20, 40, 60, 80, 100]
@@ -459,7 +459,6 @@ def display_coverage_details(coverage_data, html_report_url=None):
         fig = px.pie(
             names=distribution.index,
             values=distribution.values,
-            title="Distribution of Files by Coverage Range",
             color=distribution.index,
             color_discrete_map={
                 "0-20%": "red",
