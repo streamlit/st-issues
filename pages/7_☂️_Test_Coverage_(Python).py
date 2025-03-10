@@ -386,6 +386,32 @@ def display_coverage_details(coverage_data, html_report_url=None):
 
     # Create a horizontal bar chart for file coverage
     if len(coverage_df) > 0:
+        # Create a treemap visualization
+        st.subheader("Coverage Treemap")
+
+        # Add a size column for the treemap (using total lines)
+        treemap_df = coverage_df.copy()
+
+        # Extract directory structure
+        treemap_df["Directory"] = treemap_df["Path"].apply(
+            lambda x: os.path.dirname(x).replace("\\", "/").split("/")[-1]
+            if os.path.dirname(x)
+            else "root"
+        )
+
+        fig = px.treemap(
+            treemap_df,
+            path=["Directory", "Filename"],
+            values="Total Lines",
+            color="Coverage %",
+            color_continuous_scale=["red", "orange", "green"],
+            range_color=[0, 100],
+            hover_data=["Lines Covered", "Lines Missed", "Total Lines"],
+            title="Coverage Treemap by Directory and File",
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
         st.subheader("Coverage by File")
 
         # Limit to top 20 files if there are many
@@ -412,32 +438,6 @@ def display_coverage_details(coverage_data, html_report_url=None):
         )
 
         fig.update_layout(yaxis={"categoryorder": "total descending"})
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Create a treemap visualization
-        st.subheader("Coverage Treemap")
-
-        # Add a size column for the treemap (using total lines)
-        treemap_df = coverage_df.copy()
-
-        # Extract directory structure
-        treemap_df["Directory"] = treemap_df["Path"].apply(
-            lambda x: os.path.dirname(x).replace("\\", "/").split("/")[-1]
-            if os.path.dirname(x)
-            else "root"
-        )
-
-        fig = px.treemap(
-            treemap_df,
-            path=["Directory", "Filename"],
-            values="Total Lines",
-            color="Coverage %",
-            color_continuous_scale=["red", "orange", "green"],
-            range_color=[0, 100],
-            hover_data=["Lines Covered", "Lines Missed", "Total Lines"],
-            title="Coverage Treemap by Directory and File",
-        )
-
         st.plotly_chart(fig, use_container_width=True)
 
         # Display coverage distribution
