@@ -26,9 +26,9 @@ GITHUB_API_HEADERS = {
 }
 
 # Page title and description
-st.title("☂️ Code Coverage (Python)")
+st.title("☂️ Test Coverage (Python)")
 st.caption("""
-This app shows code coverage trends over time and allows you to analyze detailed coverage data for specific commits.
+This app shows test coverage trends (for Python) over time and allows you to analyze detailed coverage data for specific commits.
 """)
 
 # Sidebar controls
