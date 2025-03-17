@@ -24,7 +24,7 @@ workflow_runs_limit = st.sidebar.slider(
 )
 
 rolling_window_size = st.sidebar.slider(
-    "Flaky trend window size", min_value=5, max_value=50, value=20, step=5
+    "Flaky trend window size", min_value=5, max_value=50, value=25, step=5
 )
 
 
