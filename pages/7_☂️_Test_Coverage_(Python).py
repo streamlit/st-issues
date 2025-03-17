@@ -12,12 +12,7 @@ import requests  # type: ignore
 import streamlit as st
 
 # Set page configuration
-st.set_page_config(
-    page_title="Code Coverage (Python)",
-    page_icon="☂️",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+st.set_page_config(page_title="Code Coverage (Python)", page_icon="☂️", layout="wide")
 
 # GitHub API configuration
 GITHUB_API_HEADERS = {
