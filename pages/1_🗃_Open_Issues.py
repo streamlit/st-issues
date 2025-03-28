@@ -168,6 +168,8 @@ def labels_to_type(labels: List[str]):
         return "✨"
     elif "type:bug" in labels:
         return "🚨"
+    elif "type:docs" in labels:
+        return "📚"
     else:
         return "❓"
 
