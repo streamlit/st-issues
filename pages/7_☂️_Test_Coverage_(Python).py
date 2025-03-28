@@ -20,45 +20,57 @@ GITHUB_API_HEADERS = {
     "Authorization": f"token {st.secrets['github']['token']}",
 }
 
+# Get PR number from query parameters if available
+query_params = st.query_params
+pr_number = query_params.get("pr")
+
 # Page title and description
 st.title("☂️ Test Coverage (Python)")
-st.caption("""
-This app shows test coverage trends (for Python) over time and allows you to analyze detailed coverage data for specific commits.
-""")
-
-# Sidebar controls
-time_period = st.sidebar.selectbox(
-    "Time period",
-    options=["Last 7 days", "Last 30 days", "Last 90 days", "All time"],
-    help="The time period to display coverage data for.  But it will still only load the last X workflow runs as defined by the slider below.",
-    index=3,
-)
-workflow_runs_limit = st.sidebar.slider(
-    "Number of workflow runs",
-    min_value=50,
-    max_value=250,
-    value=50,
-    step=50,
-    help="This is equivalent to the number of commits to develop to include in the analysis.",
-)
-
-# Add file uploader for manual coverage JSON file to the sidebar
-st.sidebar.divider()
-uploaded_file = st.sidebar.file_uploader(
-    "Manual upload of coverage.json file",
-    type=["json"],
-    accept_multiple_files=False,
-)
-
-# Convert time period to date
-if time_period == "Last 7 days":
-    since_date: Optional[datetime] = datetime.now() - timedelta(days=7)
-elif time_period == "Last 30 days":
-    since_date = datetime.now() - timedelta(days=30)
-elif time_period == "Last 90 days":
-    since_date = datetime.now() - timedelta(days=90)
-else:
+if pr_number is not None:
+    st.caption(f"""
+    Analyzing coverage for [PR #{pr_number}](https://github.com/streamlit/streamlit/pull/{pr_number})
+    """)
+    # Default values for PR mode
     since_date = None
+    workflow_runs_limit = 1
+    uploaded_file = None
+else:
+    st.caption("""
+    This app shows test coverage trends (for Python) over time and allows you to analyze detailed coverage data for specific commits.
+    """)
+
+    time_period = st.sidebar.selectbox(
+        "Time period",
+        options=["Last 7 days", "Last 30 days", "Last 90 days", "All time"],
+        help="The time period to display coverage data for.  But it will still only load the last X workflow runs as defined by the slider below.",
+        index=3,
+    )
+    workflow_runs_limit = st.sidebar.slider(
+        "Number of workflow runs",
+        min_value=50,
+        max_value=250,
+        value=50,
+        step=50,
+        help="This is equivalent to the number of commits to develop to include in the analysis.",
+    )
+
+    # Add file uploader for manual coverage JSON file to the sidebar
+    st.sidebar.divider()
+    uploaded_file = st.sidebar.file_uploader(
+        "Manual upload of coverage.json file",
+        type=["json"],
+        accept_multiple_files=False,
+    )
+
+    # Convert time period to date
+    if time_period == "Last 7 days":
+        since_date: Optional[datetime] = datetime.now() - timedelta(days=7)
+    elif time_period == "Last 30 days":
+        since_date = datetime.now() - timedelta(days=30)
+    elif time_period == "Last 90 days":
+        since_date = datetime.now() - timedelta(days=90)
+    else:
+        since_date = None
 
 
 def parse_coverage_json(coverage_file):
@@ -467,22 +479,438 @@ def display_coverage_details(coverage_data, html_report_url=None):
         st.plotly_chart(fig, use_container_width=True)
 
 
+@st.cache_data(ttl=60 * 60 * 12, show_spinner="Fetching PR info...")
+def fetch_pr_info(pr_number: str) -> Optional[Dict[str, Any]]:
+    """Fetch information about a PR from GitHub API."""
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}",
+            headers=GITHUB_API_HEADERS,
+            timeout=30,
+        )
+
+        if response.status_code != 200:
+            st.error(f"Error fetching PR info: {response.status_code}")
+            return None
+
+        return response.json()
+    except Exception as e:
+        st.error(f"Error fetching PR info: {e}")
+        return None
+
+
+@st.cache_data(
+    ttl=60 * 60 * 12, show_spinner="Fetching workflow runs for specific commit..."
+)
+def fetch_workflow_runs_for_commit(commit_sha: str) -> List[Dict[str, Any]]:
+    """Fetch workflow runs for a specific commit."""
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/python-tests.yml/runs?head_sha={commit_sha}&status=success",
+            headers=GITHUB_API_HEADERS,
+            timeout=30,
+        )
+
+        if response.status_code != 200:
+            st.error(f"Error fetching workflow runs for commit: {response.status_code}")
+            return []
+
+        return response.json().get("workflow_runs", [])
+    except Exception as e:
+        st.error(f"Error fetching workflow runs for commit: {e}")
+        return []
+
+
+def get_latest_develop_coverage() -> Optional[Dict[str, Any]]:
+    """Get coverage data for the latest successful workflow run on develop."""
+    # Fetch the latest successful workflow run on develop
+    latest_runs = fetch_workflow_runs("python-tests.yml", limit=1)
+    if not latest_runs:
+        st.error("No recent workflow runs found on develop branch.")
+        return None
+
+    latest_run = latest_runs[0]
+    # Get coverage data for this run
+    coverage_data = get_coverage_data_from_artifact(latest_run["id"])
+    if not coverage_data:
+        st.error("Could not fetch coverage data for the latest develop commit.")
+        return None
+
+    return {
+        "run_id": latest_run["id"],
+        "commit_sha": latest_run["head_sha"][:7],
+        "commit_url": f"https://github.com/streamlit/streamlit/commit/{latest_run['head_sha']}",
+        "created_at": datetime.strptime(latest_run["created_at"], "%Y-%m-%dT%H:%M:%SZ"),
+        "total_stmts": coverage_data["total_stmts"],
+        "total_miss": coverage_data["total_miss"],
+        "covered_stmts": coverage_data["covered_stmts"],
+        "coverage": coverage_data["coverage"],
+        "coverage_pct": coverage_data["coverage_pct"],
+        "run_url": latest_run["html_url"],
+    }
+
+
+def get_pr_coverage(pr_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Get coverage data for a PR's head commit."""
+    head_sha = pr_info["head"]["sha"]
+    # Fetch workflow runs for this commit
+    pr_runs = fetch_workflow_runs_for_commit(head_sha)
+
+    if not pr_runs:
+        st.error(f"No successful workflow runs found for PR commit {head_sha[:7]}.")
+        return None
+
+    # Get the latest successful run
+    pr_run = pr_runs[0]
+    # Get coverage data for this run
+    coverage_data = get_coverage_data_from_artifact(pr_run["id"])
+    if not coverage_data:
+        st.error(f"Could not fetch coverage data for PR commit {head_sha[:7]}.")
+        return None
+
+    return {
+        "run_id": pr_run["id"],
+        "commit_sha": head_sha[:7],
+        "commit_url": f"https://github.com/streamlit/streamlit/commit/{head_sha}",
+        "created_at": datetime.strptime(pr_run["created_at"], "%Y-%m-%dT%H:%M:%SZ"),
+        "total_stmts": coverage_data["total_stmts"],
+        "total_miss": coverage_data["total_miss"],
+        "covered_stmts": coverage_data["covered_stmts"],
+        "coverage": coverage_data["coverage"],
+        "coverage_pct": coverage_data["coverage_pct"],
+        "run_url": pr_run["html_url"],
+    }
+
+
+def display_pr_coverage_comparison(
+    pr_coverage: Dict[str, Any], develop_coverage: Dict[str, Any]
+):
+    """Display a comparison of PR coverage against develop branch coverage."""
+    st.subheader("PR Coverage Comparison")
+
+    # Calculate coverage changes
+    coverage_change = pr_coverage["coverage_pct"] - develop_coverage["coverage_pct"]
+    total_stmts_change = pr_coverage["total_stmts"] - develop_coverage["total_stmts"]
+    total_miss_change = pr_coverage["total_miss"] - develop_coverage["total_miss"]
+
+    # Determine if changes are positive or negative
+    coverage_delta = "+" if coverage_change >= 0 else ""
+    stmts_delta = "+" if total_stmts_change >= 0 else ""
+    miss_delta = (
+        "" if total_miss_change <= 0 else "+"
+    )  # Inverted logic for misses (less is better)
+
+    # Create comparison columns
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(
+            "Coverage",
+            f"{pr_coverage['coverage_pct']:.2f}%",
+            f"{coverage_delta}{coverage_change:.2f}%",
+            delta_color="normal" if coverage_change >= 0 else "inverse",
+        )
+
+    with col2:
+        st.metric(
+            "Total Statements",
+            f"{pr_coverage['total_stmts']}",
+            f"{stmts_delta}{total_stmts_change}",
+            delta_color="off",  # Neutral color as this is informational
+        )
+
+    with col3:
+        st.metric(
+            "Missed Statements",
+            f"{pr_coverage['total_miss']}",
+            f"{miss_delta}{total_miss_change}",
+            delta_color="inverse" if total_miss_change <= 0 else "normal",
+        )
+
+    # Display additional PR information
+    st.markdown(f"""
+    **PR Commit:** [{pr_coverage["commit_sha"]}]({pr_coverage["commit_url"]}) | 
+    **Develop Commit:** [{develop_coverage["commit_sha"]}]({develop_coverage["commit_url"]})
+    
+    **PR Workflow Run:** [View Run]({pr_coverage["run_url"]}) | 
+    **Develop Workflow Run:** [View Run]({develop_coverage["run_url"]})
+    """)
+
+    # Get HTML report URLs
+    pr_html_report_url = get_html_report_url(pr_coverage["run_id"])
+    develop_html_report_url = get_html_report_url(develop_coverage["run_id"])
+
+    # Add HTML report download buttons if URLs are available
+    col1, col2 = st.columns(2)
+    with col1:
+        if pr_html_report_url:
+            st.link_button(
+                label="Download PR Coverage Report",
+                url=pr_html_report_url,
+                use_container_width=True,
+            )
+
+    with col2:
+        if develop_html_report_url:
+            st.link_button(
+                label="Download Develop Coverage Report",
+                url=develop_html_report_url,
+                use_container_width=True,
+            )
+
+    # Get detailed coverage data for both PR and develop
+    pr_artifact_content = None
+    develop_artifact_content = None
+
+    # Fetch artifacts for PR
+    pr_artifacts = fetch_artifacts(pr_coverage["run_id"])
+    pr_coverage_json_artifact = next(
+        (a for a in pr_artifacts if a["name"] == "combined_coverage_json"), None
+    )
+    if pr_coverage_json_artifact:
+        pr_artifact_content = download_artifact(
+            pr_coverage_json_artifact["archive_download_url"]
+        )
+
+    # Fetch artifacts for develop
+    develop_artifacts = fetch_artifacts(develop_coverage["run_id"])
+    develop_coverage_json_artifact = next(
+        (a for a in develop_artifacts if a["name"] == "combined_coverage_json"), None
+    )
+    if develop_coverage_json_artifact:
+        develop_artifact_content = download_artifact(
+            develop_coverage_json_artifact["archive_download_url"]
+        )
+
+    # If we have both artifacts, show a detailed file-by-file comparison
+    if pr_artifact_content and develop_artifact_content:
+        # Extract the coverage.json files from the zips
+        pr_coverage_data = {}
+        develop_coverage_data = {}
+
+        try:
+            with ZipFile(BytesIO(pr_artifact_content)) as zip_file:
+                with zip_file.open("coverage.json") as coverage_file:
+                    pr_coverage_data = parse_coverage_json(coverage_file)
+
+            with ZipFile(BytesIO(develop_artifact_content)) as zip_file:
+                with zip_file.open("coverage.json") as coverage_file:
+                    develop_coverage_data = parse_coverage_json(coverage_file)
+
+            if pr_coverage_data and develop_coverage_data:
+                display_pr_detailed_comparison(pr_coverage_data, develop_coverage_data)
+        except Exception as e:
+            st.error(f"Error extracting coverage data: {e}")
+
+
+def display_pr_detailed_comparison(pr_coverage_data: Dict, develop_coverage_data: Dict):
+    """Display a detailed file-by-file comparison of PR coverage against develop coverage."""
+    st.subheader("File-by-File Coverage Comparison")
+
+    # Create DataFrames for PR and develop coverage
+    pr_df = pd.DataFrame(
+        [
+            {
+                "Filename": info["file_name"],
+                "Path": file_path,
+                "PR Coverage %": round(info["coverage_pct"], 2),
+                "PR Lines Covered": len(info["executed_lines"]),
+                "PR Lines Missed": len(info["missing_lines"]),
+                "PR Total Lines": info["total_lines"],
+            }
+            for file_path, info in pr_coverage_data.items()
+        ]
+    )
+
+    develop_df = pd.DataFrame(
+        [
+            {
+                "Filename": info["file_name"],
+                "Path": file_path,
+                "Develop Coverage %": round(info["coverage_pct"], 2),
+                "Develop Lines Covered": len(info["executed_lines"]),
+                "Develop Lines Missed": len(info["missing_lines"]),
+                "Develop Total Lines": info["total_lines"],
+            }
+            for file_path, info in develop_coverage_data.items()
+        ]
+    )
+
+    # Merge the DataFrames on Path
+    merged_df = pd.merge(
+        pr_df,
+        develop_df,
+        on=["Path", "Filename"],
+        how="outer",
+        suffixes=("_pr", "_develop"),
+    ).fillna(0)
+
+    # Calculate coverage changes
+    merged_df["Coverage Change"] = (
+        merged_df["PR Coverage %"] - merged_df["Develop Coverage %"]
+    )
+    merged_df["Lines Covered Change"] = (
+        merged_df["PR Lines Covered"] - merged_df["Develop Lines Covered"]
+    )
+    merged_df["Lines Missed Change"] = (
+        merged_df["PR Lines Missed"] - merged_df["Develop Lines Missed"]
+    )
+    merged_df["Total Lines Change"] = (
+        merged_df["PR Total Lines"] - merged_df["Develop Total Lines"]
+    )
+
+    # Flag new and removed files
+    merged_df["Status"] = "-"
+    merged_df.loc[merged_df["Develop Total Lines"] == 0, "Status"] = "New"
+    merged_df.loc[merged_df["PR Total Lines"] == 0, "Status"] = "Removed"
+
+    # Create GitHub links for the Path column
+    merged_df["File"] = merged_df["Path"].apply(
+        lambda x: f"https://github.com/streamlit/streamlit/tree/develop/lib/{x}"
+    )
+
+    # Sort by coverage change
+    merged_df = merged_df.sort_values("Coverage Change", ascending=True)
+
+    # Display the dataframe
+    st.dataframe(
+        merged_df,
+        column_config={
+            "PR Coverage %": st.column_config.ProgressColumn(
+                "PR Coverage %",
+                format="%f%%",
+                min_value=0,
+                max_value=100,
+            ),
+            "Develop Coverage %": st.column_config.ProgressColumn(
+                "Develop Coverage %",
+                format="%f%%",
+                min_value=0,
+                max_value=100,
+            ),
+            "Coverage Change": st.column_config.NumberColumn(
+                "Coverage Change",
+                format="%+.2f%%",
+            ),
+            "Lines Covered Change": st.column_config.NumberColumn(
+                "Lines Covered Change",
+                format="%+d",
+            ),
+            "Lines Missed Change": st.column_config.NumberColumn(
+                "Lines Missed Change",
+                format="%+d",
+            ),
+            "Total Lines Change": st.column_config.NumberColumn(
+                "Total Lines Change",
+                format="%+d",
+            ),
+            "Status": st.column_config.TextColumn(
+                "Status",
+            ),
+            "File": st.column_config.LinkColumn(
+                "File",
+                display_text="https://github.com/streamlit/streamlit/tree/develop/lib/streamlit/(.*)",
+                pinned=True,
+            ),
+        },
+        hide_index=True,
+        column_order=[
+            "File",
+            "Coverage Change",
+            "Lines Covered Change",
+            "Lines Missed Change",
+            "Total Lines Change",
+            "PR Coverage %",
+            "PR Lines Covered",
+            "PR Lines Missed",
+            "PR Total Lines",
+            "Develop Coverage %",
+            "Develop Lines Covered",
+            "Develop Lines Missed",
+            "Develop Total Lines",
+            "Status",
+        ],
+    )
+
+    # Create visualizations for changes
+    st.subheader("Coverage Changes by File")
+
+    # Filter out files with no changes and limit to top/bottom files
+    changed_files = merged_df[merged_df["Coverage Change"] != 0].copy()
+    if len(changed_files) > 20:
+        # Get top 10 improved and top 10 decreased files
+        improved = changed_files[changed_files["Coverage Change"] > 0].head(10)
+        decreased = changed_files[changed_files["Coverage Change"] < 0].head(10)
+        display_df = pd.concat([improved, decreased])
+        st.info(
+            "Showing only the top 10 improved and top 10 decreased files. Use the table above to see all files."
+        )
+    else:
+        display_df = changed_files
+
+    if len(display_df) > 0:
+        fig = px.bar(
+            display_df,
+            y="Filename",
+            x="Coverage Change",
+            orientation="h",
+            color="Coverage Change",
+            color_continuous_scale=["red", "white", "green"],
+            color_continuous_midpoint=0,
+            labels={
+                "Coverage Change": "Coverage Change (%)",
+                "Filename": "Filename",
+            },
+            title="Files with Coverage Changes",
+        )
+
+        fig.update_layout(yaxis={"categoryorder": "total descending"})
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No files with coverage changes found.")
+
+
+# PR mode processing
+if pr_number is not None:
+    # Fetch PR info
+    pr_info = fetch_pr_info(pr_number)
+    if not pr_info:
+        st.error(f"Could not fetch information for PR #{pr_number}")
+        st.stop()
+
+    # Get coverage for PR and develop
+    with st.spinner("Fetching PR coverage data..."):
+        pr_coverage = get_pr_coverage(pr_info)
+
+    with st.spinner("Fetching develop branch coverage data..."):
+        develop_coverage = get_latest_develop_coverage()
+
+    if pr_coverage and develop_coverage:
+        # Display the comparison
+        display_pr_coverage_comparison(pr_coverage, develop_coverage)
+        # Stop execution to not show the regular app content
+        st.stop()
+    else:
+        st.error("Could not fetch coverage data for comparison")
+        st.stop()
+
+# Check if a file was uploaded
+if uploaded_file:
+    with st.spinner("Processing uploaded coverage data..."):
+        coverage_data = parse_coverage_json(uploaded_file)
+
+        if coverage_data:
+            st.success("Successfully parsed uploaded coverage file.")
+            # Display detailed coverage information
+            display_coverage_details(coverage_data)
+            # Stop execution to not show the GitHub data
+            st.stop()
+        else:
+            st.error("Failed to parse the uploaded coverage file.")
+
+
 # Main app logic
 with st.spinner("Fetching data..."):
-    # Check if a file was uploaded
-    if uploaded_file:
-        with st.spinner("Processing uploaded coverage data..."):
-            coverage_data = parse_coverage_json(uploaded_file)
-
-            if coverage_data:
-                st.success("Successfully parsed uploaded coverage file.")
-                # Display detailed coverage information
-                display_coverage_details(coverage_data)
-                # Stop execution to not show the GitHub data
-                st.stop()
-            else:
-                st.error("Failed to parse the uploaded coverage file.")
-
     # If no file was uploaded or parsing failed, continue with GitHub data
     # Fetch workflow runs
     workflow_runs = fetch_workflow_runs(
