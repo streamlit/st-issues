@@ -4,7 +4,7 @@ from vega_datasets import data
 states = alt.topo_feature(data.us_10m.url, 'states')
 pop = data.population_engineers_hurricanes()
 
-alt.Chart(states).mark_geoshape().encode(
+chart = alt.Chart(states).mark_geoshape().encode(
 	color='population:Q'
 ).transform_lookup(
 	lookup='id',
@@ -15,3 +15,5 @@ alt.Chart(states).mark_geoshape().encode(
 ).project(
 	type='albersUsa'
 )
+
+st.altair_chart(chart)
