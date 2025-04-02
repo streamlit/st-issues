@@ -2,6 +2,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+is_stacked = st.checkbox("Render as Stacked?", value=True)
+
 # Sample data
 data = {
     "Category": ["A", "B", "C"],
@@ -20,7 +22,23 @@ fig = go.Figure(
     ]
 )
 
-# Update the layout for stacked bars
-fig.update_layout(barmode="stack", title="Stacked Bar Chart Example")
+# Update the layout for stacked bars based on user input
+barmode = "stack" if is_stacked else None
+
+fig.update_layout(
+    title="Stacked Bar Chart Example",
+    barmode=barmode,
+    xaxis_title="Category",
+    yaxis_title="Value",
+    height=400,
+    margin=dict(t=40, b=20, l=20, r=20),
+    xaxis=dict(
+        type="category",
+        categoryorder="array",
+        categoryarray=sorted(df["Category"].unique()),
+    ),
+    paper_bgcolor="rgba(255,255,255,0)",
+    plot_bgcolor="rgba(247,247,247,0.5)",
+)
 
 st.plotly_chart(fig, use_container_width=True)
