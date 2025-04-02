@@ -499,9 +499,6 @@ def fetch_pr_info(pr_number: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-@st.cache_data(
-    ttl=60 * 60 * 12, show_spinner="Fetching workflow runs for specific commit..."
-)
 def fetch_workflow_runs_for_commit(commit_sha: str) -> List[Dict[str, Any]]:
     """Fetch workflow runs for a specific commit."""
     try:
@@ -629,10 +626,10 @@ def display_pr_coverage_comparison(
 
     # Display additional PR information
     st.markdown(f"""
-    **PR Commit:** [{pr_coverage["commit_sha"]}]({pr_coverage["commit_url"]}) | 
+    **PR Commit:** [{pr_coverage["commit_sha"]}]({pr_coverage["commit_url"]}) |
     **Develop Commit:** [{develop_coverage["commit_sha"]}]({develop_coverage["commit_url"]})
-    
-    **PR Workflow Run:** [View Run]({pr_coverage["run_url"]}) | 
+
+    **PR Workflow Run:** [View Run]({pr_coverage["run_url"]}) |
     **Develop Workflow Run:** [View Run]({develop_coverage["run_url"]})
     """)
 
