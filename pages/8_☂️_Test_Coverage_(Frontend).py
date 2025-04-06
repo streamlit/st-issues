@@ -82,13 +82,21 @@ def parse_vitest_coverage_json(coverage_file):
         # Create a dictionary to store coverage information
         coverage_info = {}
 
+        # Define prefix to remove
+        prefix_to_remove = "/home/runner/work/streamlit/streamlit/"
+
         # Process each file in the coverage data (excluding the "total" key)
         for file_path, file_data in coverage_data.items():
             if file_path == "total":
                 continue
 
+            # Remove the prefix from the file path if it exists
+            clean_path = file_path
+            if file_path.startswith(prefix_to_remove):
+                clean_path = file_path[len(prefix_to_remove) :]
+
             # Extract the file name from the path
-            file_name = os.path.basename(file_path)
+            file_name = os.path.basename(clean_path)
 
             # Extract relevant metrics
             lines_total = file_data["lines"]["total"]
@@ -104,9 +112,9 @@ def parse_vitest_coverage_json(coverage_file):
             branches_pct = file_data["branches"]["pct"]
 
             # Store information
-            coverage_info[file_path] = {
+            coverage_info[clean_path] = {
                 "file_name": file_name,
-                "file_path": file_path,
+                "file_path": clean_path,
                 "lines_total": lines_total,
                 "lines_covered": lines_covered,
                 "lines_pct": lines_pct,
@@ -272,7 +280,7 @@ def get_html_report_url(run_id: int) -> Optional[str]:
 
     html_report_artifact = None
     for artifact in artifacts:
-        if artifact["name"] == "vitest_coverage_report":
+        if artifact["name"] == "vitest_coverage_html":
             html_report_artifact = artifact
             break
 
@@ -396,21 +404,21 @@ def display_coverage_details(coverage_data, total_data, html_report_url=None):
             "Lines Coverage %": st.column_config.ProgressColumn(
                 "Lines Coverage %",
                 help="Percentage of lines covered by tests",
-                format="%f%%",
+                format="%d%%",
                 min_value=0,
                 max_value=100,
             ),
             "Functions Coverage %": st.column_config.ProgressColumn(
                 "Functions Coverage %",
                 help="Percentage of functions covered by tests",
-                format="%f%%",
+                format="%d%%",
                 min_value=0,
                 max_value=100,
             ),
             "Branches Coverage %": st.column_config.ProgressColumn(
                 "Branches Coverage %",
                 help="Percentage of branches covered by tests",
-                format="%f%%",
+                format="%d%%",
                 min_value=0,
                 max_value=100,
             ),
@@ -964,18 +972,30 @@ df_selection = st.dataframe(
         "created_at": st.column_config.DatetimeColumn("Date", format="distance"),
         "commit_sha": st.column_config.TextColumn("Commit"),
         "lines_pct": st.column_config.ProgressColumn(
-            "Lines Coverage %", help="Percentage of lines covered by tests"
+            "Lines Coverage %",
+            help="Percentage of lines covered by tests",
+            format="%.1f%%",
+            min_value=0,
+            max_value=100,
         ),
         "functions_pct": st.column_config.ProgressColumn(
-            "Functions Coverage %", help="Percentage of functions covered by tests"
+            "Functions Coverage %",
+            help="Percentage of functions covered by tests",
+            format="%.1f%%",
+            min_value=0,
+            max_value=100,
         ),
         "branches_pct": st.column_config.ProgressColumn(
-            "Branches Coverage %", help="Percentage of branches covered by tests"
+            "Branches Coverage %",
+            help="Percentage of branches covered by tests",
+            format="%.1f%%",
+            min_value=0,
+            max_value=100,
         ),
         "lines_coverage_change": st.column_config.NumberColumn(
             "Coverage Change",
             help="Change in lines coverage percentage compared to the previous commit",
-            format="percent",
+            format="%.2f%%",
         ),
         "lines_total": st.column_config.NumberColumn("Total Lines"),
         "lines_covered": st.column_config.NumberColumn("Covered Lines"),
@@ -1009,7 +1029,7 @@ df_selection = st.dataframe(
     key="coverage_history_df",
 )
 
-
+# Check if a row was selected from the dataframe
 if df_selection.selection.rows:
     # Get the selected row index
     selected_row_index = df_selection.selection.rows[0]
