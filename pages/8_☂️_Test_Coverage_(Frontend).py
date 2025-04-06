@@ -89,9 +89,9 @@ else:
     )
     workflow_runs_limit = st.sidebar.slider(
         "Number of workflow runs",
-        min_value=10,
+        min_value=50,
         max_value=250,
-        value=10,
+        value=50,
         step=50,
         help="This is equivalent to the number of commits to develop to include in the analysis.",
     )
