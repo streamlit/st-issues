@@ -586,10 +586,9 @@ def get_pr_coverage(pr_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
-# Function to download, extract, upload and display the HTML coverage report
-@st.dialog("Coverage Report", width="large")
-def display_coverage_report_dialog(run_id: int):
-    """Download, extract, upload and display the HTML coverage report in an iframe."""
+@st.cache_data(show_spinner=False)
+def deploy_coverage_report(run_id: int) -> Optional[str]:
+    """Deploy the HTML coverage report to smokeshow."""
     # Fetch artifacts
     artifacts = fetch_artifacts(run_id)
 
@@ -601,21 +600,26 @@ def display_coverage_report_dialog(run_id: int):
 
     if not html_report_artifact:
         st.error("No HTML coverage report found for this run.")
-        return
+        return None
+
+    artifact_content = download_artifact(html_report_artifact["archive_download_url"])
+
+    if not artifact_content:
+        st.error("Failed to download the HTML coverage report.")
+        return None
+
+    # Extract and upload to smokeshow
+    return extract_and_upload_coverage_report(artifact_content)
+
+
+# Function to download, extract, upload and display the HTML coverage report
+@st.dialog("Coverage Report", width="large")
+def display_coverage_report_dialog(run_id: int):
+    """Download, extract, upload and display the HTML coverage report in an iframe."""
 
     # Download the artifact
     with st.spinner("Downloading and deploying the coverage report..."):
-        artifact_content = download_artifact(
-            html_report_artifact["archive_download_url"]
-        )
-
-        if not artifact_content:
-            st.error("Failed to download the HTML coverage report.")
-            return
-
-        # Extract and upload to smokeshow
-        report_url = extract_and_upload_coverage_report(artifact_content)
-
+        report_url = deploy_coverage_report(run_id)
         if not report_url:
             st.error("Failed to process the HTML coverage report.")
             return
