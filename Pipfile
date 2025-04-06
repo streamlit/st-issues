@@ -23,6 +23,7 @@ streamlit-folium = "*"
 streamlit-aggrid = "*"
 humanize = "*"
 coverage = "*"
+httpx = "*"
 
 [dev-packages]
 black = "*"
@@ -30,7 +31,8 @@ mypy = "*"
 flake8 = "*"
 isort = "*"
 watchdog = "*"
-httpx = "*"
+
+
 [requires]
 python_version = "3.9"
 
