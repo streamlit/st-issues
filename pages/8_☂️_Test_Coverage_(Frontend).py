@@ -10,6 +10,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests  # type: ignore
 import streamlit as st
+import streamlit.components.v1 as components
+
+from pages.utils.smokeshow import extract_and_upload_coverage_report
 
 # Set page configuration
 st.set_page_config(page_title="Code Coverage (Frontend)", page_icon="☂️", layout="wide")
@@ -19,6 +22,45 @@ GITHUB_API_HEADERS = {
     "Accept": "application/vnd.github.v3+json",
     "Authorization": f"token {st.secrets['github']['token']}",
 }
+
+
+# Function to download, extract, upload and display the HTML coverage report
+@st.dialog("Coverage Report", width="large")
+def display_coverage_report_dialog(run_id: int):
+    """Download, extract, upload and display the HTML coverage report in an iframe."""
+    # Fetch artifacts
+    artifacts = fetch_artifacts(run_id)
+
+    html_report_artifact = None
+    for artifact in artifacts:
+        if artifact["name"] == "vitest_coverage_html":
+            html_report_artifact = artifact
+            break
+
+    if not html_report_artifact:
+        st.error("No HTML coverage report found for this run.")
+        return
+
+    # Download the artifact
+    with st.spinner("Downloading and deploying the coverage report..."):
+        artifact_content = download_artifact(
+            html_report_artifact["archive_download_url"]
+        )
+
+        if not artifact_content:
+            st.error("Failed to download the HTML coverage report.")
+            return
+
+        # Extract and upload to smokeshow
+        report_url = extract_and_upload_coverage_report(artifact_content)
+
+        if not report_url:
+            st.error("Failed to process the HTML coverage report.")
+            return
+        st.caption(f"[Open fullscreen :material/open_in_new:]({report_url})")
+        # Display the iframe in a dialog
+        components.iframe(report_url, height=600, scrolling=True)
+
 
 # Get PR number from query parameters if available
 query_params = st.query_params
@@ -47,9 +89,9 @@ else:
     )
     workflow_runs_limit = st.sidebar.slider(
         "Number of workflow runs",
-        min_value=50,
+        min_value=10,
         max_value=250,
-        value=50,
+        value=10,
         step=50,
         help="This is equivalent to the number of commits to develop to include in the analysis.",
     )
@@ -204,7 +246,7 @@ def fetch_artifacts(run_id: int) -> List[Dict[str, Any]]:
         return []
 
 
-@st.cache_data(show_spinner="Downloading artifact...")
+@st.cache_data(show_spinner=False)
 def download_artifact(artifact_url: str) -> Optional[bytes]:
     """Download an artifact from GitHub Actions."""
     try:
@@ -292,7 +334,9 @@ def get_html_report_url(run_id: int) -> Optional[str]:
     return None
 
 
-def display_coverage_details(coverage_data, total_data, html_report_url=None):
+def display_coverage_details(
+    coverage_data, total_data, html_report_url=None, run_id=None
+):
     """Display detailed coverage information."""
     # Convert coverage data to DataFrame for easier manipulation
     coverage_df = pd.DataFrame(
@@ -444,13 +488,17 @@ def display_coverage_details(coverage_data, total_data, html_report_url=None):
         ],
     )
 
+    col1, col2 = st.columns(2)
     # Add HTML report download button if URL is available
     if html_report_url:
-        st.link_button(
+        col1.link_button(
             label=":material/download: Download HTML Coverage Report",
             url=html_report_url,
-            use_container_width=False,
+            use_container_width=True,
         )
+    if run_id:
+        if col2.button(":material/preview: View PR Report", use_container_width=True):
+            display_coverage_report_dialog(run_id=run_id)
 
     # Create visualizations for file coverage
     if len(coverage_df) > 0:
@@ -719,19 +767,33 @@ def display_pr_coverage_comparison(
     col1, col2 = st.columns(2)
     with col1:
         if pr_html_report_url:
-            st.link_button(
-                label="Download PR Coverage Report",
-                url=pr_html_report_url,
-                use_container_width=True,
-            )
+            col1a, col1b = st.columns(2)
+            with col1a:
+                st.link_button(
+                    label=":material/download: Download PR Report",
+                    url=pr_html_report_url,
+                    use_container_width=True,
+                )
+            with col1b:
+                if st.button(
+                    ":material/preview: View PR Report", use_container_width=True
+                ):
+                    display_coverage_report_dialog(pr_coverage["run_id"])
 
     with col2:
         if develop_html_report_url:
-            st.link_button(
-                label="Download Develop Coverage Report",
-                url=develop_html_report_url,
-                use_container_width=True,
-            )
+            col2a, col2b = st.columns(2)
+            with col2a:
+                st.link_button(
+                    label=":material/download: Download Develop Report",
+                    url=develop_html_report_url,
+                    use_container_width=True,
+                )
+            with col2b:
+                if st.button(
+                    ":material/preview: View Develop Report", use_container_width=True
+                ):
+                    display_coverage_report_dialog(develop_coverage["run_id"])
 
 
 # PR mode processing
@@ -1028,6 +1090,7 @@ df_selection = st.dataframe(
         "html_report_url",
         "commit_url",
         "run_url",
+        "run_id",
     ],
     on_select="rerun",
     selection_mode="single-row",
@@ -1079,6 +1142,7 @@ if df_selection.selection.rows:
                                     coverage_data,
                                     total_data,
                                     selected_row.get("html_report_url"),
+                                    selected_run_id,
                                 )
                             else:
                                 st.error(
