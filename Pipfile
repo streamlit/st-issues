@@ -30,7 +30,7 @@ mypy = "*"
 flake8 = "*"
 isort = "*"
 watchdog = "*"
-
+httpx = "*"
 [requires]
 python_version = "3.9"
 
