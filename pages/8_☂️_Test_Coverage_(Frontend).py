@@ -83,7 +83,7 @@ def parse_vitest_coverage_json(coverage_file):
         coverage_info = {}
 
         # Define prefix to remove
-        prefix_to_remove = "/home/runner/work/streamlit/streamlit/"
+        prefix_to_remove = "/home/runner/work/streamlit/streamlit/frontend/"
 
         # Process each file in the coverage data (excluding the "total" key)
         for file_path, file_data in coverage_data.items():
@@ -394,7 +394,7 @@ def display_coverage_details(coverage_data, total_data, html_report_url=None):
 
     # Create GitHub links for the Path column
     coverage_df["File"] = coverage_df["Path"].apply(
-        lambda x: f"https://github.com/streamlit/streamlit/tree/develop/{x}"
+        lambda x: f"https://github.com/streamlit/streamlit/tree/develop/frontend/{x}"
     )
 
     # Display the dataframe with coverage information and GitHub links
@@ -425,7 +425,7 @@ def display_coverage_details(coverage_data, total_data, html_report_url=None):
             "File": st.column_config.LinkColumn(
                 "File",
                 help="View file in GitHub repository",
-                display_text="https://github.com/streamlit/streamlit/tree/develop/(.*)",
+                display_text="https://github.com/streamlit/streamlit/tree/develop/frontend/(.*)",
                 pinned=True,
             ),
         },
@@ -457,7 +457,12 @@ def display_coverage_details(coverage_data, total_data, html_report_url=None):
         # Create a treemap visualization
         st.subheader("Coverage Treemap")
 
-        # Extract directory structure
+        # Extract package (top-level directory) and directory structure
+        coverage_df["Package"] = coverage_df["Path"].apply(
+            lambda x: x.split("/")[0] if "/" in x else "root"
+        )
+
+        # Extract directory structure (last directory component)
         coverage_df["Directory"] = coverage_df["Path"].apply(
             lambda x: os.path.dirname(x).replace("\\", "/").split("/")[-1]
             if os.path.dirname(x)
@@ -466,7 +471,7 @@ def display_coverage_details(coverage_data, total_data, html_report_url=None):
 
         fig = px.treemap(
             coverage_df,
-            path=["Directory", "Filename"],
+            path=["Package", "Directory", "Filename"],
             values="Lines Total",
             color="Lines Coverage %",
             color_continuous_scale=["red", "orange", "green"],
