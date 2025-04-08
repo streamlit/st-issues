@@ -598,7 +598,6 @@ def display_coverage_details(
         st.plotly_chart(fig, use_container_width=True)
 
 
-@st.cache_data(ttl=60 * 60 * 12, show_spinner="Fetching PR info...")
 def fetch_pr_info(pr_number: str) -> Optional[Dict[str, Any]]:
     """Fetch information about a PR from GitHub API."""
     try:
