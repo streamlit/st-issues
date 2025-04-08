@@ -1070,7 +1070,6 @@ df_selection = st.dataframe(
             display_text="Download",
             help="Download the full HTML coverage report",
         ),
-        "run_id": st.column_config.NumberColumn("Run ID"),
     },
     hide_index=True,
     column_order=[
@@ -1084,7 +1083,6 @@ df_selection = st.dataframe(
         "html_report_url",
         "commit_url",
         "run_url",
-        "run_id",
     ],
     on_select="rerun",
     selection_mode="single-row",
