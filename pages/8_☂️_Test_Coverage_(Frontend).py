@@ -240,12 +240,12 @@ def fetch_artifacts(run_id: int) -> List[Dict[str, Any]]:
         )
 
         if response.status_code != 200:
-            st.error(f"Error fetching artifacts: {response.status_code}")
+            print(f"Error fetching artifacts: {response.status_code}", response.text)
             return []
 
         return response.json().get("artifacts", [])
     except Exception as e:
-        st.error(f"Error fetching artifacts: {e}")
+        print(f"Error fetching artifacts: {e}")
         return []
 
 
