@@ -689,33 +689,25 @@ def display_pr_coverage_comparison(
     col1, col2 = st.columns(2)
     with col1:
         if pr_html_report_url:
-            col1a, col1b = st.columns(2)
-            with col1a:
-                st.link_button(
-                    label=":material/download: Download PR Coverage Report",
-                    url=pr_html_report_url,
-                    use_container_width=True,
-                )
-            with col1b:
-                if st.button(
-                    ":material/preview: View PR Report", use_container_width=True
-                ):
-                    display_coverage_report_dialog(pr_coverage["run_id"])
+            st.link_button(
+                label=":material/download: Download PR Coverage Report",
+                url=pr_html_report_url,
+                use_container_width=True,
+            )
+            if st.button(":material/preview: View PR Report", use_container_width=True):
+                display_coverage_report_dialog(pr_coverage["run_id"])
 
     with col2:
         if develop_html_report_url:
-            col2a, col2b = st.columns(2)
-            with col2a:
-                st.link_button(
-                    label=":material/download: Download Develop Coverage Report",
-                    url=develop_html_report_url,
-                    use_container_width=True,
-                )
-            with col2b:
-                if st.button(
-                    ":material/preview: View Develop Report", use_container_width=True
-                ):
-                    display_coverage_report_dialog(develop_coverage["run_id"])
+            st.link_button(
+                label=":material/download: Download Develop Coverage Report",
+                url=develop_html_report_url,
+                use_container_width=True,
+            )
+            if st.button(
+                ":material/preview: View Develop Report", use_container_width=True
+            ):
+                display_coverage_report_dialog(develop_coverage["run_id"])
 
     # Get detailed coverage data for both PR and develop
     pr_artifact_content = None
