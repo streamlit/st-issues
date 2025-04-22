@@ -15,7 +15,6 @@ df = pd.DataFrame({
 })
 
 st.dataframe(
-    df.style.format(precision=2, thousands=".", decimal=",")
-        .format(enquadramento, subset=["Total"]),
+    df,
         column_config={"Total": {"label": "Enqdnt.", "alignment": "center"}, "Name": {"alignment": "center"}},
 )
