@@ -10,7 +10,6 @@ df2 = pd.DataFrame([
 ])
 df2["NAME"] = df2["NAME"].astype("string")
 
-
 with st.form(key="edit_table2"):
     new_df2 = st.data_editor(df2, num_rows="dynamic", key="new_df2")
     submitted = st.form_submit_button("Submit2")
