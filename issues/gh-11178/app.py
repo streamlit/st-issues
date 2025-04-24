@@ -2,7 +2,7 @@ from PIL import Image
 import streamlit as st
 import plotly.graph_objects as go
 
-image: Image.Image = Image.open(r"test.png")
+image: Image.Image = Image.open(r"issues/gh-11178/test.png")
 
 fig = go.Figure(data=[go.Image(z=image)])
 # OR
