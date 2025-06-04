@@ -8,9 +8,9 @@ chart = alt.Chart(df).mark_line().encode(
     y='b'
 )
 
-chart
+st.altair_chart(chart)
 
 chart_dict = chart.to_dict()
 chart2 = alt.Chart.from_dict(chart_dict)
 
-chart2
+st.altair_chart(chart2)
