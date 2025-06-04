@@ -8,7 +8,7 @@ result_df = st.data_editor(
         "min_diameter": st.column_config.NumberColumn(
             "MIN DM",
             min_value=0.00,
-            # step=0.01,
+            step=0.01,
             format="%.2f",
             width="small",
         )
