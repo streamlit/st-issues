@@ -3,10 +3,6 @@ import pandas as pd
 import streamlit as st
 from vega_datasets import data
 
-st.set_page_config(
-    layout="wide",
-)
-
 source = data.seattle_weather()
 
 with st.sidebar:
