@@ -17,7 +17,6 @@ PATH_TO_ISSUES = (
 st.set_page_config(
     page_title="Issue Reactions",
     page_icon="👍",
-    initial_sidebar_state="collapsed",
 )
 
 st.title("🫶 Issue Reactions")
