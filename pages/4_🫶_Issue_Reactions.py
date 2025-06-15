@@ -41,20 +41,22 @@ def get_issue_type(labels):
 
 
 # Paginate through all open issues in the streamlit/streamlit repo
-# and return them all as a list of dicts.
+# and return them all as a list of dicts using Link header pagination.
 @st.cache_data(ttl=60 * 60 * 48)  # cache for 48 hours
 def get_all_github_issues(state: Literal["open", "closed", "all"] = "all"):
     issues = []
-    page = 1
 
     headers = {"Authorization": "token " + st.secrets["github"]["token"]}
 
     state_param = f"state={state}" if state else ""
+    url: str | None = (
+        f"https://api.github.com/repos/streamlit/streamlit/issues?{state_param}&per_page=100"
+    )
 
-    while True:
+    while url:
         try:
             response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/issues?{state_param}&per_page=100&page={page}",
+                url,
                 headers=headers,
                 timeout=100,
             )
@@ -64,7 +66,20 @@ def get_all_github_issues(state: Literal["open", "closed", "all"] = "all"):
                 if not data:
                     break
                 issues.extend(data)
-                page += 1
+
+                # Parse Link header to get next page URL
+                link_header = response.headers.get("Link", "")
+                url = None  # Reset URL
+
+                if link_header:
+                    # Parse Link header to find 'rel="next"' URL
+                    links = link_header.split(",")
+                    for link in links:
+                        if 'rel="next"' in link:
+                            # Extract URL from angle brackets
+                            url = link.split(";")[0].strip().strip("<>")
+                            break
+
             else:
                 print(
                     f"Failed to retrieve data: {response.status_code}:", response.text
