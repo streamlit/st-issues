@@ -1,8 +1,10 @@
+from pathlib import Path
+
 import altair as alt
 import pandas as pd
 import streamlit as st
 
-df = pd.read_parquet("issues" / "gh-1167" / "1167-1.pq")
+df = pd.read_parquet(Path("issues") / "gh-1167" / "1167-1.pq")
 
 actual = (
     alt.Chart(df)
