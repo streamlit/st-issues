@@ -2,9 +2,13 @@ from pathlib import Path
 
 import altair as alt
 import pandas as pd
+import polars as pl
 import streamlit as st
 
-df = pd.read_parquet(Path("issues") / "gh-11761" / "11761.pq")
+if st.toggle("Use Polars"):
+    df = pl.read_parquet(Path("issues") / "gh-11761" / "11761-1.pq")
+else:
+    df = pd.read_parquet(Path("issues") / "gh-11761" / "11761-1.pq")
 
 actual = (
     alt.Chart(df)
