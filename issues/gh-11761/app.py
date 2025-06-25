@@ -1,8 +1,11 @@
+from pathlib import Path
+
 import altair as alt
 import pandas as pd
 import streamlit as st
 
-df = pd.read_parquet("1167-1.pq")
+SCRIPT_DIR = Path(__file__).parent
+df = pd.read_parquet(SCRIPT_DIR / "1167-1.pq")
 
 actual = (
     alt.Chart(df)
