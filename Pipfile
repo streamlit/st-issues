@@ -24,6 +24,7 @@ streamlit-aggrid = "*"
 humanize = "*"
 coverage = "*"
 httpx = "*"
+polars = "*"
 
 [dev-packages]
 black = "*"
