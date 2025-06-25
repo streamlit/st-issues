@@ -6,9 +6,9 @@ import polars as pl
 import streamlit as st
 
 if st.toggle("Use Polars"):
-    df = pl.read_parquet(Path("issues") / "gh-11761" / "11761-1.pq")
+    df = pl.read_parquet(Path("issues") / "gh-11761" / "11761.pq")
 else:
-    df = pd.read_parquet(Path("issues") / "gh-11761" / "11761-1.pq")
+    df = pd.read_parquet(Path("issues") / "gh-11761" / "11761.pq")
 
 actual = (
     alt.Chart(df)
