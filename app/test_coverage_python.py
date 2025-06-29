@@ -12,7 +12,7 @@ import requests  # type: ignore
 import streamlit as st
 import streamlit.components.v1 as components
 
-from pages.utils.smokeshow import extract_and_upload_coverage_report
+from app.utils.smokeshow import extract_and_upload_coverage_report
 
 # Set page configuration
 st.set_page_config(page_title="Code Coverage (Python)", page_icon="☂️", layout="wide")
