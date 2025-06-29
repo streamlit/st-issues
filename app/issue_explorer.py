@@ -3,9 +3,10 @@ import pathlib
 import platform
 import re
 
-import requests
 import streamlit as st
 import streamlit.components.v1 as components
+
+from app.utils.github_utils import get_github_issue
 
 st.set_page_config(page_title="Streamlit Issue", page_icon="🚧")
 st.title("🚧 Streamlit Issues")
@@ -81,49 +82,6 @@ print("Selected issue:", selected_issue, flush=True)
 st.query_params["issue"] = selected_issue
 
 
-@st.cache_data(ttl=60 * 5)  # cache for 5 minutes
-def request_github_issue(issue_number: str) -> dict:
-    headers = {"Authorization": "token " + st.secrets["github"]["token"]}
-    try:
-        response = requests.get(
-            f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}",
-            headers=headers,
-            timeout=100,
-        )
-
-        if response.status_code == 200:
-            return response.json()
-        else:
-            print(f"Failed to retrieve data: {response.status_code}")
-    except Exception as ex:
-        print(ex, flush=True)
-    return None
-
-
-def get_all_github_issues():
-    issues = []
-    page = 1
-
-    headers = {"Authorization": "token " + st.secrets["github"]["token"]}
-
-    while True:
-        try:
-            response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/issues?state=open&per_page=100&page={page}",
-                headers=headers,
-            )
-
-            if response.status_code == 200:
-                return response.json()
-            else:
-                print(f"Failed to retrieve data: {response.status_code}")
-                break
-        except Exception as ex:
-            print(ex, flush=True)
-            break
-    return issues
-
-
 if selected_issue:
     selected_issue_folder = title_to_issue_folder[selected_issue]
     selected_issue_folder_path = path_to_issues.joinpath(
@@ -138,7 +96,7 @@ if selected_issue:
             issue_number = selected_issue_folder.replace("gh-", "")
             # Request issue from GitHub API and extract the body:
             try:
-                data = request_github_issue(issue_number)
+                data = get_github_issue(issue_number)
                 if data:
                     if "title" in data:
                         issue_title = data["title"].strip()

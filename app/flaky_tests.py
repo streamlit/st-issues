@@ -8,14 +8,11 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from app.utils.github_utils import GITHUB_API_HEADERS, fetch_workflow_runs
+
 st.set_page_config(page_title="Flaky Tests", page_icon="🧫")
 
 st.title("🧫 Flaky Tests")
-
-GITHUB_API_HEADERS = {
-    "Accept": "application/vnd.github.v3+json",
-    "Authorization": f"token {st.secrets['github']['token']}",
-}
 
 workflow_runs_limit = st.sidebar.slider(
     "Number of workflow runs", min_value=100, max_value=1000, value=300, step=100
@@ -24,37 +21,6 @@ workflow_runs_limit = st.sidebar.slider(
 rolling_window_size = st.sidebar.slider(
     "Flaky trend window size", min_value=5, max_value=50, value=25, step=5
 )
-
-
-@st.cache_data(
-    ttl=60 * 60 * 48, show_spinner="Fetching workflow runs..."
-)  # cache for 48 hours
-def fetch_workflow_runs(workflow_name: str, limit: int = 100) -> list[dict]:
-    all_runs: list[dict] = []
-    page = 0
-    per_page = 100  # GitHub API maximum per page
-
-    while len(all_runs) < limit:
-        params = {"per_page": min(per_page, limit - len(all_runs)), "page": page}
-        response = requests.get(
-            f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/{workflow_name}/runs",
-            headers=GITHUB_API_HEADERS,
-            params=params,
-        )
-
-        if response.status_code != 200:
-            st.error(f"Error fetching data: {response.status_code}")
-            break
-
-        runs = response.json()["workflow_runs"]
-        all_runs.extend(runs)
-
-        if len(runs) < per_page:
-            break  # No more pages to fetch
-
-        page += 1
-
-    return all_runs[:limit]
 
 
 @st.cache_data(show_spinner=False)
@@ -90,7 +56,9 @@ flaky_tests: Counter[str] = Counter()
 example_run: dict[str, str] = {}
 first_date = date.today()
 
-workflow_runs = fetch_workflow_runs("playwright.yml", limit=workflow_runs_limit)
+workflow_runs = fetch_workflow_runs(
+    "playwright.yml", limit=workflow_runs_limit, branch=None, status=None
+)
 with st.spinner("Fetching workflow annotations..."):
     for workflow_run in workflow_runs:
         check_suite_id = workflow_run["check_suite_id"]
@@ -250,13 +218,13 @@ if not workflow_df.empty:
         st.markdown(
             f"""
         This chart shows a rolling average of the last {rolling_window_size} workflow runs for each day. Here's how to interpret it:
-        
+
         - Each point represents the average flakiness rate of the most recent {rolling_window_size} workflow runs as of that day
         - The value can remain constant across multiple days if:
           - No new workflow runs occurred on those days
           - New runs had the same flakiness status (all flaky or all non-flaky)
           - The oldest runs leaving the window had the same flakiness status as the new ones entering
-        
+
         Adjust the "Rolling average window size" in the sidebar to change the sensitivity of the trend line.
         """
         )

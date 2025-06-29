@@ -2,13 +2,15 @@ import json
 import pathlib
 import urllib.request
 from datetime import date, datetime
-from typing import Dict, List, Literal
+from typing import Dict, List
 from urllib.parse import quote
 
 import altair as alt
 import pandas as pd
 import requests
 import streamlit as st
+
+from app.utils.github_utils import GITHUB_API_HEADERS, get_all_github_issues
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -34,16 +36,12 @@ GROWTH_PERIODS = {
 def get_issue_reactions(issue_number: int) -> pd.DataFrame:
     reactions = []
     page = 1
-    headers = {
-        "Authorization": "token " + st.secrets["github"]["token"],
-        "Accept": "application/vnd.github.squirrel-girl-preview+json",
-    }
 
     while True:
         try:
             response = requests.get(
                 f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}/reactions?per_page=100&page={page}",
-                headers=headers,
+                headers=GITHUB_API_HEADERS,
                 timeout=100,
             )
 
@@ -94,40 +92,6 @@ def get_all_reactions(issue_numbers: list):
     if not reactions_dfs:
         return pd.DataFrame()
     return pd.concat(reactions_dfs)
-
-
-# Paginate through all open issues in the streamlit/streamlit repo
-# and return them all as a list of dicts.
-@st.cache_data(ttl=60 * 60 * 12)  # cache for 12 hours
-def get_all_github_issues(state: Literal["open", "closed"] = "open"):
-    issues = []
-    page = 1
-
-    headers = {"Authorization": "token " + st.secrets["github"]["token"]}
-
-    while True:
-        try:
-            response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/issues?state={state}&per_page=100&page={page}",
-                headers=headers,
-                timeout=100,
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                if not data:
-                    break
-                issues.extend(data)
-                page += 1
-            else:
-                print(
-                    f"Failed to retrieve data: {response.status_code}:", response.text
-                )
-                break
-        except Exception as ex:
-            print(ex, flush=True)
-            break
-    return issues
 
 
 # Add checkbox for showing statistics
