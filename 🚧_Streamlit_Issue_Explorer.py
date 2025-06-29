@@ -1,5 +1,7 @@
 import streamlit as st
 
+# We cannot change the script name since its not possible to change the main script on community cloud.
+
 page = st.navigation(
     [
         st.Page(
