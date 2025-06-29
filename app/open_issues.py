@@ -130,10 +130,6 @@ def get_all_github_issues(state: Literal["open", "closed"] = "open"):
     return issues
 
 
-filter_closed_issues_by_dates_input = st.sidebar.date_input(
-    "Filter closed issues by dates", value=None, max_value=date.today()
-)
-
 # Add checkbox for showing statistics
 show_statistics = st.sidebar.checkbox("Show issue statistics", value=False)
 show_reactions_growth = st.sidebar.checkbox("Show reactions growth", value=False)
@@ -146,9 +142,7 @@ if show_reactions_growth:
 # Ignore Pull Requests
 all_issues = [
     issue
-    for issue in get_all_github_issues(
-        state="closed" if filter_closed_issues_by_dates_input else "open"
-    )
+    for issue in get_all_github_issues(state="open")
     if "pull_request" not in issue
 ]
 all_labels = set()
@@ -190,20 +184,6 @@ print("Show issues with labels:", filter_labels, flush=True)
 
 st.query_params["label"] = filter_labels
 
-# Process date range for filtering
-start_date_filter = None
-end_date_filter = None
-if filter_closed_issues_by_dates_input:
-    if (
-        isinstance(filter_closed_issues_by_dates_input, tuple)
-        and len(filter_closed_issues_by_dates_input) == 2
-    ):
-        start_date_filter, end_date_filter = filter_closed_issues_by_dates_input
-    elif isinstance(filter_closed_issues_by_dates_input, date):
-        start_date_filter = filter_closed_issues_by_dates_input
-        end_date_filter = date.today()
-
-
 filtered_issues = []
 for issue in all_issues:
     filtered_out = False
@@ -217,11 +197,6 @@ for issue in all_issues:
 
     for filter_label in filter_labels:
         if filter_label not in issue_labels:
-            filtered_out = True
-
-    if issue["state"] == "closed" and start_date_filter and end_date_filter:
-        issue_closed_date = datetime.fromisoformat(issue["closed_at"].strip("Z")).date()
-        if not (start_date_filter <= issue_closed_date <= end_date_filter):
             filtered_out = True
 
     if not filtered_out:
