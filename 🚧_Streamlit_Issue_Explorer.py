@@ -13,7 +13,6 @@ page = st.navigation(
             icon="🗃",
             url_path="Open_Issues",
         ),
-        st.Page("./app/issue_leaderboard.py", title="Issue Leaderboard", icon="🏆"),
         st.Page("./app/issue_reactions.py", title="Issue Reactions", icon="🫶"),
         st.Page("./app/flaky_tests.py", title="Flaky Tests", icon="🧫"),
         st.Page("./app/wheel_size.py", title="Wheel Size", icon="🛞"),
