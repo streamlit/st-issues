@@ -15,7 +15,7 @@ st.set_page_config(page_title="Flaky Tests", page_icon="🧫")
 st.title("🧫 Flaky Tests")
 
 workflow_runs_limit = st.sidebar.slider(
-    "Number of workflow runs", min_value=100, max_value=1000, value=300, step=100
+    "Number of workflow runs", min_value=100, max_value=1000, value=200, step=100
 )
 
 rolling_window_size = st.sidebar.slider(
