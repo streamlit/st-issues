@@ -29,10 +29,12 @@ rolling_window_size = st.sidebar.slider(
 # Fetch workflow runs
 flaky_tests: Counter[str] = Counter()
 example_run: dict[str, str] = {}
+last_failure_date: dict[str, date] = {}
 first_date = date.today()
 
+
 workflow_runs = fetch_workflow_runs(
-    "playwright.yml", limit=workflow_runs_limit, branch=None, status=None
+    "playwright.yml", limit=workflow_runs_limit, branch=None, status="success"
 )
 with st.spinner("Fetching workflow annotations..."):
     for workflow_run in workflow_runs:
@@ -54,7 +56,8 @@ with st.spinner("Fetching workflow annotations..."):
                     flaky_tests.update([test_name])
                     if test_name not in example_run:
                         example_run[test_name] = workflow_run["html_url"]
-
+                    if test_name not in last_failure_date:
+                        last_failure_date[test_name] = workflow_date
 
 flaky_tests_df = pd.DataFrame(flaky_tests.items(), columns=["Test Name", "Failures"])
 # Set the test name as the index
@@ -65,6 +68,7 @@ flaky_tests_df["Test Script"] = flaky_tests_df.index.map(
     lambda x: "https://github.com/streamlit/streamlit/blob/develop/e2e_playwright/"
     + x.split(":")[0]
 )
+flaky_tests_df["Last Failure Date"] = flaky_tests_df.index.map(last_failure_date)
 
 
 def extract_browser(test_name: str) -> str | None:
@@ -88,6 +92,10 @@ st.dataframe(
     flaky_tests_df,
     use_container_width=True,
     column_config={
+        "Test Name": st.column_config.TextColumn(width="large"),
+        "Last Failure Date": st.column_config.DatetimeColumn(
+            "Last Failure Date", format="distance"
+        ),
         "Latest Run": st.column_config.LinkColumn(display_text="Open"),
         "Test Script": st.column_config.LinkColumn(display_text="Open"),
     },

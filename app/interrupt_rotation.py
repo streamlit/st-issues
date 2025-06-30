@@ -325,9 +325,13 @@ def get_confirmed_bugs_without_repro_script(since_date: date) -> pd.DataFrame:
 def get_flaky_tests(since_date: date) -> pd.DataFrame:
     """Get flaky tests with >= 5 failures."""
     flaky_tests_counter: Counter[str] = Counter()
+    example_run: dict[str, str] = {}
+    last_failure_date: dict[str, date] = {}
+
     workflow_runs = fetch_workflow_runs(
-        "playwright.yml", since=since_date, status="success", branch=None
+        "playwright.yml", since=since_date, status="success", branch=None, limit=200
     )
+    st.write(len(workflow_runs))
 
     for run in workflow_runs:
         check_run_ids = fetch_workflow_runs_ids(run["check_suite_id"])
@@ -337,12 +341,25 @@ def get_flaky_tests(since_date: date) -> pd.DataFrame:
                 if annotation["path"].startswith("e2e_playwright/"):
                     test_name = (
                         f"{annotation['path'].replace('e2e_playwright/', '')}::"
-                        f"{annotation['message'].splitlines()[0]}"
+                        + annotation["message"].split("\n\n")[0]
                     )
                     flaky_tests_counter.update([test_name])
+                    if test_name not in example_run:
+                        example_run[test_name] = run["html_url"]
 
+                    if test_name not in last_failure_date:
+                        last_failure_date[test_name] = date.fromisoformat(
+                            run["created_at"][:10]
+                        )
+
+    st.write(run)
     data = [
-        {"Test": test, "Failures": count, "Workflow Run": run["html_url"]}
+        {
+            "Test": test,
+            "Failures": count,
+            "Workflow Run": example_run[test],
+            "Date": last_failure_date[test],
+        }
         for test, count in flaky_tests_counter.items()
         if count >= 5
     ]
@@ -559,6 +576,7 @@ flaky_tests_df = get_flaky_tests(since)
 if flaky_tests_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
+    flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
     st.dataframe(
         flaky_tests_df,
         use_container_width=True,
