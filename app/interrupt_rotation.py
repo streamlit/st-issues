@@ -295,6 +295,36 @@ def get_unprioritized_bugs() -> pd.DataFrame:
     return pd.DataFrame(unprioritized)
 
 
+def get_p0_p1_bugs() -> pd.DataFrame:
+    """Get all P0 and P1 priority bugs."""
+    issues = get_all_github_issues(state="open")
+    high_priority_bugs = []
+    for i in issues:
+        if "pull_request" in i:
+            continue
+        labels = {label["name"] for label in i["labels"]}
+        if "type:bug" in labels and any(
+            label in ["priority:P0", "priority:P1"] for label in labels
+        ):
+            priority = next(
+                (label for label in labels if label.startswith("priority:P")), "Unknown"
+            )
+            high_priority_bugs.append(
+                {
+                    "Title": i["title"],
+                    "URL": i["html_url"],
+                    "Created": i["created_at"],
+                    "Assignees": [
+                        assignee["login"] for assignee in i.get("assignees", [])
+                    ],
+                    "Priority": priority,
+                    "Labels": list(labels),
+                    "Author": i["user"]["login"],
+                }
+            )
+    return pd.DataFrame(high_priority_bugs)
+
+
 def get_confirmed_bugs_without_repro_script(since_date: date) -> pd.DataFrame:
     """Get confirmed bugs created since a date that don't have a repro script."""
     issues = get_all_github_issues(state="open")  # Get all open issues
@@ -563,6 +593,38 @@ else:
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+        },
+    )
+st.divider()
+
+st.subheader(
+    "P0 and P1 Bugs",
+    help="""
+Lists high-priority bugs that require immediate attention.
+Please make sure that those bugs are assigned and are being worked on.
+""",
+)
+p0_p1_bugs_df = get_p0_p1_bugs()
+if p0_p1_bugs_df.empty:
+    st.success("Congrats, everything is done here!", icon="🎉")
+else:
+    # Sort by priority (P0 first, then P1) and then by creation date
+    p0_p1_bugs_df["Priority_Sort"] = p0_p1_bugs_df["Priority"].map(
+        {"priority:P0": 0, "priority:P1": 1}
+    )
+    p0_p1_bugs_df = p0_p1_bugs_df.sort_values(by=["Priority_Sort", "Created"])
+    p0_p1_bugs_df = p0_p1_bugs_df.drop("Priority_Sort", axis=1)
+
+    st.dataframe(
+        p0_p1_bugs_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Title": st.column_config.TextColumn("Title", width="large"),
+            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Priority": st.column_config.TextColumn("Priority"),
+            "Labels": st.column_config.ListColumn("Labels"),
         },
     )
 st.divider()
