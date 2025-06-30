@@ -662,7 +662,7 @@ st.divider()
 st.subheader(
     "Confirmed bugs without a reproducible script",
     help="""
-Confirmed bugs created in the selected timeframe that don't have a reproducible script.
+Confirmed bugs (`status:confirmed` & `type:bug`) created in the selected timeframe that don't have a reproducible script.
 
 This isn't a requirement for all issues. If the issue is not easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, you can skip this step.
 
