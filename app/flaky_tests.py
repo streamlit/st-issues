@@ -5,10 +5,13 @@ from datetime import date, datetime
 
 import altair as alt
 import pandas as pd
-import requests
 import streamlit as st
 
-from app.utils.github_utils import GITHUB_API_HEADERS, fetch_workflow_runs
+from app.utils.github_utils import (
+    fetch_workflow_run_annotations,
+    fetch_workflow_runs,
+    fetch_workflow_runs_ids,
+)
 
 st.set_page_config(page_title="Flaky Tests", page_icon="🧫")
 
@@ -21,34 +24,6 @@ workflow_runs_limit = st.sidebar.slider(
 rolling_window_size = st.sidebar.slider(
     "Flaky trend window size", min_value=5, max_value=50, value=25, step=5
 )
-
-
-@st.cache_data(show_spinner=False)
-def fetch_check_runs_ids(check_suite_id: str) -> list[str]:
-    annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-suites/{check_suite_id}/check-runs"
-    response = requests.get(annotations_url, headers=GITHUB_API_HEADERS)
-
-    if response.status_code == 200:
-        check_runs = response.json()["check_runs"]
-        check_runs = [
-            check_run
-            for check_run in check_runs
-            if check_run["conclusion"] == "success"
-        ]
-        return [check_run["id"] for check_run in check_runs]
-    st.error(f"Error fetching annotations: {response.status_code}")
-    return []
-
-
-@st.cache_data(show_spinner=False)
-def fetch_annotations(check_run_id: str) -> list[dict]:
-    annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-runs/{check_run_id}/annotations"
-    response = requests.get(annotations_url, headers=GITHUB_API_HEADERS)
-
-    if response.status_code == 200:
-        return response.json()
-    st.error(f"Error fetching annotations: {response.status_code}")
-    return []
 
 
 # Fetch workflow runs
@@ -66,9 +41,9 @@ with st.spinner("Fetching workflow annotations..."):
         if workflow_date < first_date:
             first_date = workflow_date
 
-        check_runs_ids = fetch_check_runs_ids(check_suite_id)
+        check_runs_ids = fetch_workflow_runs_ids(check_suite_id)
         for check_run_id in check_runs_ids:
-            annotations_list = fetch_annotations(check_run_id)
+            annotations_list = fetch_workflow_run_annotations(check_run_id)
             for annotation in annotations_list:
                 if annotation["path"].startswith("e2e_playwright/"):
                     test_name = (
@@ -127,9 +102,9 @@ for workflow_run in workflow_runs:
 
     # Check if this workflow run had any annotations (indicating reruns)
     had_reruns = False
-    check_runs_ids = fetch_check_runs_ids(check_suite_id)
+    check_runs_ids = fetch_workflow_runs_ids(check_suite_id)
     for check_run_id in check_runs_ids:
-        annotations_list = fetch_annotations(check_run_id)
+        annotations_list = fetch_workflow_run_annotations(check_run_id)
         if any(
             annotation["path"].startswith("e2e_playwright/")
             for annotation in annotations_list

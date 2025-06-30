@@ -6,51 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.utils.github_utils import get_all_github_prs
-
-# Default authors to exclude
-DEFAULT_EXCLUDED_AUTHORS = [
-    "lukasmasuch",
-    "tconkling",
-    "vdonato",
-    "kmcgrady",
-    "mayagbarnes",
-    "kajarenrc",
-    "willhuang1997",
-    "AnOctopus",
-    "tvst",
-    "kantuni",
-    "raethlein",
-    "arraydude",
-    "snehankekre",
-    "akrolsmir",
-    "randyzwitch",
-    "jrhone",
-    "monchier",
-    "imjuangarcia",
-    "nthmost",
-    "blackary",
-    "jroes",
-    "arnaudmiribel",
-    "JessSm3",
-    "MathCatsAnd",
-    "kasim-inan",
-    "astrojams1",
-    "gmerticariu",
-    "mesmith027",
-    "tc87",
-    "tyler-simons",
-    "lawilby",
-    "treuille",
-    "Amey-D",
-    "CharlyWargnier",
-    "kajarenc",
-    "karriebear",
-    "jrieke",
-    "erikhopf",
-    "domoritz",
-    "dcaminos",
-]
+from app.utils.github_utils import STREAMLIT_TEAM_MEMBERS, get_all_github_prs
 
 st.set_page_config(
     page_title="Community PRs",
@@ -159,11 +115,11 @@ with st.expander("Filter authors", expanded=False):
         f"{author} ({author_counts[author]} PRs)" for author in available_authors
     ]
 
-    # Find default selections - authors from DEFAULT_EXCLUDED_AUTHORS that are in available_authors
+    # Find default selections - authors from STREAMLIT_AUTHORS that are in available_authors
     default_selections = [
         f"{author} ({author_counts[author]} PRs)"
         for author in available_authors
-        if author in DEFAULT_EXCLUDED_AUTHORS
+        if author in STREAMLIT_TEAM_MEMBERS
     ]
 
     # Multiselect for additional exclusions

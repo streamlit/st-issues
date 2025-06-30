@@ -29,6 +29,7 @@ page = st.navigation(
             url_path="Test_Coverage_(Frontend)",
         ),
         st.Page("./app/community_prs.py", title="Community PRs", icon="👥"),
+        st.Page("./app/interrupt_rotation.py", title="Interrupt Rotation", icon="🩺"),
     ]
 )
 page.run()

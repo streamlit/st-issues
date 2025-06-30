@@ -1,15 +1,68 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date
 from typing import Any, Dict, List, Literal, Optional
 
 import requests
 import streamlit as st
 
+# Streamlit team members:
+STREAMLIT_TEAM_MEMBERS = [
+    "lukasmasuch",
+    "tconkling",
+    "vdonato",
+    "kmcgrady",
+    "mayagbarnes",
+    "kajarenrc",
+    "willhuang1997",
+    "AnOctopus",
+    "tvst",
+    "kantuni",
+    "raethlein",
+    "arraydude",
+    "snehankekre",
+    "akrolsmir",
+    "randyzwitch",
+    "jrhone",
+    "monchier",
+    "imjuangarcia",
+    "nthmost",
+    "blackary",
+    "jroes",
+    "arnaudmiribel",
+    "JessSm3",
+    "MathCatsAnd",
+    "kasim-inan",
+    "astrojams1",
+    "gmerticariu",
+    "mesmith027",
+    "tc87",
+    "tyler-simons",
+    "lawilby",
+    "treuille",
+    "Amey-D",
+    "CharlyWargnier",
+    "kajarenc",
+    "karriebear",
+    "jrieke",
+    "erikhopf",
+    "domoritz",
+    "dcaminos",
+]
+
 GITHUB_API_HEADERS = {
     "Accept": "application/vnd.github.v3+json",
     "Authorization": f"token {st.secrets['github']['token']}",
 }
+
+
+def is_community_author(author: str) -> bool:
+    """Check if an author is a community member."""
+    return (
+        author not in STREAMLIT_TEAM_MEMBERS
+        and not author.startswith("sfc-gh-")
+        and not author.endswith("[bot]")
+    )
 
 
 @st.cache_data(ttl=60 * 60 * 12)  # cache for 12 hours
@@ -110,7 +163,7 @@ def get_all_github_prs(
 def fetch_workflow_runs(
     workflow_name: str,
     limit: int = 50,
-    since: datetime | None = None,
+    since: date | None = None,
     branch: str | None = "develop",
     status: str | None = "success",
 ) -> List[Dict[str, Any]]:
@@ -128,7 +181,7 @@ def fetch_workflow_runs(
     if status:
         params["status"] = status
     if since:
-        params["created"] = f">{since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+        params["created"] = f">{since.isoformat()}"
 
     while len(all_runs) < limit:
         params["page"] = page
@@ -271,3 +324,31 @@ def get_github_issue(issue_number: str) -> dict:
     except Exception as ex:
         st.error(f"Failed to retrieve issue: {ex}")
     return {}
+
+
+@st.cache_data(show_spinner=False)
+def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
+    annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-runs/{check_run_id}/annotations"
+    response = requests.get(annotations_url, headers=GITHUB_API_HEADERS)
+
+    if response.status_code == 200:
+        return response.json()
+    st.error(f"Error fetching annotations: {response.status_code}")
+    return []
+
+
+@st.cache_data(show_spinner=False)
+def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
+    annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-suites/{check_suite_id}/check-runs"
+    response = requests.get(annotations_url, headers=GITHUB_API_HEADERS)
+
+    if response.status_code == 200:
+        check_runs = response.json()["check_runs"]
+        check_runs = [
+            check_run
+            for check_run in check_runs
+            if check_run["conclusion"] == "success"
+        ]
+        return [check_run["id"] for check_run in check_runs]
+    st.error(f"Error fetching annotations: {response.status_code}")
+    return []
