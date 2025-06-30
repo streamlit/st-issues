@@ -365,12 +365,12 @@ def get_flaky_tests(since_date: date) -> pd.DataFrame:
             "Last Failure Date": last_failure_date[test],
         }
         for test, count in flaky_tests_counter.items()
-        if count >= 5
+        # Should be atleast 5 failures and the last failure should be in the last 4 days
+        if count >= 5 and last_failure_date[test] > date.today() - timedelta(days=4)
     ]
     return pd.DataFrame(data)
 
 
-@st.cache_data(ttl=3600)
 def get_open_dependabot_prs() -> pd.DataFrame:
     """Get open Dependabot PRs without 'do-not-merge' label."""
     prs = get_all_github_prs(state="open")
