@@ -35,7 +35,9 @@ PATH_TO_ISSUES = (
 
 
 # Helper functions for data fetching and processing
-@st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
+@st.cache_data(
+    ttl=60 * 60 * 6, show_spinner="Fetching python test coverage..."
+)  # cache for 6 hours
 def get_python_test_coverage_metrics(since_date: date) -> Tuple[float, float]:
     """Get the python test coverage and the change over a period."""
     runs_in_period = fetch_workflow_runs("python-tests.yml", since=since_date)
@@ -74,7 +76,9 @@ def get_python_test_coverage_metrics(since_date: date) -> Tuple[float, float]:
     return latest_coverage, latest_coverage - oldest_coverage
 
 
-@st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
+@st.cache_data(
+    ttl=60 * 60 * 6, show_spinner="Fetching frontend test coverage..."
+)  # cache for 6 hours
 def get_frontend_test_coverage_metrics(since_date: date) -> Tuple[float, float]:
     """Get the frontend test coverage and the change over a period."""
     runs_in_period = fetch_workflow_runs("js-tests.yml", since=since_date)
@@ -116,7 +120,9 @@ def get_frontend_test_coverage_metrics(since_date: date) -> Tuple[float, float]:
     return latest_coverage, latest_coverage - oldest_coverage
 
 
-@st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
+@st.cache_data(
+    ttl=60 * 60 * 6, show_spinner="Fetching wheel size..."
+)  # cache for 6 hours
 def get_wheel_size_metrics(since_date: date) -> Tuple[int, int]:
     """Get the wheel size and the change over a period."""
     runs_in_period = fetch_workflow_runs("pr-preview.yml", since=since_date)
@@ -356,7 +362,7 @@ def get_flaky_tests(since_date: date) -> pd.DataFrame:
             "Test": test,
             "Failures": count,
             "Workflow Run": example_run[test],
-            "Date": last_failure_date[test],
+            "Last Failure Date": last_failure_date[test],
         }
         for test, count in flaky_tests_counter.items()
         if count >= 5
@@ -585,6 +591,7 @@ else:
             "Workflow Run": st.column_config.LinkColumn(
                 "Last Workflow Run", display_text="Open"
             ),
+            "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
         },
     )
 st.divider()
