@@ -190,8 +190,8 @@ def get_missing_labels_issues() -> pd.DataFrame:
                 {
                     "Title": i["title"],
                     "URL": i["html_url"],
-                    "Author": i["user"]["login"],
                     "Created": i["created_at"],
+                    "Author": i["user"]["login"],
                     "Labels": list(labels),
                 }
             )
@@ -282,8 +282,8 @@ def get_unprioritized_bugs() -> pd.DataFrame:
                     {
                         "Title": i["title"],
                         "URL": i["html_url"],
-                        "Author": i["user"]["login"],
                         "Created": i["created_at"],
+                        "Author": i["user"]["login"],
                     }
                 )
     return pd.DataFrame(unprioritized)
@@ -314,8 +314,8 @@ def get_confirmed_bugs_without_repro_script(since_date: date) -> pd.DataFrame:
                     {
                         "Title": i["title"],
                         "URL": i["html_url"],
-                        "Author": i["user"]["login"],
                         "Created": i["created_at"],
+                        "Author": i["user"]["login"],
                     }
                 )
     return pd.DataFrame(bugs_without_repro)
@@ -421,7 +421,34 @@ with col3:
 # DataFrames
 st.header("Action Items")
 
-st.subheader("Issues that need triage")
+st.subheader(
+    "Issues that need triage",
+    help="""
+Lists all issues with the `status:needs-triage` label.
+To triage an issue, you need to try to reproduce the issue.
+
+**If you are able to reproduce the issue:**
+1. Add the `status:confirmed` label
+2. Remove the `status:needs-triage` label
+3. Add the correct priority label `priority:P{0,1,2,3,4}`
+    1. **Important:** If it's a P0 bug, you should either start working on a fix or engaging with the people who can help take immediate action on the bug
+    2. If it's a P1 or P2 bug, consider prioritizing fixing the bug yourself as that is a core responsibility of the Interrupt rotation
+4. Add the corresponding feature(s) label `feature:{the_feature}` or `area:{the_area}`
+5. If it's a regression, add the `type:regression` label
+6. If this is a bug in an upstream library (eg: Base Web, Arrow), please add the `upstream` label
+7. Respond in a comment thanking the user for filing their issue
+
+**If you are unable to repro / they didn't provide enough information to debug:**
+1. Add the `status:cannot-reproduce` and `status:awaiting-user-response` labels
+2. Remove the `status:needs-triage` label
+3. Respond in a comment thanking the user for filing their issue and asking them for more information on how to reproduce the issue. Be clear about what you tried and what results you were seeing.
+
+**If it is not a bug, but intended behavior:**
+1. Change to the type (e.g. to `type:enhancement` , or `type:docs`, …)
+2. Remove the `status:needs-triage` label
+3. Respond in a comment thanking the user for filing their issue, let them know that it is intended behavior, and close the issue.
+""",
+)
 needs_triage_df = get_needs_triage_issues()
 if needs_triage_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
@@ -438,7 +465,10 @@ else:
     )
 st.divider()
 
-st.subheader("Issues missing feature label")
+st.subheader(
+    "Issues missing feature label",
+    help="Every issue is expected to have atleast one `feature:{the_feature}` or `area:{the_area}` label.",
+)
 missing_labels_df = get_missing_labels_issues()
 if missing_labels_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
@@ -456,7 +486,50 @@ else:
     )
 st.divider()
 
-st.subheader("Confirmed bugs without a priority")
+st.subheader(
+    "Confirmed bugs without a priority",
+    help="""
+Every confirmed bug is expected to be labled with a `priority:P{0,1,2,3,4}` label.
+
+### P0
+
+- A primary Streamlit user journey is effectively broken for nearly all users
+- A high-risk security or compliance issue, even if not immediately user-visible
+
+**Action:** Must be addressed ASAP with a hotfix
+
+### P1
+
+- Streamlit behavior blocks most users from doing something *without* a workaround
+- A new or high profile feature is visibly broken in a common scenario
+- Streamlit behavior causes a Major incident with an internal hosting partner (Community Cloud or SiS)
+- A non-blocking but noticeable regression (>5% of users will notice) in a primary user journey or Streamlit behavior including:
+    - Performance regression
+    - Visual or design issue
+    - Behavior change which breaks backwards compatibility
+
+**Action:** If found pre-release, we will not release. If found after release, we should fix within 2 weeks and will assess a hotfix.
+
+### P2
+
+- Streamlit behavior blocks many users from doing something — but there is a workaround
+- Something is visibly broken in an `experimental_` feature
+- Streamlit behavior blocks many users from doing something specifically with a key dependency.
+- A less noticeable regression (visual/design or performance) or confusing behavior
+
+**Action:** If it's a regression and/or has a straightforward and low-risk fix, we should try to fix it in the next release. Otherwise, assess case by case.
+
+### P3/P4
+
+- Streamlit blocks users in specific situations (e.g. use of an outside dependency)
+- Small stylistic changes
+- Scenarios that have very specific situations and are difficult to reproduce.
+
+*Distinguishing P3/P4 is more of a judgment call. Upvotes/comments in Github can also distinguish these, or even indicate visibility to move to P2.*
+
+**Action:** It can be fixed opportunistically but should not be especially prioritized by core engineers. We may also accept an outside contribution, or fix it as a papercut.
+""",
+)
 unprioritized_bugs_df = get_unprioritized_bugs()
 if unprioritized_bugs_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
@@ -473,7 +546,15 @@ else:
     )
 st.divider()
 
-st.subheader("Flaky tests with ≥ 5 failures")
+st.subheader(
+    "Flaky tests with ≥ 5 failures",
+    help="""
+Lists flaky tests with ≥ 5 failures in the selected timeframe.
+
+Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky(reruns=4)`
+marker as a last resort.
+""",
+)
 flaky_tests_df = get_flaky_tests(since)
 if flaky_tests_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
@@ -494,7 +575,7 @@ st.divider()
 
 st.subheader(
     "Community PRs missing labels",
-    help="Community PRs missing `change:*` and/or `impact:*` label",
+    help="Every community PR is expected to be labeled with a `change:*` and `impact:*` label.",
 )
 missing_labels_prs_df = get_missing_labels_prs()
 if missing_labels_prs_df.empty:
@@ -515,7 +596,12 @@ st.divider()
 
 st.subheader(
     "Community feature PRs needing product approval",
-    help="Community PRs with `change:feature` and `impact:users` labels that don't have a `status:needs-product-approval`, `status:product-approved` or `do-not-merge` label.",
+    help="""
+Feature PRs from community (`change:feature` and `impact:users`) need to be labeled with:
+- `status:needs-product-approval`: Marks the PR to need a review from product before technical review.
+- `status:product-approved`: PRs that have been approved by product. This is usually applied by a PM.
+- `do-not-merge`: PRs that should not be merged.
+""",
 )
 prs_needing_approval_df = get_prs_needing_product_approval()
 if prs_needing_approval_df.empty:
@@ -534,7 +620,16 @@ else:
     )
 st.divider()
 
-st.subheader("Open Dependabot PRs")
+st.subheader(
+    "Open Dependabot PRs",
+    help="""
+Lists all open dependency update PRs from Dependabot. Please try to review and merge these PRs
+if it requires no or only minor changes.
+
+- In some cases, the PR will require manually updating the `NOTICES` file by checking out the dependency PR, running `yarn install` in `frontend`, and running `make notices` from repo root.
+- If our CI indicates that updating the dependency will likely require bigger changes, just close the PR with a brief message and add the dependency to our https://github.com/streamlit/streamlit/blob/develop/.github/dependabot.yml ignore list. [Example PR](https://github.com/streamlit/streamlit/pull/10630)
+ """,
+)
 dependabot_prs_df = get_open_dependabot_prs()
 if dependabot_prs_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
@@ -551,7 +646,10 @@ else:
     )
 st.divider()
 
-st.subheader("Issues waiting for team response")
+st.subheader(
+    "Issues waiting for team response",
+    help="Lists all issues that are waiting for a response from the team.",
+)
 waiting_for_team_response_df = get_issue_waiting_for_team_response()
 if waiting_for_team_response_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
@@ -563,7 +661,17 @@ st.divider()
 
 st.subheader(
     "Confirmed bugs without a reproducible script",
-    help="Confirmed bugs created in the selected timeframe that don't have a reproducible script.",
+    help="""
+Confirmed bugs created in the selected timeframe that don't have a reproducible script.
+
+This isn't a requirement for all issues. If the issue is not easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, you can skip this step.
+
+**How to add a new repro case to [streamlit/st-issues](https://github.com/streamlit/st-issues):**
+1. [Create a new folder in `issues`](https://github.com/streamlit/st-issues/new/main/issues) with this naming pattern: `gh-<GITHUB_ISSUE_ID>`.
+2. Create an `app.py` file in the created issue folder and use it to reproduce the issue.
+3. Once the issue is added, it should be automatically accessible from the deployed issue explorer after a page refresh.
+4. Make sure to link the issue app in the respective issue on Github. Tip: Inside the Issue Description expander, you can find a markdown snippet that allows you to easily add a badge to the GitHub issue. Add this to the issue body in the Steps to reproduce section.
+""",
 )
 confirmed_bugs_without_repro_df = get_confirmed_bugs_without_repro_script(since)
 if confirmed_bugs_without_repro_df.empty:
