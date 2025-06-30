@@ -331,7 +331,6 @@ def get_flaky_tests(since_date: date) -> pd.DataFrame:
     workflow_runs = fetch_workflow_runs(
         "playwright.yml", since=since_date, status="success", branch=None, limit=200
     )
-    st.write(len(workflow_runs))
 
     for run in workflow_runs:
         check_run_ids = fetch_workflow_runs_ids(run["check_suite_id"])
@@ -352,7 +351,6 @@ def get_flaky_tests(since_date: date) -> pd.DataFrame:
                             run["created_at"][:10]
                         )
 
-    st.write(run)
     data = [
         {
             "Test": test,
