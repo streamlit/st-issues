@@ -273,6 +273,56 @@ def get_prs_needing_product_approval() -> pd.DataFrame:
     return pd.DataFrame(needs_approval_prs)
 
 
+def get_community_prs_ready_for_review() -> pd.DataFrame:
+    """Get community PRs that are ready for review."""
+    prs = get_all_github_prs(state="open")
+    ready_for_review = []
+    for pr in prs:
+        author = pr.get("user", {}).get("login")
+        if not author or not is_community_author(author):
+            continue
+
+        # Check if PR is in draft state
+        if pr.get("draft", False):
+            continue
+
+        # Check if PR title has [WIP]
+        if "[WIP]" in pr.get("title", "").upper():
+            continue
+
+        labels = {label["name"] for label in pr["labels"]}
+
+        # Check for blocking labels
+        blocking_labels = {
+            "do-not-merge",
+            "status:needs-product-approval",
+            "status:awaiting-user-response",
+        }
+        if any(label in blocking_labels for label in labels):
+            continue
+
+        # Check for required labels
+        has_change = any(label.startswith("change:") for label in labels)
+        has_impact = any(label.startswith("impact:") for label in labels)
+        if not has_change or not has_impact:
+            continue
+
+        ready_for_review.append(
+            {
+                "Title": pr["title"],
+                "URL": pr["html_url"],
+                "Assignees": [
+                    assignee["login"] for assignee in pr.get("assignees", [])
+                ],
+                "Created": pr["created_at"],
+                "Updated": pr["updated_at"],
+                "Labels": list(labels),
+                "Author": author,
+            }
+        )
+    return pd.DataFrame(ready_for_review)
+
+
 def get_unprioritized_bugs() -> pd.DataFrame:
     """Get confirmed bugs without a priority."""
     issues = get_all_github_issues(state="open")
@@ -623,6 +673,7 @@ else:
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Assignees": st.column_config.ListColumn("Assignees"),
             "Priority": st.column_config.TextColumn("Priority"),
             "Labels": st.column_config.ListColumn("Labels"),
         },
@@ -700,6 +751,40 @@ else:
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Labels": st.column_config.ListColumn("Labels"),
+        },
+    )
+st.divider()
+
+st.subheader(
+    "Community PRs ready for review",
+    help="""
+Lists community PRs that are ready for technical review. These PRs meet all the criteria:
+- Not in draft state
+- No "[WIP]" in the title
+- Has both `change:*` and `impact:*` labels
+- No blocking labels (`do-not-merge`, `status:needs-product-approval`, `status:awaiting-user-response`)
+
+These PRs are ready for code review and can be prioritized for technical feedback.
+
+Before reviewing, its recommended to approve and run the CI (check that the code doesn't contain obvious
+security issues) and assign Copilot for an automated review.
+""",
+)
+community_prs_ready_df = get_community_prs_ready_for_review()
+if community_prs_ready_df.empty:
+    st.success("Congrats, everything is done here!", icon="🎉")
+else:
+    st.dataframe(
+        community_prs_ready_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Title": st.column_config.TextColumn("Title", width="large"),
+            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Updated": st.column_config.DatetimeColumn("Updated", format="distance"),
+            "Assignees": st.column_config.ListColumn("Assignees"),
             "Labels": st.column_config.ListColumn("Labels"),
         },
     )
