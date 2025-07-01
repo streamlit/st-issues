@@ -681,35 +681,6 @@ else:
 st.divider()
 
 st.subheader(
-    "Flaky tests with ≥ 5 failures",
-    help="""
-Lists flaky tests with ≥ 5 failures in the selected timeframe.
-
-Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky(reruns=4)`
-marker as a last resort.
-""",
-)
-flaky_tests_df = get_flaky_tests(since)
-if flaky_tests_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
-    st.dataframe(
-        flaky_tests_df,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Test": st.column_config.TextColumn("Test", width="large"),
-            "Failures": st.column_config.NumberColumn("Failures"),
-            "Workflow Run": st.column_config.LinkColumn(
-                "Last Workflow Run", display_text="Open"
-            ),
-            "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
-        },
-    )
-st.divider()
-
-st.subheader(
     "Community PRs missing labels",
     help="Every community PR is expected to be labeled with a `change:*` and `impact:*` label.",
 )
@@ -826,6 +797,35 @@ if waiting_for_team_response_df.empty:
 else:
     st.dataframe(
         waiting_for_team_response_df, use_container_width=True, hide_index=True
+    )
+st.divider()
+
+st.subheader(
+    "Flaky tests with ≥ 5 failures",
+    help="""
+Lists flaky tests with ≥ 5 failures in the selected timeframe.
+
+Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky(reruns=4)`
+marker as a last resort.
+""",
+)
+flaky_tests_df = get_flaky_tests(since)
+if flaky_tests_df.empty:
+    st.success("Congrats, everything is done here!", icon="🎉")
+else:
+    flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
+    st.dataframe(
+        flaky_tests_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Test": st.column_config.TextColumn("Test", width="large"),
+            "Failures": st.column_config.NumberColumn("Failures"),
+            "Workflow Run": st.column_config.LinkColumn(
+                "Last Workflow Run", display_text="Open"
+            ),
+            "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
+        },
     )
 st.divider()
 
