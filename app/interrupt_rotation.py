@@ -767,7 +767,7 @@ st.subheader(
 Lists all open dependency update PRs from Dependabot. Please try to review and merge these PRs
 if it requires no or only minor changes.
 
-- In some cases, the PR will require manually updating the `NOTICES` file by checking out the dependency PR, running `yarn install` in `frontend`, and running `make notices` from repo root.
+- In some cases, the PR will require manually updating the `NOTICES` file by checking out the dependency PR, running `yarn install` in `frontend`, and running `make update-notices` from repo root.
 - If our CI indicates that updating the dependency will likely require bigger changes, just close the PR with a brief message and add the dependency to our https://github.com/streamlit/streamlit/blob/develop/.github/dependabot.yml ignore list. [Example PR](https://github.com/streamlit/streamlit/pull/10630)
  """,
 )
