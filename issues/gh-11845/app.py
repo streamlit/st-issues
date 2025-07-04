@@ -18,4 +18,4 @@ st.write(
     f"{None if selection is None else option_map[selection]}"
 )
 
-st.markdown(":flag-gb: :flag_gb:	:hash:")
+st.markdown(":flag-gb: :flag_gb: :earth_africa: :hash:")
