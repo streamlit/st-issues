@@ -5,6 +5,7 @@ option_map = {
     1: ":flag-ie:",
     2: ":flag-de:",
     3: ":flag-at:",
+    4: ":hash:",
 }
 selection = st.pills(
     "Tool",
@@ -16,3 +17,5 @@ st.write(
     "Your selected option: "
     f"{None if selection is None else option_map[selection]}"
 )
+
+st.markdown(":flag-gb:	:hash:")
