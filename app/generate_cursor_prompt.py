@@ -1,12 +1,13 @@
 import streamlit as st
-from utils import display_cursor_prompt, display_issue_data
-from utils.ai.cursor_prompts import (
+
+from app.utils import display_cursor_prompt, display_issue_data
+from app.utils.ai.cursor_prompts import (
     TestType,
     generate_debugging_prompt,
     generate_test_writing_prompt,
     generate_workaround_prompt,
 )
-from utils.github_utils import load_issue_data
+from app.utils.github_utils import load_issue_data
 
 # Configure page
 st.set_page_config(

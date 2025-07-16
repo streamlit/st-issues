@@ -12,6 +12,11 @@ import humanize
 import pandas as pd
 import streamlit as st
 
+from app.utils import display_cursor_prompt, load_issue_from_metadata
+from app.utils.ai.cursor_prompts import (
+    generate_debugging_prompt,
+    generate_workaround_prompt,
+)
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
@@ -22,6 +27,44 @@ from app.utils.github_utils import (
     get_all_github_prs,
     is_community_author,
 )
+
+
+# Helper function to extract issue number from GitHub URL
+def extract_issue_number(github_url: str) -> int:
+    """Extract issue number from GitHub URL."""
+    if "github.com/streamlit/streamlit/issues/" in github_url:
+        return int(github_url.split("/issues/")[-1])
+    return 0
+
+
+# Helper function to handle dataframe selections
+def handle_dataframe_selection(event, df, key_suffix=""):
+    """Handle dataframe selection and update session state with issue number."""
+    if event and hasattr(event, "selection"):
+        if event.selection.rows:
+            # Something is selected
+            selected_row_idx = event.selection.rows[0]  # Get first selected row
+            if selected_row_idx < len(df):
+                selected_row = df.iloc[selected_row_idx]
+                if "URL" in selected_row:
+                    issue_number = extract_issue_number(selected_row["URL"])
+                    if issue_number > 0:
+                        st.session_state.selected_issue_number = issue_number
+                        st.session_state.selected_issue_url = selected_row["URL"]
+                        # Track which dataframe the selection came from
+                        st.session_state.selected_dataframe_key = key_suffix
+                        # Clear any previous close state since this is a new selection
+                        if "dialog_closed" in st.session_state:
+                            del st.session_state.dialog_closed
+                        # Issue number set – additional debug logging removed
+        else:
+            # Rows is empty → potential deselection
+            # Only close dialog if the deselection happened in the same dataframe
+            if st.session_state.get("selected_dataframe_key") == key_suffix:
+                st.session_state.dialog_closed = True
+    else:
+        pass  # No selection info available (debug logging removed)
+
 
 # Set page configuration
 st.set_page_config(page_title="Interrupt Rotation - Dashboard", page_icon="🩺")
@@ -554,16 +597,22 @@ needs_triage_df = get_needs_triage_issues()
 if needs_triage_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    st.dataframe(
+    event = st.dataframe(
         needs_triage_df,
         use_container_width=True,
         hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="triage_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Author": st.column_config.TextColumn("Author"),
         },
     )
+    handle_dataframe_selection(event, needs_triage_df, "triage")
+    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -574,17 +623,23 @@ missing_labels_df = get_missing_labels_issues()
 if missing_labels_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    st.dataframe(
+    event = st.dataframe(
         missing_labels_df,
         use_container_width=True,
         hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="missing_labels_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Author": st.column_config.TextColumn("Author"),
             "Labels": st.column_config.ListColumn("Labels"),
         },
     )
+    handle_dataframe_selection(event, missing_labels_df, "missing_labels")
+    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -635,16 +690,22 @@ unprioritized_bugs_df = get_unprioritized_bugs()
 if unprioritized_bugs_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    st.dataframe(
+    event = st.dataframe(
         unprioritized_bugs_df,
         use_container_width=True,
         hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="unprioritized_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Author": st.column_config.TextColumn("Author"),
         },
     )
+    handle_dataframe_selection(event, unprioritized_bugs_df, "unprioritized")
+    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -665,19 +726,24 @@ else:
     p0_p1_bugs_df = p0_p1_bugs_df.sort_values(by=["Priority_Sort", "Created"])
     p0_p1_bugs_df = p0_p1_bugs_df.drop("Priority_Sort", axis=1)
 
-    st.dataframe(
-        p0_p1_bugs_df,
+    event = st.dataframe(
+        p0_p1_bugs_df.drop("Priority_Sort", axis=1, errors="ignore"),
         use_container_width=True,
         hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="p0p1_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Assignees": st.column_config.ListColumn("Assignees"),
+            "Author": st.column_config.TextColumn("Author"),
             "Priority": st.column_config.TextColumn("Priority"),
-            "Labels": st.column_config.ListColumn("Labels"),
+            "Assignees": st.column_config.ListColumn("Assignees"),
         },
     )
+    handle_dataframe_selection(event, p0_p1_bugs_df, "p0p1")
+    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -795,9 +861,25 @@ waiting_for_team_response_df = get_issue_waiting_for_team_response()
 if waiting_for_team_response_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    st.dataframe(
-        waiting_for_team_response_df, use_container_width=True, hide_index=True
+    event = st.dataframe(
+        waiting_for_team_response_df,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="waiting_response_dataframe",
     )
+    # Check if this dataframe has URLs for cursor prompt generation
+    if (
+        len(waiting_for_team_response_df) > 0
+        and "html_url" in waiting_for_team_response_df.columns
+    ):
+        handle_dataframe_selection(
+            event,
+            waiting_for_team_response_df.rename(columns={"html_url": "URL"}),
+            "waiting_response",
+        )
+        st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -847,13 +929,104 @@ confirmed_bugs_without_repro_df = get_confirmed_bugs_without_repro_script(since)
 if confirmed_bugs_without_repro_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    st.dataframe(
+    event = st.dataframe(
         confirmed_bugs_without_repro_df,
         use_container_width=True,
         hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="no_repro_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Author": st.column_config.TextColumn("Author"),
         },
     )
+    handle_dataframe_selection(event, confirmed_bugs_without_repro_df, "no_repro")
+    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
+
+
+# Dialog for cursor prompt generation
+@st.dialog("🤖 Generate Cursor Prompt", width="large")
+def show_cursor_prompt_dialog():
+    """Dialog for generating cursor prompts from selected issue."""
+    if "selected_issue_url" not in st.session_state:
+        st.error("No issue selected.")
+        return
+
+    # Extract issue number and load issue data
+    issue_number = extract_issue_number(st.session_state.selected_issue_url)
+
+    if issue_number == 0:
+        st.error("Invalid issue URL.")
+        return
+
+    # Load issue data if not already loaded
+    if (
+        "current_cursor_issue" not in st.session_state
+        or st.session_state.current_cursor_issue != issue_number
+    ):
+        with st.spinner(f"Loading issue #{issue_number}..."):
+            issue_metadata = {"number": issue_number}
+            load_issue_from_metadata(issue_metadata, "streamlit/streamlit")
+            st.session_state.current_cursor_issue = issue_number
+
+    # Check if issue data is loaded
+    if "issue_data" not in st.session_state or "issue_metadata" not in st.session_state:
+        st.error("Failed to load issue data.")
+        return
+
+    # Display issue info
+    metadata = st.session_state.issue_metadata
+    st.info(f"**Issue #{metadata.get('number')}:** {metadata.get('title', 'N/A')}")
+
+    # Prompt configuration
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        prompt_type = st.selectbox(
+            "Prompt Type",
+            [
+                "Workaround Suggestion",
+                "Debug Root Cause Analysis",
+            ],
+            help="""
+            - **Workaround Suggestion**: Generate temporary solutions users can implement
+            - **Debug Root Cause Analysis**: Deep dive into identifying the source of the problem
+            """,
+        )
+
+    with col2:
+        include_comments = st.checkbox("Include Comments", value=True)
+
+    # Generate prompt button
+    if st.button("🤖 Generate Cursor Prompt", type="primary", use_container_width=True):
+        # Get issue data from session state
+        issue_title = st.session_state.issue_data.get("title", "")
+        issue_body = st.session_state.issue_data.get("body", "")
+
+        comments = None
+        if include_comments and "processed_comments" in st.session_state:
+            comments = st.session_state.processed_comments
+
+        # Generate the appropriate prompt based on type
+        with st.spinner("Generating cursor prompt..."):
+            if prompt_type == "Debug Root Cause Analysis":
+                prompt_data = generate_debugging_prompt(
+                    issue_title=issue_title, issue_body=issue_body, comments=comments
+                )
+            elif prompt_type == "Workaround Suggestion":
+                prompt_data = generate_workaround_prompt(
+                    issue_title=issue_title, issue_body=issue_body, comments=comments
+                )
+
+        # Display the generated prompt
+        display_cursor_prompt(prompt_data)
+
+
+# Check if dialog should be shown
+if "selected_issue_number" in st.session_state and not st.session_state.get(
+    "dialog_closed", False
+):
+    show_cursor_prompt_dialog()
