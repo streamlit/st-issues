@@ -6,7 +6,7 @@ import re
 import streamlit as st
 import streamlit.components.v1 as components
 
-from app.utils.github_utils import get_github_issue
+from app.utils.github_utils import get_issue_data
 
 st.set_page_config(page_title="Streamlit Issue", page_icon="🚧")
 st.title("🚧 Streamlit Issues")
@@ -96,7 +96,7 @@ if selected_issue:
             issue_number = selected_issue_folder.replace("gh-", "")
             # Request issue from GitHub API and extract the body:
             try:
-                data = get_github_issue(issue_number)
+                data = get_issue_data("streamlit/streamlit", issue_number)
                 if data:
                     if "title" in data:
                         issue_title = data["title"].strip()

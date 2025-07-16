@@ -6,7 +6,7 @@ from utils.ai.cursor_prompts import (
     generate_test_writing_prompt,
     generate_workaround_prompt,
 )
-from utils.github.issue_loader import load_issue_data
+from utils.github_utils import load_issue_data
 
 # Configure page
 st.set_page_config(
