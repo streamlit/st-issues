@@ -509,3 +509,50 @@ def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
         return [check_run["id"] for check_run in check_runs]
     st.error(f"Error fetching annotations: {response.status_code}")
     return []
+
+
+def extract_issue_number(github_url: str) -> int:
+    """Extract issue number from GitHub URL."""
+    if "/issues/" in github_url:
+        try:
+            return int(github_url.split("/issues/")[-1].split("?")[0].split("#")[0])
+        except (ValueError, IndexError):
+            return 0
+    return 0
+
+
+def validate_issue_number(issue_str):
+    """Validate issue number is between 1 and 150,000."""
+    try:
+        issue_num = int(issue_str.strip())
+        if 1 <= issue_num <= 150000:
+            return True, issue_num
+        else:
+            return False, None
+    except (ValueError, TypeError):
+        return False, None
+
+
+def parse_github_url(url):
+    """Parse GitHub issue URL to extract repository and issue number."""
+    import re
+
+    if not url or not url.strip():
+        return None, None
+
+    url = url.strip()
+
+    # Remove @ symbol if present at the beginning
+    if url.startswith("@"):
+        url = url[1:]
+
+    # Pattern to match GitHub issue URLs
+    pattern = r"https://github\.com/([^/]+/[^/]+)/issues/(\d+)"
+    match = re.match(pattern, url)
+
+    if match:
+        repo_info = match.group(1)
+        issue_number = match.group(2)
+        return repo_info, issue_number
+
+    return None, None
