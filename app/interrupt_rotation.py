@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 from collections import Counter
 from datetime import date, datetime, timedelta
 from io import BytesIO
@@ -32,38 +33,47 @@ from app.utils.github_utils import (
 # Helper function to extract issue number from GitHub URL
 def extract_issue_number(github_url: str) -> int:
     """Extract issue number from GitHub URL."""
-    if "github.com/streamlit/streamlit/issues/" in github_url:
-        return int(github_url.split("/issues/")[-1])
+    if "/issues/" in github_url:
+        try:
+            return int(github_url.split("/issues/")[-1].split("?")[0].split("#")[0])
+        except (ValueError, IndexError):
+            return 0
     return 0
 
 
-# Helper function to handle dataframe selections
-def handle_dataframe_selection(event, df, key_suffix=""):
-    """Handle dataframe selection and update session state with issue number."""
-    if event and hasattr(event, "selection"):
-        if event.selection.rows:
-            # Something is selected
-            selected_row_idx = event.selection.rows[0]  # Get first selected row
-            if selected_row_idx < len(df):
-                selected_row = df.iloc[selected_row_idx]
-                if "URL" in selected_row:
-                    issue_number = extract_issue_number(selected_row["URL"])
-                    if issue_number > 0:
-                        st.session_state.selected_issue_number = issue_number
-                        st.session_state.selected_issue_url = selected_row["URL"]
-                        # Track which dataframe the selection came from
-                        st.session_state.selected_dataframe_key = key_suffix
-                        # Clear any previous close state since this is a new selection
-                        if "dialog_closed" in st.session_state:
-                            del st.session_state.dialog_closed
-                        # Issue number set – additional debug logging removed
+def validate_issue_number(issue_str):
+    """Validate issue number is between 1 and 150,000."""
+    try:
+        issue_num = int(issue_str.strip())
+        if 1 <= issue_num <= 150000:
+            return True, issue_num
         else:
-            # Rows is empty → potential deselection
-            # Only close dialog if the deselection happened in the same dataframe
-            if st.session_state.get("selected_dataframe_key") == key_suffix:
-                st.session_state.dialog_closed = True
-    else:
-        pass  # No selection info available (debug logging removed)
+            return False, None
+    except (ValueError, TypeError):
+        return False, None
+
+
+def parse_github_url(url):
+    """Parse GitHub issue URL to extract repository and issue number."""
+    if not url or not url.strip():
+        return None, None
+
+    url = url.strip()
+
+    # Remove @ symbol if present at the beginning
+    if url.startswith("@"):
+        url = url[1:]
+
+    # Pattern to match GitHub issue URLs
+    pattern = r"https://github\.com/([^/]+/[^/]+)/issues/(\d+)"
+    match = re.match(pattern, url)
+
+    if match:
+        repo_info = match.group(1)
+        issue_number = match.group(2)
+        return repo_info, issue_number
+
+    return None, None
 
 
 # Set page configuration
@@ -529,6 +539,62 @@ if st.sidebar.button(":material/refresh: Refresh data", use_container_width=True
     get_all_github_issues.clear()
     get_all_github_prs.clear()
 
+# Cursor Prompt Generation Section
+st.sidebar.divider()
+st.sidebar.subheader(":computer: LLM Prompt Generator")
+
+# Manual issue number input with form
+with st.sidebar.form("issue_form"):
+    # URL input for auto-parsing
+    github_url = st.text_input(
+        "GitHub Issue URL (optional)",
+        placeholder="https://github.com/owner/repo/issues/123",
+        help="Paste a GitHub issue URL to auto-populate the fields below",
+    )
+
+    # Parse URL if provided
+    parsed_repo, parsed_issue = parse_github_url(github_url)
+
+    # Use parsed values as defaults if available
+    default_repo = parsed_repo if parsed_repo else "streamlit/streamlit"
+    default_issue = parsed_issue if parsed_issue else ""
+
+    repo_info = st.text_input(
+        "Repository (owner/repo)",
+        value=default_repo,
+        help="Repository in the format 'owner/repo'",
+    )
+
+    manual_issue_number = st.text_input(
+        "Issue Number",
+        value=default_issue,
+        placeholder="e.g. 12345",
+        help="Enter a GitHub issue number to generate a cursor prompt",
+    )
+
+    submitted = st.form_submit_button("Generate Prompt", use_container_width=True)
+
+if submitted and manual_issue_number:
+    # Validate issue number
+    is_valid, validated_issue = validate_issue_number(manual_issue_number)
+
+    if not is_valid:
+        if not manual_issue_number.strip():
+            st.sidebar.error("❌ Please enter an issue number.")
+        else:
+            st.sidebar.error(
+                "❌ Issue number must be a valid number between 1 and 150,000."
+            )
+    elif not repo_info.strip():
+        st.sidebar.error("❌ Please enter a repository in the format 'owner/repo'.")
+    else:
+        st.session_state.selected_issue_number = validated_issue
+        st.session_state.selected_repo = repo_info
+        st.session_state.selected_issue_url = (
+            f"https://github.com/{repo_info}/issues/{validated_issue}"
+        )
+        st.session_state.show_cursor_dialog = True
+
 days = 14 if timeframe == "Last 14 days" else 7
 since = date.today() - timedelta(days=days)
 
@@ -597,13 +663,10 @@ needs_triage_df = get_needs_triage_issues()
 if needs_triage_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    event = st.dataframe(
+    st.dataframe(
         needs_triage_df,
         use_container_width=True,
         hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row",
-        key="triage_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
@@ -611,8 +674,6 @@ else:
             "Author": st.column_config.TextColumn("Author"),
         },
     )
-    handle_dataframe_selection(event, needs_triage_df, "triage")
-    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -623,13 +684,10 @@ missing_labels_df = get_missing_labels_issues()
 if missing_labels_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    event = st.dataframe(
+    st.dataframe(
         missing_labels_df,
         use_container_width=True,
         hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row",
-        key="missing_labels_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
@@ -638,8 +696,6 @@ else:
             "Labels": st.column_config.ListColumn("Labels"),
         },
     )
-    handle_dataframe_selection(event, missing_labels_df, "missing_labels")
-    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -690,13 +746,10 @@ unprioritized_bugs_df = get_unprioritized_bugs()
 if unprioritized_bugs_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    event = st.dataframe(
+    st.dataframe(
         unprioritized_bugs_df,
         use_container_width=True,
         hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row",
-        key="unprioritized_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
@@ -704,8 +757,6 @@ else:
             "Author": st.column_config.TextColumn("Author"),
         },
     )
-    handle_dataframe_selection(event, unprioritized_bugs_df, "unprioritized")
-    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -726,13 +777,10 @@ else:
     p0_p1_bugs_df = p0_p1_bugs_df.sort_values(by=["Priority_Sort", "Created"])
     p0_p1_bugs_df = p0_p1_bugs_df.drop("Priority_Sort", axis=1)
 
-    event = st.dataframe(
+    st.dataframe(
         p0_p1_bugs_df.drop("Priority_Sort", axis=1, errors="ignore"),
         use_container_width=True,
         hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row",
-        key="p0p1_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
@@ -742,8 +790,6 @@ else:
             "Assignees": st.column_config.ListColumn("Assignees"),
         },
     )
-    handle_dataframe_selection(event, p0_p1_bugs_df, "p0p1")
-    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -861,25 +907,11 @@ waiting_for_team_response_df = get_issue_waiting_for_team_response()
 if waiting_for_team_response_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    event = st.dataframe(
+    st.dataframe(
         waiting_for_team_response_df,
         use_container_width=True,
         hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row",
-        key="waiting_response_dataframe",
     )
-    # Check if this dataframe has URLs for cursor prompt generation
-    if (
-        len(waiting_for_team_response_df) > 0
-        and "html_url" in waiting_for_team_response_df.columns
-    ):
-        handle_dataframe_selection(
-            event,
-            waiting_for_team_response_df.rename(columns={"html_url": "URL"}),
-            "waiting_response",
-        )
-        st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 st.divider()
 
 st.subheader(
@@ -929,13 +961,10 @@ confirmed_bugs_without_repro_df = get_confirmed_bugs_without_repro_script(since)
 if confirmed_bugs_without_repro_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
-    event = st.dataframe(
+    st.dataframe(
         confirmed_bugs_without_repro_df,
         use_container_width=True,
         hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row",
-        key="no_repro_dataframe",
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
@@ -943,8 +972,6 @@ else:
             "Author": st.column_config.TextColumn("Author"),
         },
     )
-    handle_dataframe_selection(event, confirmed_bugs_without_repro_df, "no_repro")
-    st.caption("💡 Click on a row to generate a cursor prompt for that issue")
 
 
 # Dialog for cursor prompt generation
@@ -955,8 +982,9 @@ def show_cursor_prompt_dialog():
         st.error("No issue selected.")
         return
 
-    # Extract issue number and load issue data
+    # Extract issue number and repository
     issue_number = extract_issue_number(st.session_state.selected_issue_url)
+    repo = st.session_state.get("selected_repo", "streamlit/streamlit")
 
     if issue_number == 0:
         st.error("Invalid issue URL.")
@@ -966,11 +994,13 @@ def show_cursor_prompt_dialog():
     if (
         "current_cursor_issue" not in st.session_state
         or st.session_state.current_cursor_issue != issue_number
+        or st.session_state.get("current_cursor_repo") != repo
     ):
-        with st.spinner(f"Loading issue #{issue_number}..."):
+        with st.spinner(f"Loading issue #{issue_number} from {repo}..."):
             issue_metadata = {"number": issue_number}
-            load_issue_from_metadata(issue_metadata, "streamlit/streamlit")
+            load_issue_from_metadata(issue_metadata, repo)
             st.session_state.current_cursor_issue = issue_number
+            st.session_state.current_cursor_repo = repo
 
     # Check if issue data is loaded
     if "issue_data" not in st.session_state or "issue_metadata" not in st.session_state:
@@ -979,7 +1009,9 @@ def show_cursor_prompt_dialog():
 
     # Display issue info
     metadata = st.session_state.issue_metadata
-    st.info(f"**Issue #{metadata.get('number')}:** {metadata.get('title', 'N/A')}")
+    st.info(
+        f"**{repo} Issue #{metadata.get('number')}:** {metadata.get('title', 'N/A')}"
+    )
 
     # Prompt configuration
     col1, col2 = st.columns([2, 1])
@@ -1026,7 +1058,7 @@ def show_cursor_prompt_dialog():
 
 
 # Check if dialog should be shown
-if "selected_issue_number" in st.session_state and not st.session_state.get(
-    "dialog_closed", False
-):
+if st.session_state.get("show_cursor_dialog", False):
     show_cursor_prompt_dialog()
+    # Reset the dialog trigger after showing
+    st.session_state.show_cursor_dialog = False
