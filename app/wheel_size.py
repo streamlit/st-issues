@@ -16,11 +16,6 @@ st.caption(
     "This page visualizes the size of wheel files created in the PR preview workflow."
 )
 
-GITHUB_API_HEADERS = {
-    "Accept": "application/vnd.github.v3+json",
-    "Authorization": f"token {st.secrets['github']['token']}",
-}
-
 # Sidebar controls
 time_period = st.sidebar.selectbox(
     "Time period",

@@ -50,11 +50,6 @@ STREAMLIT_TEAM_MEMBERS = [
     "dcaminos",
 ]
 
-GITHUB_API_HEADERS = {
-    "Accept": "application/vnd.github.v3+json",
-    "Authorization": f"token {st.secrets['github']['token']}",
-}
-
 
 def is_community_author(author: str) -> bool:
     """Check if an author is a community member."""
@@ -63,6 +58,187 @@ def is_community_author(author: str) -> bool:
         and not author.startswith("sfc-gh-")
         and not author.endswith("[bot]")
     )
+
+
+def get_headers() -> Dict[str, str]:
+    """Get headers for GitHub API requests."""
+    return {
+        "Authorization": f"token {st.secrets['github']['token']}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+
+
+@st.cache_data(ttl=60 * 5)  # cache for 5 minutes
+def get_issue_data(repo: str, issue_number: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch issue data from GitHub API
+
+    Args:
+        repo: Repository in format "owner/repo"
+        issue_number: Issue number
+
+    Returns:
+        Dictionary containing issue data or None if request fails
+    """
+    headers = get_headers()
+    url = f"https://api.github.com/repos/{repo}/issues/{issue_number}"
+
+    try:
+        response = requests.get(url, headers=headers, timeout=100)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        st.error(f"Error fetching issue: {str(e)}")
+        return None
+
+
+def extract_issue_metadata(issue_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract relevant metadata from the issue data
+
+    Args:
+        issue_data: Raw issue data from GitHub API
+
+    Returns:
+        Dictionary with extracted metadata
+    """
+    return {
+        "title": issue_data.get("title", ""),
+        "number": issue_data.get("number", ""),
+        "state": issue_data.get("state", ""),
+        "created_at": issue_data.get("created_at", ""),
+        "updated_at": issue_data.get("updated_at", ""),
+        "author": issue_data.get("user", {}).get("login", ""),
+        "labels": [label.get("name", "") for label in issue_data.get("labels", [])],
+        "body": issue_data.get("body", ""),
+        "html_url": issue_data.get("html_url", ""),
+    }
+
+
+@st.cache_data(ttl=60 * 5)  # cache for 5 minutes
+def get_issue_comments(repo: str, issue_number: str) -> Optional[List[Dict[str, Any]]]:
+    """
+    Fetch comments for a GitHub issue
+
+    Args:
+        repo: Repository in format "owner/repo"
+        issue_number: Issue number
+
+    Returns:
+        List of comments or None if request fails
+    """
+    headers = get_headers()
+    url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
+
+    try:
+        response = requests.get(url, headers=headers, timeout=100)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        st.error(f"Error fetching comments: {str(e)}")
+        return None
+
+
+def extract_comment_data(comment: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract relevant data from a comment
+
+    Args:
+        comment: Raw comment data from GitHub API
+
+    Returns:
+        Dictionary with extracted comment data
+    """
+    return {
+        "id": comment.get("id", ""),
+        "body": comment.get("body", ""),
+        "created_at": comment.get("created_at", ""),
+        "updated_at": comment.get("updated_at", ""),
+        "author": comment.get("user", {}).get("login", ""),
+        "author_avatar_url": comment.get("user", {}).get("avatar_url", ""),
+        "html_url": comment.get("html_url", ""),
+    }
+
+
+def load_issue_data() -> bool:
+    """
+    Loads issue data based on form input in the session state.
+    Returns True if an issue was loaded, False otherwise.
+
+    Assumes the following session state variables:
+    - form_issue_number
+    - form_repo_info
+
+    Sets the following session state variables:
+    - issue_data
+    - issue_number
+    - repo_info
+    - issue_metadata
+    - issue_content
+    - comments_data
+    - processed_comments
+    """
+    # Process form data after submission
+    if (
+        not st.session_state.get("form_issue_number")
+        or not st.session_state.get("form_issue_number").strip()
+    ):
+        return False
+
+    # Check if we need to fetch new data
+    if (
+        st.session_state.get("issue_number") == st.session_state.form_issue_number
+        and st.session_state.get("repo_info") == st.session_state.form_repo_info
+        and "issue_data" in st.session_state
+    ):
+        return True
+
+    with st.spinner(
+        f"Fetching issue #{st.session_state.form_issue_number} from {st.session_state.form_repo_info}..."
+    ):
+        # Fetch issue data
+        issue_data = get_issue_data(
+            st.session_state.form_repo_info,
+            st.session_state.form_issue_number,
+        )
+
+        if issue_data:
+            st.session_state.issue_data = issue_data
+            st.session_state.issue_number = st.session_state.form_issue_number
+            st.session_state.repo_info = st.session_state.form_repo_info
+            st.success(
+                f"Successfully fetched issue #{st.session_state.form_issue_number}"
+            )
+
+            # Extract and store issue metadata
+            issue_metadata = extract_issue_metadata(issue_data)
+            st.session_state.issue_metadata = issue_metadata
+            st.session_state.issue_content = issue_data.get("body", "")
+
+            # Fetch issue comments
+            with st.spinner("Fetching issue comments..."):
+                comments_data = get_issue_comments(
+                    st.session_state.form_repo_info,
+                    st.session_state.form_issue_number,
+                )
+
+            if comments_data:
+                st.session_state.comments_data = comments_data
+                # Extract relevant comment data
+                processed_comments = [
+                    extract_comment_data(comment) for comment in comments_data
+                ]
+                st.session_state.processed_comments = processed_comments
+            else:
+                st.session_state.comments_data = []
+                st.session_state.processed_comments = []
+
+            return True
+        else:
+            st.error(
+                f"Failed to fetch issue #{st.session_state.form_issue_number}. Please check the repository and issue number."
+            )
+            return False
 
 
 @st.cache_data(ttl=60 * 60 * 12)  # cache for 12 hours
@@ -81,7 +257,7 @@ def get_all_github_issues(
         try:
             response = requests.get(
                 url,
-                headers=GITHUB_API_HEADERS,
+                headers=get_headers(),
                 timeout=100,
             )
 
@@ -127,7 +303,7 @@ def get_all_github_prs(
         try:
             response = requests.get(
                 url,
-                headers=GITHUB_API_HEADERS,
+                headers=get_headers(),
                 timeout=100,
             )
 
@@ -189,7 +365,7 @@ def fetch_workflow_runs(
         try:
             response = requests.get(
                 f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/{workflow_name}/runs",
-                headers=GITHUB_API_HEADERS,
+                headers=get_headers(),
                 params=params,
                 timeout=30,
             )
@@ -224,7 +400,7 @@ def fetch_artifacts(run_id: int) -> List[Dict[str, Any]]:
     try:
         response = requests.get(
             f"https://api.github.com/repos/streamlit/streamlit/actions/runs/{run_id}/artifacts",
-            headers=GITHUB_API_HEADERS,
+            headers=get_headers(),
             timeout=30,
         )
 
@@ -244,7 +420,7 @@ def download_artifact(artifact_url: str) -> Optional[bytes]:
     try:
         # The artifact URL is a redirect, so we need to get the real URL.
         redirect_response = requests.get(
-            artifact_url, headers=GITHUB_API_HEADERS, timeout=60, allow_redirects=False
+            artifact_url, headers=get_headers(), timeout=60, allow_redirects=False
         )
         if redirect_response.status_code != 302:
             st.error(
@@ -272,7 +448,7 @@ def fetch_pr_info(pr_number: str) -> Optional[Dict[str, Any]]:
     try:
         response = requests.get(
             f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}",
-            headers=GITHUB_API_HEADERS,
+            headers=get_headers(),
             timeout=30,
         )
 
@@ -293,7 +469,7 @@ def fetch_workflow_runs_for_commit(
     try:
         response = requests.get(
             f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/{workflow_name}/runs?head_sha={commit_sha}&status=success",
-            headers=GITHUB_API_HEADERS,
+            headers=get_headers(),
             timeout=30,
         )
 
@@ -307,29 +483,10 @@ def fetch_workflow_runs_for_commit(
         return []
 
 
-@st.cache_data(ttl=60 * 5)  # cache for 5 minutes
-def get_github_issue(issue_number: str) -> dict:
-    """Request a single issue from GitHub API."""
-    try:
-        response = requests.get(
-            f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}",
-            headers=GITHUB_API_HEADERS,
-            timeout=100,
-        )
-
-        if response.status_code == 200:
-            return response.json()
-        else:
-            st.error(f"Failed to retrieve data: {response.status_code}")
-    except Exception as ex:
-        st.error(f"Failed to retrieve issue: {ex}")
-    return {}
-
-
 @st.cache_data(show_spinner=False)
 def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
     annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-runs/{check_run_id}/annotations"
-    response = requests.get(annotations_url, headers=GITHUB_API_HEADERS)
+    response = requests.get(annotations_url, headers=get_headers())
 
     if response.status_code == 200:
         return response.json()
@@ -340,7 +497,7 @@ def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
 @st.cache_data(show_spinner=False)
 def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
     annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-suites/{check_suite_id}/check-runs"
-    response = requests.get(annotations_url, headers=GITHUB_API_HEADERS)
+    response = requests.get(annotations_url, headers=get_headers())
 
     if response.status_code == 200:
         check_runs = response.json()["check_runs"]
@@ -352,3 +509,50 @@ def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
         return [check_run["id"] for check_run in check_runs]
     st.error(f"Error fetching annotations: {response.status_code}")
     return []
+
+
+def extract_issue_number(github_url: str) -> int:
+    """Extract issue number from GitHub URL."""
+    if "/issues/" in github_url:
+        try:
+            return int(github_url.split("/issues/")[-1].split("?")[0].split("#")[0])
+        except (ValueError, IndexError):
+            return 0
+    return 0
+
+
+def validate_issue_number(issue_str):
+    """Validate issue number is between 1 and 150,000."""
+    try:
+        issue_num = int(issue_str.strip())
+        if 1 <= issue_num <= 150000:
+            return True, issue_num
+        else:
+            return False, None
+    except (ValueError, TypeError):
+        return False, None
+
+
+def parse_github_url(url):
+    """Parse GitHub issue URL to extract repository and issue number."""
+    import re
+
+    if not url or not url.strip():
+        return None, None
+
+    url = url.strip()
+
+    # Remove @ symbol if present at the beginning
+    if url.startswith("@"):
+        url = url[1:]
+
+    # Pattern to match GitHub issue URLs
+    pattern = r"https://github\.com/([^/]+/[^/]+)/issues/(\d+)"
+    match = re.match(pattern, url)
+
+    if match:
+        repo_info = match.group(1)
+        issue_number = match.group(2)
+        return repo_info, issue_number
+
+    return None, None

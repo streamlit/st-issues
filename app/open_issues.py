@@ -10,7 +10,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-from app.utils.github_utils import GITHUB_API_HEADERS, get_all_github_issues
+from app.utils.github_utils import get_all_github_issues, get_headers
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -41,7 +41,7 @@ def get_issue_reactions(issue_number: int) -> pd.DataFrame:
         try:
             response = requests.get(
                 f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}/reactions?per_page=100&page={page}",
-                headers=GITHUB_API_HEADERS,
+                headers=get_headers(),
                 timeout=100,
             )
 
