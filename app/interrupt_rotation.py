@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import humanize
 import streamlit as st
 
-from app.utils.ai.cursor_dialog import show_cursor_prompt_dialog
+from app.utils.ai.agent_dialog import show_agent_prompt_dialog
 from app.utils.github_utils import (
     get_all_github_issues,
     get_all_github_prs,
@@ -48,9 +48,9 @@ if st.sidebar.button(":material/refresh: Refresh data", use_container_width=True
     get_all_github_issues.clear()
     get_all_github_prs.clear()
 
-# Cursor Prompt Generation Section
+# Agent Prompt Generation Section
 st.sidebar.divider()
-st.sidebar.subheader(":computer: LLM Prompt Generator")
+st.sidebar.subheader(":computer: Agent Prompt Generator")
 
 # Manual issue number input with form
 with st.sidebar.form("issue_form"):
@@ -78,10 +78,10 @@ with st.sidebar.form("issue_form"):
         "Issue Number",
         value=default_issue,
         placeholder="e.g. 12345",
-        help="Enter a GitHub issue number to generate a cursor prompt",
+        help="Enter a GitHub issue number to generate an agent prompt",
     )
 
-    submitted = st.form_submit_button("Generate Prompt", use_container_width=True)
+    submitted = st.form_submit_button("Open Dialog", use_container_width=True)
 
 if submitted and manual_issue_number:
     # Validate issue number
@@ -102,7 +102,7 @@ if submitted and manual_issue_number:
         st.session_state.selected_issue_url = (
             f"https://github.com/{repo_info}/issues/{validated_issue}"
         )
-        st.session_state.show_cursor_dialog = True
+        st.session_state.show_agent_dialog = True
 
 days = 14 if timeframe == "Last 14 days" else 7
 since = date.today() - timedelta(days=days)
@@ -484,7 +484,7 @@ else:
 
 
 # Check if dialog should be shown
-if st.session_state.get("show_cursor_dialog", False):
-    show_cursor_prompt_dialog()
+if st.session_state.get("show_agent_dialog", False):
+    show_agent_prompt_dialog()
     # Reset the dialog trigger after showing
-    st.session_state.show_cursor_dialog = False
+    st.session_state.show_agent_dialog = False

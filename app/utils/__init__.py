@@ -75,9 +75,9 @@ def display_issue_data() -> bool:
     return False
 
 
-def display_cursor_prompt(prompt_data: Dict[str, Any]) -> None:
+def display_agent_prompt(prompt_data: Dict[str, Any]) -> None:
     """
-    Display the generated cursor prompt with copy functionality.
+    Display the generated agent prompt with copy functionality.
 
     Args:
         prompt_data: Dictionary containing prompt and metadata
@@ -89,7 +89,7 @@ def display_cursor_prompt(prompt_data: Dict[str, Any]) -> None:
     # Display the prompt in a code block for easy copying
     if "prompt" in prompt_data:
         st.markdown(
-            """### Copy this prompt to Cursor:
+            """### Copy this prompt to your Agent:
 
 💡 **Tip:** Click the copy button in the top-right corner of the code block to copy the prompt to your clipboard."""
         )

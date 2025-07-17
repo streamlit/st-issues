@@ -5,7 +5,7 @@ def generate_debugging_prompt(
     issue_title: str, issue_body: str, comments: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, str]:
     """
-    Generates a prompt for Cursor AI to help identify the root cause of a bug.
+    Generates a prompt for an AI Agent to help identify the root cause of a bug.
 
     Args:
         issue_title: The title of the GitHub issue
@@ -67,7 +67,7 @@ def generate_workaround_prompt(
     issue_title: str, issue_body: str, comments: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, str]:
     """
-    Generates a prompt for Cursor AI to help suggest workarounds for Streamlit issues.
+    Generates a prompt for an AI Agent to help suggest workarounds for Streamlit issues.
 
     Args:
         issue_title: The title of the GitHub issue

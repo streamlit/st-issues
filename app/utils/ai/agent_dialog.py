@@ -1,21 +1,21 @@
 """
-Cursor prompt dialog functionality for AI-powered issue analysis.
+Agent prompt dialog functionality for AI-powered issue analysis.
 Contains the UI dialog for generating debugging and workaround prompts.
 """
 
 import streamlit as st
 
-from app.utils import display_cursor_prompt, load_issue_from_metadata
-from app.utils.ai.cursor_prompts import (
+from app.utils import display_agent_prompt, load_issue_from_metadata
+from app.utils.ai.agent_prompts import (
     generate_debugging_prompt,
     generate_workaround_prompt,
 )
 from app.utils.github_utils import extract_issue_number
 
 
-@st.dialog("🤖 Generate Cursor Prompt", width="large")
-def show_cursor_prompt_dialog():
-    """Dialog for generating cursor prompts from selected issue."""
+@st.dialog("🤖 Generate Agent Prompt", width="large")
+def show_agent_prompt_dialog():
+    """Dialog for generating agent prompts from selected issue."""
     if "selected_issue_url" not in st.session_state:
         st.error("No issue selected.")
         return
@@ -30,15 +30,15 @@ def show_cursor_prompt_dialog():
 
     # Load issue data if not already loaded
     if (
-        "current_cursor_issue" not in st.session_state
-        or st.session_state.current_cursor_issue != issue_number
-        or st.session_state.get("current_cursor_repo") != repo
+        "current_agent_issue" not in st.session_state
+        or st.session_state.current_agent_issue != issue_number
+        or st.session_state.get("current_agent_repo") != repo
     ):
         with st.spinner(f"Loading issue #{issue_number} from {repo}..."):
             issue_metadata = {"number": issue_number}
             load_issue_from_metadata(issue_metadata, repo)
-            st.session_state.current_cursor_issue = issue_number
-            st.session_state.current_cursor_repo = repo
+            st.session_state.current_agent_issue = issue_number
+            st.session_state.current_agent_repo = repo
 
     # Check if issue data is loaded
     if "issue_data" not in st.session_state or "issue_metadata" not in st.session_state:
@@ -71,7 +71,7 @@ def show_cursor_prompt_dialog():
         include_comments = st.checkbox("Include Comments", value=True)
 
     # Generate prompt button
-    if st.button("🤖 Generate Cursor Prompt", type="primary", use_container_width=True):
+    if st.button("🤖 Generate Agent Prompt", type="primary", use_container_width=True):
         # Get issue data from session state
         issue_title = st.session_state.issue_data.get("title", "")
         issue_body = st.session_state.issue_data.get("body", "")
@@ -81,7 +81,7 @@ def show_cursor_prompt_dialog():
             comments = st.session_state.processed_comments
 
         # Generate the appropriate prompt based on type
-        with st.spinner("Generating cursor prompt..."):
+        with st.spinner("Generating agent prompt..."):
             if prompt_type == "Debug Root Cause Analysis":
                 prompt_data = generate_debugging_prompt(
                     issue_title=issue_title, issue_body=issue_body, comments=comments
@@ -92,4 +92,4 @@ def show_cursor_prompt_dialog():
                 )
 
         # Display the generated prompt
-        display_cursor_prompt(prompt_data)
+        display_agent_prompt(prompt_data)
