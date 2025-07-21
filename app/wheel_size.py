@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
 
 import humanize
 import pandas as pd
 import plotly.express as px
-import requests
 import streamlit as st
+
+from app.utils.github_utils import fetch_artifacts, fetch_workflow_runs
 
 st.set_page_config(page_title="Wheel Size", page_icon="🛞")
 
@@ -15,11 +15,6 @@ st.title("🛞 Wheel Size")
 st.caption(
     "This page visualizes the size of wheel files created in the PR preview workflow."
 )
-
-GITHUB_API_HEADERS = {
-    "Accept": "application/vnd.github.v3+json",
-    "Authorization": f"token {st.secrets['github']['token']}",
-}
 
 # Sidebar controls
 time_period = st.sidebar.selectbox(
@@ -47,72 +42,6 @@ elif time_period == "Last 90 days":
     since_date = datetime.now() - timedelta(days=90)
 else:
     since_date = None
-
-
-@st.cache_data(
-    ttl=60 * 60 * 12, show_spinner="Fetching workflow runs..."
-)  # cache for 12 hours
-def fetch_workflow_runs(
-    workflow_name: str, limit: int = 50, since: Optional[datetime] = None
-) -> List[Dict[str, Any]]:
-    """Fetch workflow runs for a specific workflow."""
-    all_runs: List[Dict[str, Any]] = []
-    page = 1
-    per_page = 100  # GitHub API maximum per page
-
-    # Convert since to ISO format if provided
-    since_param = f"&created=>{since.strftime('%Y-%m-%dT%H:%M:%SZ')}" if since else ""
-
-    while len(all_runs) < limit:
-        try:
-            response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/{workflow_name}/runs?branch=develop&status=success&per_page={per_page}&page={page}{since_param}",
-                headers=GITHUB_API_HEADERS,
-                timeout=30,
-            )
-
-            if response.status_code != 200:
-                st.error(f"Error fetching workflow runs: {response.status_code}")
-                break
-
-            data = response.json()
-            runs = data.get("workflow_runs", [])
-
-            if not runs:
-                break  # No more runs to fetch
-
-            all_runs.extend(runs)
-
-            if len(runs) < per_page:
-                break  # No more pages to fetch
-
-            page += 1
-
-        except Exception as e:
-            st.error(f"Error fetching workflow runs: {e}")
-            break
-
-    return all_runs[:limit]
-
-
-@st.cache_data(show_spinner="Fetching artifacts...")
-def fetch_artifacts(run_id: int) -> List[Dict[str, Any]]:
-    """Fetch artifacts for a specific workflow run."""
-    try:
-        response = requests.get(
-            f"https://api.github.com/repos/streamlit/streamlit/actions/runs/{run_id}/artifacts",
-            headers=GITHUB_API_HEADERS,
-            timeout=30,
-        )
-
-        if response.status_code != 200:
-            st.error(f"Error fetching artifacts: {response.status_code}")
-            return []
-
-        return response.json().get("artifacts", [])
-    except Exception as e:
-        st.error(f"Error fetching artifacts: {e}")
-        return []
 
 
 # Fetch workflow runs

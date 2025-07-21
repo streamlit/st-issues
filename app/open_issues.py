@@ -2,13 +2,15 @@ import json
 import pathlib
 import urllib.request
 from datetime import date, datetime
-from typing import Dict, List, Literal
+from typing import Dict, List
 from urllib.parse import quote
 
 import altair as alt
 import pandas as pd
 import requests
 import streamlit as st
+
+from app.utils.github_utils import get_all_github_issues, get_headers
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -23,20 +25,23 @@ st.set_page_config(
 )
 
 
-# Paginate through all open issues in the streamlit/streamlit repo
-# and return them all as a list of dicts.
-@st.cache_data(ttl=60 * 60 * 12)  # cache for 12 hours
-def get_all_github_issues(state: Literal["open", "closed"] = "open"):
-    issues = []
-    page = 1
+GROWTH_PERIODS = {
+    "Last week": date.today() - pd.Timedelta(days=7),
+    "Last month": date.today() - pd.Timedelta(days=30),
+    "Last 3 months": date.today() - pd.Timedelta(days=90),
+}
 
-    headers = {"Authorization": "token " + st.secrets["github"]["token"]}
+
+@st.cache_data(ttl=60 * 60 * 72, show_spinner=False)  # 3 days
+def get_issue_reactions(issue_number: int) -> pd.DataFrame:
+    reactions = []
+    page = 1
 
     while True:
         try:
             response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/issues?state={state}&per_page=100&page={page}",
-                headers=headers,
+                f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}/reactions?per_page=100&page={page}",
+                headers=get_headers(),
                 timeout=100,
             )
 
@@ -44,32 +49,64 @@ def get_all_github_issues(state: Literal["open", "closed"] = "open"):
                 data = response.json()
                 if not data:
                     break
-                issues.extend(data)
+                reactions.extend(data)
                 page += 1
             else:
-                print(
-                    f"Failed to retrieve data: {response.status_code}:", response.text
-                )
+                # Don't show error for 404, might just mean no reactions
+                if response.status_code != 404:
+                    print(
+                        f"Failed to retrieve reactions for issue {issue_number}: {response.status_code}:",
+                        response.text,
+                    )
                 break
         except Exception as ex:
             print(ex, flush=True)
             break
-    return issues
+
+    if not reactions:
+        return pd.DataFrame()
+
+    reactions_df = pd.json_normalize(reactions)
+    if not reactions_df.empty:
+        reactions_df = reactions_df[
+            ["created_at", "content", "user.login", "user.id", "user.avatar_url"]
+        ]
+        reactions_df["issue_number"] = issue_number
+    return reactions_df
 
 
-filter_closed_issues_by_dates = st.sidebar.date_input(
-    "Filter closed issues by dates", value=(), max_value=date.today()
-)
-if filter_closed_issues_by_dates:
-    if len(filter_closed_issues_by_dates) == 1:
-        filter_closed_issues_by_dates = (filter_closed_issues_by_dates[0], date.today())
+def get_all_reactions(issue_numbers: list):
+    reactions_dfs = list()
+    progress_bar = st.progress(0, text="🤯 Crawling reactions...")
+    total_issues = len(issue_numbers)
+    for i, issue_number in enumerate(issue_numbers):
+        reactions_df = get_issue_reactions(issue_number)
+        if not reactions_df.empty:
+            reactions_dfs.append(reactions_df)
+        progress_bar.progress(
+            (i + 1) / total_issues,
+            text=f"🤯 Crawling reactions... ({i + 1}/{total_issues})",
+        )
+
+    progress_bar.empty()
+    if not reactions_dfs:
+        return pd.DataFrame()
+    return pd.concat(reactions_dfs)
+
+
+# Add checkbox for showing statistics
+show_statistics = st.sidebar.checkbox("Show issue statistics", value=False)
+show_reactions_growth = st.sidebar.checkbox("Show reactions growth", value=False)
+
+if show_reactions_growth:
+    reaction_growth_period = st.sidebar.selectbox(
+        "Reaction growth period", options=GROWTH_PERIODS.keys(), index=1
+    )
 
 # Ignore Pull Requests
 all_issues = [
     issue
-    for issue in get_all_github_issues(
-        state="closed" if filter_closed_issues_by_dates else "open"
-    )
+    for issue in get_all_github_issues(state="open")
     if "pull_request" not in issue
 ]
 all_labels = set()
@@ -103,12 +140,6 @@ for label in default_filters:
 filter_labels = st.sidebar.multiselect(
     "Filter by label", list(all_labels), default=default_filters
 )
-filter_missing_labels = st.sidebar.checkbox(
-    "Filter issues that require feature labels", value=False
-)
-
-# Add checkbox for showing statistics
-show_statistics = st.sidebar.checkbox("Show issue statistics", value=False)
 
 print("Show issues with labels:", filter_labels, flush=True)
 
@@ -118,23 +149,9 @@ filtered_issues = []
 for issue in all_issues:
     filtered_out = False
     issue_labels: List[str] = [label["name"] for label in issue["labels"]]
-    if filter_missing_labels:
-        filtered_out = False
-        for label in issue_labels:
-            if label.startswith("feature:") or label.startswith("area:"):
-                filtered_out = True
-                break
 
     for filter_label in filter_labels:
         if filter_label not in issue_labels:
-            filtered_out = True
-
-    if issue["state"] == "closed" and filter_closed_issues_by_dates:
-        start_date, end_date = filter_closed_issues_by_dates
-        if (
-            datetime.fromisoformat(issue["closed_at"].strip("Z")).date() < start_date
-            or datetime.fromisoformat(issue["closed_at"].strip("Z")).date() > end_date
-        ):
             filtered_out = True
 
     if not filtered_out:
@@ -245,6 +262,37 @@ else:
     df["author_avatar"] = df["user"].map(lambda x: x["avatar_url"])
     df["assignee_avatar"] = df["assignee"].map(lambda x: x["avatar_url"] if x else None)
     df["views"] = get_view_counts(df["number"])
+
+    if show_reactions_growth:
+        # --- NEW LOGIC FOR REACTION GROWTH ---
+        issue_numbers_for_growth = (
+            df[df["total_reactions"] >= 15]["number"].unique().tolist()
+        )
+        all_reactions_df = get_all_reactions(issue_numbers_for_growth)
+
+        if not all_reactions_df.empty:
+            start_date = GROWTH_PERIODS[reaction_growth_period]
+            all_reactions_df["created_at"] = pd.to_datetime(
+                all_reactions_df["created_at"]
+            )
+
+            recent_reactions = all_reactions_df[
+                all_reactions_df["created_at"].dt.date >= start_date
+            ]
+
+            reaction_growth = (
+                recent_reactions.groupby("issue_number")
+                .size()
+                .to_frame("reaction_growth")
+            )
+
+            df = df.merge(
+                reaction_growth, left_on="number", right_on="issue_number", how="left"
+            )
+            df["reaction_growth"] = df["reaction_growth"].fillna(None).astype(int)
+        else:
+            df["reaction_growth"] = None
+
     df = df.sort_values(by=["total_reactions", "updated_at"], ascending=[False, False])
 
     link_qs_labels = "+".join([quote("label:" + label) for label in filter_labels])
@@ -257,49 +305,58 @@ else:
         f"[View on GitHub :material/open_in_new:]({link})"
     )
 
+    columns_to_display = [
+        "title",
+        "total_reactions",
+        "author_avatar",
+        "updated_at",
+        "created_at",
+        "html_url",
+        "reaction_types",
+        "comments",
+        "views",
+        "assignee_avatar",
+        "labels",
+        "reproducible_example",
+        "state",
+    ]
+
+    if show_reactions_growth:
+        columns_to_display.insert(2, "reaction_growth")
+
+    column_config = {
+        "title": st.column_config.TextColumn("Title", width=300),
+        "type": "Type",
+        "updated_at": st.column_config.DatetimeColumn(
+            "Last Updated", format="distance"
+        ),
+        "created_at": st.column_config.DatetimeColumn("Created at", format="distance"),
+        "author_avatar": st.column_config.ImageColumn("Author"),
+        "total_reactions": st.column_config.NumberColumn(
+            "Reactions", format="%d 🫶", help="Total number of reactions"
+        ),
+        "assignee_avatar": st.column_config.ImageColumn("Assignee"),
+        "reaction_types": "Reactions Types",
+        "labels": "Labels",
+        "state": "State",
+        "comments": st.column_config.NumberColumn("Comments", format="%d 💬"),
+        "html_url": st.column_config.LinkColumn("Url", display_text="Open Issue"),
+        "reproducible_example": st.column_config.LinkColumn(
+            "Reproducible Example", width="medium"
+        ),
+        "views": st.column_config.NumberColumn("Views", format="%d 👁️", width=100),
+    }
+
+    if show_reactions_growth:
+        column_config["reaction_growth"] = st.column_config.NumberColumn(
+            "Growth",
+            help="Reaction growth in the selected period.",
+            format="+%d",
+        )
+
     st.dataframe(
-        df[
-            [
-                "title",
-                "total_reactions",
-                "author_avatar",
-                "updated_at",
-                "created_at",
-                "html_url",
-                "reaction_types",
-                "comments",
-                "views",
-                "assignee_avatar",
-                "labels",
-                "reproducible_example",
-                # "author_association",
-                "state",
-            ]
-        ],
-        column_config={
-            "title": st.column_config.TextColumn("Title", width=300),
-            "type": "Type",
-            "updated_at": st.column_config.DatetimeColumn(
-                "Last Updated", format="distance"
-            ),
-            "created_at": st.column_config.DatetimeColumn(
-                "Created at", format="distance"
-            ),
-            "author_avatar": st.column_config.ImageColumn("Author"),
-            "total_reactions": st.column_config.NumberColumn(
-                "Reactions", format="%d 🫶", help="Total number of reactions"
-            ),
-            "assignee_avatar": st.column_config.ImageColumn("Assignee"),
-            "reaction_types": "Reactions Types",
-            "labels": "Labels",
-            "state": "State",
-            "comments": st.column_config.NumberColumn("Comments", format="%d 💬"),
-            "html_url": st.column_config.LinkColumn("Url", display_text="Open Issue"),
-            "reproducible_example": st.column_config.LinkColumn(
-                "Reproducible Example", width="medium"
-            ),
-            "views": st.column_config.NumberColumn("Views", format="%d 👁️", width=100),
-        },
+        df[columns_to_display],
+        column_config=column_config,
         hide_index=True,
     )
 

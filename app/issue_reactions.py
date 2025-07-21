@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Literal
 
 import pandas as pd
 import plotly.express as px
-import requests
 import streamlit as st
+
+from app.utils.github_utils import get_all_github_issues
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -38,57 +38,6 @@ def get_issue_type(labels):
         return "Enhancement"
     else:
         return []
-
-
-# Paginate through all open issues in the streamlit/streamlit repo
-# and return them all as a list of dicts using Link header pagination.
-@st.cache_data(ttl=60 * 60 * 48)  # cache for 48 hours
-def get_all_github_issues(state: Literal["open", "closed", "all"] = "all"):
-    issues = []
-
-    headers = {"Authorization": "token " + st.secrets["github"]["token"]}
-
-    state_param = f"state={state}" if state else ""
-    url: str | None = (
-        f"https://api.github.com/repos/streamlit/streamlit/issues?{state_param}&per_page=100"
-    )
-
-    while url:
-        try:
-            response = requests.get(
-                url,
-                headers=headers,
-                timeout=100,
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                if not data:
-                    break
-                issues.extend(data)
-
-                # Parse Link header to get next page URL
-                link_header = response.headers.get("Link", "")
-                url = None  # Reset URL
-
-                if link_header:
-                    # Parse Link header to find 'rel="next"' URL
-                    links = link_header.split(",")
-                    for link in links:
-                        if 'rel="next"' in link:
-                            # Extract URL from angle brackets
-                            url = link.split(";")[0].strip().strip("<>")
-                            break
-
-            else:
-                print(
-                    f"Failed to retrieve data: {response.status_code}:", response.text
-                )
-                break
-        except Exception as ex:
-            print(ex, flush=True)
-            break
-    return issues
 
 
 # Process the data

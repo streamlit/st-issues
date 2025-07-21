@@ -2,26 +2,28 @@ import json
 import os
 from datetime import datetime, timedelta
 from io import BytesIO
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from zipfile import ZipFile
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import requests  # type: ignore
 import streamlit as st
 import streamlit.components.v1 as components
 
-from pages.utils.smokeshow import extract_and_upload_coverage_report
+from app.utils.github_utils import (
+    download_artifact,
+    fetch_artifacts,
+    fetch_pr_info,
+    fetch_workflow_runs,
+    fetch_workflow_runs_for_commit,
+)
+from app.utils.smokeshow import extract_and_upload_coverage_report
 
 # Set page configuration
 st.set_page_config(page_title="Code Coverage (Frontend)", page_icon="☂️", layout="wide")
 
-# GitHub API configuration
-GITHUB_API_HEADERS = {
-    "Accept": "application/vnd.github.v3+json",
-    "Authorization": f"token {st.secrets['github']['token']}",
-}
+# GitHub API configuration is now imported
 
 
 @st.cache_data(show_spinner=False)
@@ -181,92 +183,6 @@ def parse_vitest_coverage_json(coverage_file):
     except Exception as e:
         st.error(f"Error processing coverage data: {str(e)}")
         return None, None
-
-
-@st.cache_data(
-    ttl=60 * 60 * 12, show_spinner="Fetching workflow runs..."
-)  # cache for 12 hours
-def fetch_workflow_runs(
-    workflow_name: str, limit: int = 50, since: Optional[datetime] = None
-) -> List[Dict[str, Any]]:
-    """Fetch workflow runs for a specific workflow."""
-    all_runs: List[Dict[str, Any]] = []
-    page = 1
-    per_page = 100  # GitHub API maximum per page
-
-    # Convert since to ISO format if provided
-    since_param = f"&created=>{since.strftime('%Y-%m-%dT%H:%M:%SZ')}" if since else ""
-
-    while len(all_runs) < limit:
-        try:
-            response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/{workflow_name}/runs?branch=develop&status=success&per_page={per_page}&page={page}{since_param}",
-                headers=GITHUB_API_HEADERS,
-                timeout=30,
-            )
-
-            if response.status_code != 200:
-                st.error(f"Error fetching workflow runs: {response.status_code}")
-                break
-
-            data = response.json()
-            runs = data.get("workflow_runs", [])
-
-            if not runs:
-                break  # No more runs to fetch
-
-            all_runs.extend(runs)
-
-            if len(runs) < per_page:
-                break  # No more pages to fetch
-
-            page += 1
-
-        except Exception as e:
-            st.error(f"Error fetching workflow runs: {e}")
-            break
-
-    return all_runs[:limit]
-
-
-@st.cache_data(show_spinner="Fetching artifacts...")
-def fetch_artifacts(run_id: int) -> List[Dict[str, Any]]:
-    """Fetch artifacts for a specific workflow run."""
-    try:
-        response = requests.get(
-            f"https://api.github.com/repos/streamlit/streamlit/actions/runs/{run_id}/artifacts",
-            headers=GITHUB_API_HEADERS,
-            timeout=30,
-        )
-
-        if response.status_code != 200:
-            print(f"Error fetching artifacts: {response.status_code}", response.text)
-            return []
-
-        return response.json().get("artifacts", [])
-    except Exception as e:
-        print(f"Error fetching artifacts: {e}")
-        return []
-
-
-@st.cache_data(show_spinner=False)
-def download_artifact(artifact_url: str) -> Optional[bytes]:
-    """Download an artifact from GitHub Actions."""
-    try:
-        response = requests.get(
-            artifact_url,
-            headers=GITHUB_API_HEADERS,
-            timeout=60,
-        )
-
-        if response.status_code != 200:
-            st.error(f"Error downloading artifact: {response.status_code}")
-            return None
-
-        return response.content
-    except Exception as e:
-        st.error(f"Error downloading artifact: {e}")
-        return None
 
 
 @st.cache_data(show_spinner=False)
@@ -598,44 +514,6 @@ def display_coverage_details(
         st.plotly_chart(fig, use_container_width=True)
 
 
-def fetch_pr_info(pr_number: str) -> Optional[Dict[str, Any]]:
-    """Fetch information about a PR from GitHub API."""
-    try:
-        response = requests.get(
-            f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}",
-            headers=GITHUB_API_HEADERS,
-            timeout=30,
-        )
-
-        if response.status_code != 200:
-            st.error(f"Error fetching PR info: {response.status_code}")
-            return None
-
-        return response.json()
-    except Exception as e:
-        st.error(f"Error fetching PR info: {e}")
-        return None
-
-
-def fetch_workflow_runs_for_commit(commit_sha: str) -> List[Dict[str, Any]]:
-    """Fetch workflow runs for a specific commit."""
-    try:
-        response = requests.get(
-            f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/js-tests.yml/runs?head_sha={commit_sha}&status=success",
-            headers=GITHUB_API_HEADERS,
-            timeout=30,
-        )
-
-        if response.status_code != 200:
-            st.error(f"Error fetching workflow runs for commit: {response.status_code}")
-            return []
-
-        return response.json().get("workflow_runs", [])
-    except Exception as e:
-        st.error(f"Error fetching workflow runs for commit: {e}")
-        return []
-
-
 def get_latest_develop_coverage() -> Optional[Dict[str, Any]]:
     """Get coverage data for the latest successful workflow run on develop."""
     # Fetch the latest successful workflow run on develop
@@ -673,7 +551,7 @@ def get_pr_coverage(pr_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Get coverage data for a PR's head commit."""
     head_sha = pr_info["head"]["sha"]
     # Fetch workflow runs for this commit
-    pr_runs = fetch_workflow_runs_for_commit(head_sha)
+    pr_runs = fetch_workflow_runs_for_commit(head_sha, "js-tests.yml")
 
     if not pr_runs:
         st.error(f"No successful workflow runs found for PR commit {head_sha[:7]}.")

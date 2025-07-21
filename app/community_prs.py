@@ -1,56 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 import pandas as pd
 import plotly.express as px
-import requests
 import streamlit as st
 
-# Default authors to exclude
-DEFAULT_EXCLUDED_AUTHORS = [
-    "lukasmasuch",
-    "tconkling",
-    "vdonato",
-    "kmcgrady",
-    "mayagbarnes",
-    "kajarenrc",
-    "willhuang1997",
-    "AnOctopus",
-    "tvst",
-    "kantuni",
-    "raethlein",
-    "arraydude",
-    "snehankekre",
-    "akrolsmir",
-    "randyzwitch",
-    "jrhone",
-    "monchier",
-    "imjuangarcia",
-    "nthmost",
-    "blackary",
-    "jroes",
-    "arnaudmiribel",
-    "JessSm3",
-    "MathCatsAnd",
-    "kasim-inan",
-    "astrojams1",
-    "gmerticariu",
-    "mesmith027",
-    "tc87",
-    "tyler-simons",
-    "lawilby",
-    "treuille",
-    "Amey-D",
-    "CharlyWargnier",
-    "kajarenc",
-    "karriebear",
-    "jrieke",
-    "erikhopf",
-    "domoritz",
-    "dcaminos",
-]
+from app.utils.github_utils import STREAMLIT_TEAM_MEMBERS, get_all_github_prs
 
 st.set_page_config(
     page_title="Community PRs",
@@ -61,43 +17,6 @@ st.title("👥 Community PRs")
 st.caption(
     "Explore contributions from the Streamlit community through pull requests on the streamlit/streamlit repo."
 )
-
-
-# Paginate through all PRs in the streamlit/streamlit repo
-# and return them all as a list of dicts.
-@st.cache_data(ttl=60 * 60 * 48)  # cache for 48 hours
-def get_all_github_prs(state: Literal["open", "closed", "all"] = "all"):
-    prs = []
-    page = 1
-
-    headers = {"Authorization": "token " + st.secrets["github"]["token"]}
-
-    state_param = f"state={state}" if state else ""
-
-    while True:
-        try:
-            response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/pulls?{state_param}&per_page=100&page={page}",
-                headers=headers,
-                timeout=100,
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                if not data:
-                    break
-                prs.extend(data)
-                page += 1
-            else:
-                print(
-                    f"Failed to retrieve data: {response.status_code}:",
-                    response.text,
-                )
-                break
-        except Exception as ex:
-            print(ex, flush=True)
-            break
-    return prs
 
 
 # Process the data
@@ -196,11 +115,11 @@ with st.expander("Filter authors", expanded=False):
         f"{author} ({author_counts[author]} PRs)" for author in available_authors
     ]
 
-    # Find default selections - authors from DEFAULT_EXCLUDED_AUTHORS that are in available_authors
+    # Find default selections - authors from STREAMLIT_AUTHORS that are in available_authors
     default_selections = [
         f"{author} ({author_counts[author]} PRs)"
         for author in available_authors
-        if author in DEFAULT_EXCLUDED_AUTHORS
+        if author in STREAMLIT_TEAM_MEMBERS
     ]
 
     # Multiselect for additional exclusions
