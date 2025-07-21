@@ -25,3 +25,10 @@ st.data_editor(
         )
     },
 )
+
+st.selectbox(
+    "Select",
+    options=list(string.ascii_lowercase),
+    key="selectbox",
+    help="This is a selectbox",
+)
