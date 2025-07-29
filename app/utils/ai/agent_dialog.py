@@ -6,10 +6,8 @@ Contains the UI dialog for generating debugging and workaround prompts.
 import streamlit as st
 
 from app.utils import display_agent_prompt, load_issue_from_metadata
-from app.utils.ai.agent_prompts import (
-    generate_debugging_prompt,
-    generate_workaround_prompt,
-)
+from app.utils.ai.agent_prompts import generate_debugging_prompt
+from app.utils.ai.agent_prompts import generate_workaround_prompt
 from app.utils.github_utils import extract_issue_number
 
 
