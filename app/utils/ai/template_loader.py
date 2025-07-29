@@ -3,11 +3,10 @@ Template loader utility for AI prompt templates.
 Provides a centralized way to load and render Jinja2 templates for LLM prompts.
 """
 
-import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional, List
 
-from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
+from jinja2 import Environment, FileSystemLoader, Template
 
 
 class TemplateLoader:
