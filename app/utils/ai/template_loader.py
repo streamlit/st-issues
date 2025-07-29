@@ -61,15 +61,6 @@ class TemplateLoader:
         template = self.get_template(template_name)
         return template.render(**context)
 
-    def list_templates(self) -> List[str]:
-        """
-        List all available templates in the template directory.
-
-        Returns:
-            List of template filenames
-        """
-        return self.env.list_templates()
-
 
 # Create a singleton instance for convenience
 _default_loader: Optional[TemplateLoader] = None
