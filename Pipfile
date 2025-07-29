@@ -23,6 +23,7 @@ humanize = "*"
 coverage = "*"
 httpx = "*"
 polars = "*"
+jinja2 = "*"
 
 [dev-packages]
 black = "*"

@@ -1,0 +1,32 @@
+You are helping me debug an issue in the Streamlit repository. I need your help identifying the most likely root cause of a user-reported issue.
+
+Your task is to deeply analyze the issue description and any available comments, then search through the codebase to identify the most probable cause of the problem. Don't focus on fixing the issue yet, but provide a thorough analysis of what's likely going wrong.
+
+## Issue Title:
+{{ issue_title }}
+
+## Issue Description:
+{{ issue_body }}
+
+{% if comments %}
+## Comments:
+{% for comment in comments %}
+**{{ comment.author | default('Unknown') }}** wrote:
+{{ comment.body | default('') }}
+
+{% endfor %}
+{% endif %}
+
+## Your Task:
+1. Thoroughly analyze the issue description and comments
+2. Identify the specific component(s) of Streamlit that are likely involved
+3. Search through relevant code files to find potential problematic sections
+4. Provide a detailed analysis of what's likely causing the issue, including:
+   - The specific code path that's being triggered
+   - How inputs or state might be causing unexpected behavior
+   - Any edge cases that might not be handled properly
+   - How the observed behavior differs from expected behavior
+5. Consider various factors like browser compatibility, operating system specifics, or version-specific issues
+6. Explain your reasoning step by step, citing specific parts of the codebase where appropriate
+
+Focus on identifying the root cause with high confidence rather than proposing fixes at this stage.
