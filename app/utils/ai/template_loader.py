@@ -28,7 +28,7 @@ class TemplateLoader:
         self.template_dir = template_dir
         self.env = Environment(
             loader=FileSystemLoader(str(template_dir)),
-            autoescape=select_autoescape(["html", "xml"]),
+            autoescape=False,
             trim_blocks=True,
             lstrip_blocks=True,
         )
