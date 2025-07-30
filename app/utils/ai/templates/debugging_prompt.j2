@@ -1,32 +1,84 @@
-You are helping me debug an issue in the Streamlit repository. I need your help identifying the most likely root cause of a user-reported issue.
+You are an expert software engineer tasked with debugging a complex issue in the Streamlit repository. Your goal is to
+identify the most likely root cause of a user-reported problem by conducting a thorough analysis of the issue and the
+codebase.
 
-Your task is to deeply analyze the issue description and any available comments, then search through the codebase to identify the most probable cause of the problem. Don't focus on fixing the issue yet, but provide a thorough analysis of what's likely going wrong.
+First, review the following information about the reported issue:
 
-## Issue Title:
-{{ issue_title }}
+<issue_title>
+   {{ issue_title }}
+</issue_title>
 
-## Issue Description:
-{{ issue_body }}
+<issue_description>
+   {{ issue_body }}
+</issue_description>
 
-{% if comments %}
-## Comments:
-{% for comment in comments %}
-**{{ comment.author | default('Unknown') }}** wrote:
-{{ comment.body | default('') }}
+<issue_comments>
+   {% if comments %}
+   ## Comments:
+   {% for comment in comments %}
+   **{{ comment.author | default('Unknown') }}** wrote:
+   {{ comment.body | default('') }}
 
-{% endfor %}
-{% endif %}
+   {% endfor %}
+   {% endif %}
+</issue_comments>
 
-## Your Task:
-1. Thoroughly analyze the issue description and comments
-2. Identify the specific component(s) of Streamlit that are likely involved
-3. Search through relevant code files to find potential problematic sections
-4. Provide a detailed analysis of what's likely causing the issue, including:
-   - The specific code path that's being triggered
-   - How inputs or state might be causing unexpected behavior
-   - Any edge cases that might not be handled properly
-   - How the observed behavior differs from expected behavior
-5. Consider various factors like browser compatibility, operating system specifics, or version-specific issues
-6. Explain your reasoning step by step, citing specific parts of the codebase where appropriate
 
+Your task is to analyze this information and the Streamlit codebase to determine the most probable cause of the problem.
 Focus on identifying the root cause with high confidence rather than proposing fixes at this stage.
+
+Please follow these steps in your analysis:
+
+1. Thoroughly analyze the issue description and comments.
+2. Identify the specific component(s) of Streamlit that are likely involved.
+3. Search through relevant code files to find potential problematic sections.
+4. Provide a detailed analysis of what's likely causing the issue, including:
+    - The specific code path that's being triggered
+    - How inputs or state might be causing unexpected behavior
+    - Any edge cases that might not be handled properly
+    - How the observed behavior differs from expected behavior
+5. Consider various factors like browser compatibility, operating system specifics, or version-specific issues.
+6. Review the git history to identify any recent changes that might have caused this regression.
+7. Explain your reasoning step by step, citing specific parts of the codebase where appropriate.
+
+Before providing your final analysis, work through your debugging process inside <debugging_process> tags within your
+   thinking block. The `<debugging_process>` tags should encapsulate your detailed thought process and analysis. Use the
+   following format as a guide:
+
+   <debugging_process>
+   - Key Symptoms and Behaviors:
+       List out the symptoms and behaviors mentioned in the issue.
+   - Potential Code Paths:
+       Identify specific code paths that could lead to these symptoms.
+   - Hypotheses:
+       Consider multiple hypotheses for the root cause.
+   - Evidence Evaluation:
+       Evaluate each hypothesis based on the available evidence.
+   </debugging_process>
+
+   In this section:
+   - List out key symptoms and behaviors mentioned in the issue
+   - Identify potential code paths that could lead to these symptoms
+   - Consider multiple hypotheses for the root cause
+   - Evaluate each hypothesis based on the available evidence
+
+   This is where you should consider multiple pieces of evidence, explore different possibilities, and demonstrate
+   "ultrathinking" about what could be causing the issue. Do not jump to conclusions prematurely; instead, build a
+   comprehensive understanding of the problem before synthesizing your findings. It's OK for this section to be quite
+   long.
+
+   Your final output should be structured as follows:
+
+   1. Initial Assessment
+   2. Component Identification
+   3. Code Analysis
+   4. Potential Causes
+   5. Contributing Factors
+   6. Git History Review
+   7. Conclusion
+
+   In each section, provide detailed explanations and cite specific evidence from the issue description, comments, and
+   codebase to support your analysis.
+
+   Your final output should consist only of the structured analysis and should not duplicate or rehash any of the work
+   you did in the debugging process thinking block.
