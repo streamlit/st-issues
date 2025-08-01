@@ -273,7 +273,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
     )
 
     # Display the dataframe with coverage information and GitHub links
-    st.dataframe(
+    file_coverage_selection = st.dataframe(
         coverage_df,
         column_config={
             "Coverage %": st.column_config.ProgressColumn(
@@ -298,7 +298,61 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
             "Total Lines",
             "Coverage %",
         ],
+        on_select="rerun",
+        selection_mode="single-row",
+        key="file_coverage_selection",
     )
+
+    # Check if a file was selected
+    if file_coverage_selection.selection and file_coverage_selection.selection.rows:
+        selected_file_index = file_coverage_selection.selection.rows[0]
+        selected_file_path = coverage_df.iloc[selected_file_index]["Path"]
+        selected_file_name = coverage_df.iloc[selected_file_index]["Filename"]
+
+        # Get the coverage data for the selected file
+        selected_file_data = coverage_data[selected_file_path]
+
+        # Create JSON data for the selected file
+        single_file_json = {
+            "meta": {
+                "version": "7.3.2",
+                "timestamp": datetime.now().isoformat(),
+                "show_contexts": False,
+                "relative_files": True,
+            },
+            "files": {
+                selected_file_path: {
+                    "executed_lines": selected_file_data["executed_lines"],
+                    "missing_lines": selected_file_data["missing_lines"],
+                    "excluded_lines": [],
+                    "summary": {
+                        "covered_lines": len(selected_file_data["executed_lines"]),
+                        "num_statements": selected_file_data["total_lines"],
+                        "percent_covered": selected_file_data["coverage_pct"],
+                        "percent_covered_display": f"{selected_file_data['coverage_pct']:.2f}",
+                        "missing_lines": len(selected_file_data["missing_lines"]),
+                        "excluded_lines": 0,
+                    },
+                }
+            },
+            "totals": {
+                "covered_lines": len(selected_file_data["executed_lines"]),
+                "num_statements": selected_file_data["total_lines"],
+                "percent_covered": selected_file_data["coverage_pct"],
+                "percent_covered_display": f"{selected_file_data['coverage_pct']:.2f}",
+                "missing_lines": len(selected_file_data["missing_lines"]),
+                "excluded_lines": 0,
+            },
+        }
+
+        # Create download button
+        st.download_button(
+            label=f":material/download: Download coverage data for {selected_file_name}",
+            data=json.dumps(single_file_json, indent=2),
+            file_name=f"coverage_{selected_file_name}.json",
+            mime="application/json",
+            key="download_single_file_coverage",
+        )
 
     col1, col2 = st.columns(2)
     # Add HTML report download button if URL is available
