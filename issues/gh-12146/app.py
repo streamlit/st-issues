@@ -3,7 +3,8 @@ import streamlit as st
 st.session_state["disable"] = st.session_state.get("disable", False)
 st.session_state["counter"] = st.session_state.get("counter", 0) + 1
 
-st.info(f"Script rerun {st.session_state["counter"]} times")
+counter = st.session_state["counter"]
+st.info(f"Script rerun {counter} times")
 
 files = st.file_uploader(label = "", disabled = st.session_state["disable"])
 
