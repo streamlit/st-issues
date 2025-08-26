@@ -51,108 +51,110 @@ all_issues_df["total_reactions"] = all_issues_df["reactions"].apply(
     lambda x: x["total_count"]
 )
 
-col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
+with st.container(gap=None):
+    col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
 
-with col2.popover("Modify", use_container_width=True):
-    # Allow user to select time grouping
-    time_grouping = st.selectbox(
-        "Group reactions by", options=["Day", "Week", "Month", "Year"], index=2
+
+    with col2.popover("Modify", use_container_width=True):
+        # Allow user to select time grouping
+        time_grouping = st.selectbox(
+            "Group reactions by", options=["Day", "Week", "Month", "Year"], index=2
+        )
+
+        # Allow user to select date range
+        date_range = st.date_input(
+            "Select date range",
+            value=(
+                all_issues_df["closed_at"].min().date(),
+                all_issues_df["closed_at"].max().date(),
+            ),
+            min_value=all_issues_df["closed_at"].min().date(),
+            max_value=all_issues_df["closed_at"].max().date(),
+        )
+
+        # Filter who closed the issue:
+        closed_by_filter = st.text_input(
+            "Closed by", value=st.query_params.get("closed_by", "")
+        )
+
+        # Filter data based on selected date range
+        start_date, end_date = date_range
+        if start_date and end_date:
+            df_filtered = all_issues_df[
+                (all_issues_df["closed_at"].dt.date >= start_date)
+                & (all_issues_df["closed_at"].dt.date <= end_date)
+            ]
+        else:
+            df_filtered = all_issues_df
+
+        if closed_by_filter:
+            # Closed by contains a json string, we need to extract the name from it in the login
+            df_filtered = df_filtered[
+                df_filtered["closed_by"].apply(
+                    lambda x: closed_by_filter.lower() in x.get("login", "").lower()
+                    if x
+                    else False
+                )
+            ]
+
+    col1.markdown(
+        f"##### Total Reactions on Closed Issues (Grouped by {time_grouping})",
+    )
+    st.caption(
+        ":material/web_traffic: Click on a bar to view the issues closed in that time period."
     )
 
-    # Allow user to select date range
-    date_range = st.date_input(
-        "Select date range",
-        value=(
-            all_issues_df["closed_at"].min().date(),
-            all_issues_df["closed_at"].max().date(),
-        ),
-        min_value=all_issues_df["closed_at"].min().date(),
-        max_value=all_issues_df["closed_at"].max().date(),
+    # Group data based on selected time grouping
+    if time_grouping == "Day":
+        df_grouped = (
+            df_filtered.groupby(df_filtered["closed_at"].dt.date)["total_reactions"]
+            .sum()
+            .reset_index()
+        )
+    elif time_grouping == "Week":
+        df_grouped = (
+            df_filtered.groupby(df_filtered["closed_at"].dt.to_period("W"))[
+                "total_reactions"
+            ]
+            .sum()
+            .reset_index()
+        )
+        df_grouped["closed_at"] = df_grouped["closed_at"].dt.start_time
+    elif time_grouping == "Month":
+        df_grouped = (
+            df_filtered.groupby(df_filtered["closed_at"].dt.to_period("M"))[
+                "total_reactions"
+            ]
+            .sum()
+            .reset_index()
+        )
+        df_grouped["closed_at"] = df_grouped["closed_at"].dt.start_time
+    else:  # Year
+        df_grouped = (
+            df_filtered.groupby(df_filtered["closed_at"].dt.year)["total_reactions"]
+            .sum()
+            .reset_index()
+        )
+        df_grouped["closed_at"] = pd.to_datetime(df_grouped["closed_at"], format="%Y")
+
+
+    fig = px.bar(
+        df_grouped,
+        x="closed_at",
+        y="total_reactions",
+        labels={"closed_at": "Closed Date", "total_reactions": "Total Reactions"},
     )
 
-    # Filter who closed the issue:
-    closed_by_filter = st.text_input(
-        "Closed by", value=st.query_params.get("closed_by", "")
+    # Customize the chart
+    fig.update_layout(
+        xaxis_title="Closed Date",
+        yaxis_title="Total Reactions",
+        bargap=0.1,
     )
 
-    # Filter data based on selected date range
-    start_date, end_date = date_range
-    if start_date and end_date:
-        df_filtered = all_issues_df[
-            (all_issues_df["closed_at"].dt.date >= start_date)
-            & (all_issues_df["closed_at"].dt.date <= end_date)
-        ]
-    else:
-        df_filtered = all_issues_df
 
-    if closed_by_filter:
-        # Closed by contains a json string, we need to extract the name from it in the login
-        df_filtered = df_filtered[
-            df_filtered["closed_by"].apply(
-                lambda x: closed_by_filter.lower() in x.get("login", "").lower()
-                if x
-                else False
-            )
-        ]
-
-col1.markdown(
-    f"##### Total Reactions on Closed Issues (Grouped by {time_grouping})",
-)
-st.caption(
-    ":material/web_traffic: Click on a bar to view the issues closed in that time period."
-)
-
-# Group data based on selected time grouping
-if time_grouping == "Day":
-    df_grouped = (
-        df_filtered.groupby(df_filtered["closed_at"].dt.date)["total_reactions"]
-        .sum()
-        .reset_index()
-    )
-elif time_grouping == "Week":
-    df_grouped = (
-        df_filtered.groupby(df_filtered["closed_at"].dt.to_period("W"))[
-            "total_reactions"
-        ]
-        .sum()
-        .reset_index()
-    )
-    df_grouped["closed_at"] = df_grouped["closed_at"].dt.start_time
-elif time_grouping == "Month":
-    df_grouped = (
-        df_filtered.groupby(df_filtered["closed_at"].dt.to_period("M"))[
-            "total_reactions"
-        ]
-        .sum()
-        .reset_index()
-    )
-    df_grouped["closed_at"] = df_grouped["closed_at"].dt.start_time
-else:  # Year
-    df_grouped = (
-        df_filtered.groupby(df_filtered["closed_at"].dt.year)["total_reactions"]
-        .sum()
-        .reset_index()
-    )
-    df_grouped["closed_at"] = pd.to_datetime(df_grouped["closed_at"], format="%Y")
-
-
-fig = px.bar(
-    df_grouped,
-    x="closed_at",
-    y="total_reactions",
-    labels={"closed_at": "Closed Date", "total_reactions": "Total Reactions"},
-)
-
-# Customize the chart
-fig.update_layout(
-    xaxis_title="Closed Date",
-    yaxis_title="Total Reactions",
-    bargap=0.1,
-)
-
-
-# Display the chart
-event_data = st.plotly_chart(fig, use_container_width=True, on_select="rerun")
+    # Display the chart
+    event_data = st.plotly_chart(fig, use_container_width=True, on_select="rerun")
 
 # Show issues for selected month when a bar is clicked
 if event_data and "selection" in event_data and event_data["selection"]["points"]:
