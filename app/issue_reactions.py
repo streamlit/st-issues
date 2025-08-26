@@ -100,7 +100,7 @@ with st.container(gap=None):
     col1.markdown(
         f"##### Total Reactions on Closed Issues (Grouped by {time_grouping})",
     )
-    st.caption(
+    col1.caption(
         ":material/web_traffic: Click on a bar to view the issues closed in that time period."
     )
 
