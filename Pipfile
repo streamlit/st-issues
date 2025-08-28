@@ -24,6 +24,7 @@ coverage = "*"
 httpx = "*"
 polars = "*"
 jinja2 = "*"
+streamlit-pdf = "*"
 
 [dev-packages]
 black = "*"
