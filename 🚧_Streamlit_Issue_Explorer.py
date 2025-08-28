@@ -1,7 +1,10 @@
+from pathlib import Path
 import streamlit as st
 
 # We cannot change the script name since its not possible to change the main script on community cloud.
+ASSETS_FOLDER = Path(__file__).parent / "app" / "assets"
 
+st.logo(ASSETS_FOLDER / "streamlit-logo.svg")
 page = st.navigation(
     [
         st.Page(
