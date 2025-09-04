@@ -87,12 +87,31 @@ def extract_browser(test_name: str) -> str | None:
 flaky_tests_df["Browser"] = flaky_tests_df.index.map(extract_browser)
 
 
+# Estimate per-test probability of causing a workflow failure
+# Let p be the per-run probability a test fails on the first attempt.
+# Using a simple approximation with available data, estimate p as:
+#   p ≈ reruns / total_successful_runs
+# Then the probability this test causes a workflow failure (fails twice) is p^2.
+total_successful_runs = len(workflow_runs)
+
+# Single adjusted estimate of workflow failure probability per test
+# x = reruns / successful_runs; p_adj = x/(1-x); failure probability = p_adj^2
+if total_successful_runs > 0:
+    x_series = (flaky_tests_df["Failures"] / total_successful_runs).clip(upper=0.499999)
+    flaky_tests_df["Workflow Failure Probability"] = (x_series / (1 - x_series)) ** 2
+else:
+    flaky_tests_df["Workflow Failure Probability"] = float("nan")
+
+overall_failure_prob = 1 - (1 - flaky_tests_df["Workflow Failure Probability"].fillna(0)).prod()
+
+
 st.caption(
     f"**{flaky_tests_df['Failures'].sum()} flaky reruns** in the "
     f"last **{workflow_runs_limit} successful workflow runs** ({first_date}) impacting "
     f"**{len(flaky_tests_df)} e2e tests** in **{len(flaky_tests_df['Test Script'].unique())} "
     f"test scripts**. Fixing the top 5 flaky tests would reduce flaky reruns by "
-    f"**{round(flaky_tests_df[:5]['Failures'].sum() / flaky_tests_df['Failures'].sum() * 100, 2)}%**."
+    f"**{round(flaky_tests_df[:5]['Failures'].sum() / flaky_tests_df['Failures'].sum() * 100, 2)}%**. "
+    f"The approximate probability of a workflow run failing due to flakiness is **{overall_failure_prob:.1%}**."
 )
 st.dataframe(
     flaky_tests_df,
@@ -107,6 +126,9 @@ st.dataframe(
         ),
         "Latest Run": st.column_config.LinkColumn(display_text="Open"),
         "Test Script": st.column_config.LinkColumn(display_text="Open"),
+        "Workflow Failure Probability": st.column_config.ProgressColumn(
+            "Workflow Failure Probability", format="percent", help="The approximate probability that this test causes a workflow failure."
+        ),
     },
 )
 
