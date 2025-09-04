@@ -30,6 +30,7 @@ rolling_window_size = st.sidebar.slider(
 flaky_tests: Counter[str] = Counter()
 example_run: dict[str, str] = {}
 last_failure_date: dict[str, date] = {}
+first_failure_date: dict[str, date] = {}
 first_date = date.today()
 
 
@@ -58,6 +59,10 @@ with st.spinner("Fetching workflow annotations..."):
                         example_run[test_name] = workflow_run["html_url"]
                     if test_name not in last_failure_date:
                         last_failure_date[test_name] = workflow_date
+                    if test_name not in first_failure_date:
+                        first_failure_date[test_name] = workflow_date
+                    elif workflow_date < first_failure_date[test_name]:
+                        first_failure_date[test_name] = workflow_date
 
 flaky_tests_df = pd.DataFrame(flaky_tests.items(), columns=["Test Name", "Failures"])
 # Set the test name as the index
@@ -69,6 +74,7 @@ flaky_tests_df["Test Script"] = flaky_tests_df.index.map(
     + x.split(":")[0]
 )
 flaky_tests_df["Last Failure Date"] = flaky_tests_df.index.map(last_failure_date)
+flaky_tests_df["First Failure Date"] = flaky_tests_df.index.map(first_failure_date)
 
 
 def extract_browser(test_name: str) -> str | None:
@@ -95,6 +101,9 @@ st.dataframe(
         "Test Name": st.column_config.TextColumn(width="large"),
         "Last Failure Date": st.column_config.DatetimeColumn(
             "Last Failure Date", format="distance"
+        ),
+        "First Failure Date": st.column_config.DatetimeColumn(
+            "First Failure Date", format="distance"
         ),
         "Latest Run": st.column_config.LinkColumn(display_text="Open"),
         "Test Script": st.column_config.LinkColumn(display_text="Open"),
