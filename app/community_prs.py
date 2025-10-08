@@ -581,7 +581,7 @@ st.caption(
 )
 
 # Helper to fetch the user who merged a PR (cached)
-@st.cache_data(ttl=60 * 60 * 24)
+@st.cache_data(ttl=60 * 60 * 24, show_spinner=False)
 def get_merged_by_login(pr_number: int) -> str | None:
     pr_info = fetch_pr_info(str(pr_number))
     if not pr_info:
@@ -611,16 +611,10 @@ else:
         merger_counts = (
             merged_prs_only.groupby("merged_by_login").size().reset_index(name="Merged PRs")
         )
-        merger_avg_days = (
-            merged_prs_only.groupby("merged_by_login")["days_to_merge"].mean().reset_index()
-        )
 
-        top_mergers_df = pd.merge(
-            merger_counts,
-            merger_avg_days,
-            on="merged_by_login",
-            how="left",
-        ).rename(columns={"merged_by_login": "Merger", "days_to_merge": "Avg days to merge"})
+        top_mergers_df = merger_counts.rename(
+            columns={"merged_by_login": "Merger", "Merged PRs": "Number of merged PRs"}
+        )
 
         # Add GitHub profile URL for display
         top_mergers_df["Merger"] = top_mergers_df["Merger"].apply(
@@ -629,8 +623,8 @@ else:
 
         # Sort and limit
         top_mergers_df = top_mergers_df.sort_values(
-            ["Merged PRs", "Avg days to merge"], ascending=[False, True]
-        ).head(20)
+            "Merged PRs", ascending=False
+        ).head(50)
 
         st.dataframe(
             top_mergers_df,
@@ -640,10 +634,7 @@ else:
                 ),
                 "Merged PRs": st.column_config.NumberColumn(
                     format="%d",
-                ),
-                "Avg days to merge": st.column_config.NumberColumn(
-                    format="%.1f days",
-                ),
+                )
             },
             hide_index=True,
         )
