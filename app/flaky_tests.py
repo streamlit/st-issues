@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date, datetime
+from typing import Final
 
 import altair as alt
 import pandas as pd
@@ -25,6 +26,31 @@ rolling_window_size = st.sidebar.slider(
     "Flaky trend window size", min_value=5, max_value=50, value=25, step=5
 )
 
+hide_expected_flaky_tests = st.sidebar.checkbox("Hide expected flaky tests", value=True, help="Test that are expected to be flaky and marked with additional reruns (pytest.mark.flaky(reruns=3))")
+
+# Tests that are expected to be flaky and marked with additional reruns (pytest.mark.flaky(reruns=3))
+# This list needs to be updated manually. The test is matched via startswith,
+# so it can cover full test scrits or just individual test methods.
+EXPECTED_FLAKY_TESTS: Final[list[str]] = [
+    "st_video_test.py::test_video_end_time",
+    "st_pydeck_chart_test.py",
+    "st_file_uploader_test.py::test_uploads_directory_with_multiple_files",
+    "st_file_uploader_test.py::test_directory_upload_with_file_type_filtering",
+    "st_dataframe_interactions_test.py::test_csv_download_button_in_iframe_with_new_tab_host_config",
+    "st_dataframe_interactions_test.py::test_csv_download_button_in_iframe",
+    "st_video_test.py::test_video_end_time_loop",
+]
+
+
+def is_expected_flaky(test_full_name: str) -> bool:
+    """Return True if the given test name matches an expected flaky test prefix.
+
+    The match uses startswith to allow both whole-script and single-test prefixes.
+    """
+    for expected_prefix in EXPECTED_FLAKY_TESTS:
+        if test_full_name.startswith(expected_prefix):
+            return True
+    return False
 
 # Fetch workflow runs
 flaky_tests: Counter[str] = Counter()
@@ -76,6 +102,11 @@ flaky_tests_df["Test Script"] = flaky_tests_df.index.map(
 flaky_tests_df["Last Failure Date"] = flaky_tests_df.index.map(last_failure_date)
 flaky_tests_df["First Failure Date"] = flaky_tests_df.index.map(first_failure_date)
 
+# Optionally hide expected flaky tests from the table and downstream calculations
+if hide_expected_flaky_tests and not flaky_tests_df.empty:
+    mask_not_expected = ~flaky_tests_df.index.to_series().apply(is_expected_flaky)
+    flaky_tests_df = flaky_tests_df[mask_not_expected]
+
 
 def extract_browser(test_name: str) -> str | None:
     for browser in ["chromium", "firefox", "webkit"]:
@@ -105,12 +136,17 @@ else:
 overall_failure_prob = 1 - (1 - flaky_tests_df["Workflow Failure Probability"].fillna(0)).prod()
 
 
+total_flaky_failures = int(flaky_tests_df["Failures"].sum())
+top5_reduction_pct = 0.0
+if total_flaky_failures > 0:
+    top5_reduction_pct = round(flaky_tests_df[:5]["Failures"].sum() / total_flaky_failures * 100, 2)
+
 st.caption(
-    f"**{flaky_tests_df['Failures'].sum()} flaky reruns** in the "
+    f"**{total_flaky_failures} flaky reruns** in the "
     f"last **{workflow_runs_limit} successful workflow runs** ({first_date}) impacting "
     f"**{len(flaky_tests_df)} e2e tests** in **{len(flaky_tests_df['Test Script'].unique())} "
     f"test scripts**. Fixing the top 5 flaky tests would reduce flaky reruns by "
-    f"**{round(flaky_tests_df[:5]['Failures'].sum() / flaky_tests_df['Failures'].sum() * 100, 2)}%**. "
+    f"**{top5_reduction_pct}%**. "
     f"The approximate probability of a workflow run failing due to flakiness is **{overall_failure_prob:.1%}**."
 )
 st.dataframe(
@@ -144,12 +180,27 @@ for workflow_run in workflow_runs:
     check_runs_ids = fetch_workflow_runs_ids(check_suite_id)
     for check_run_id in check_runs_ids:
         annotations_list = fetch_workflow_run_annotations(check_run_id)
-        if any(
-            annotation["path"].startswith("e2e_playwright/")
-            for annotation in annotations_list
-        ):
-            had_reruns = True
-            break
+        if hide_expected_flaky_tests:
+            # Only consider reruns from non-expected flaky tests
+            for annotation in annotations_list:
+                if annotation["path"].startswith("e2e_playwright/"):
+                    test_name_for_chart = (
+                        annotation["path"].replace("e2e_playwright/", "")
+                        + "::"
+                        + annotation["message"].split("\n\n")[0]
+                    )
+                    if not is_expected_flaky(test_name_for_chart):
+                        had_reruns = True
+                        break
+            if had_reruns:
+                break
+        else:
+            if any(
+                annotation["path"].startswith("e2e_playwright/")
+                for annotation in annotations_list
+            ):
+                had_reruns = True
+                break
 
     workflow_data.append(
         {
