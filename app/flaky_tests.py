@@ -33,7 +33,7 @@ hide_expected_flaky_tests = st.sidebar.checkbox("Hide expected flaky tests", val
 # so it can cover full test scrits or just individual test methods.
 EXPECTED_FLAKY_TESTS: Final[list[str]] = [
     "st_video_test.py::test_video_end_time",
-    "st_pydeck_chart_test.py",
+    "st_pydeck_chart_select_test.py",
     "st_file_uploader_test.py::test_uploads_directory_with_multiple_files",
     "st_file_uploader_test.py::test_directory_upload_with_file_type_filtering",
     "st_dataframe_interactions_test.py::test_csv_download_button_in_iframe_with_new_tab_host_config",
