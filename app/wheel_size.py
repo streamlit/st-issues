@@ -148,16 +148,17 @@ if len(df) > 1:
     df_sorted["size_change_percent"] = (
         df_sorted["size_change"] / df_sorted["prev_size"]
     ) * 100
-    df_sorted["size_change_human"] = df_sorted["size_change"].apply(
-        lambda x: f"+{humanize.naturalsize(x, binary=True)}"
-        if x > 0
-        else humanize.naturalsize(x, binary=True)
-    )
 
     # Filter out the first row (which has NaN for changes)
     df_changes = df_sorted.dropna(subset=["size_change"]).copy()
 
     if not df_changes.empty:
+        # Now that NaNs are removed, compute human-readable size changes
+        df_changes["size_change_human"] = df_changes["size_change"].apply(
+            lambda x: f"+{humanize.naturalsize(x, binary=True)}"
+            if x > 0
+            else humanize.naturalsize(x, binary=True)
+        )
         # Sort by absolute size change
         df_changes = df_changes.sort_values("size_change", key=abs, ascending=False)
 
