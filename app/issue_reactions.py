@@ -424,12 +424,13 @@ else:
     st.dataframe(
         closers_stats.head(top_k),
         column_config={
-            "Closer": st.column_config.TextColumn(width="medium"),
+            "Closer": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
             "Total reactions": st.column_config.NumberColumn(),
             "Issues closed": st.column_config.NumberColumn(),
             "Average reactions per issue": st.column_config.NumberColumn(
                 format="%.2f"
             ),
+
         },
         hide_index=True,
     )
