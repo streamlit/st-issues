@@ -420,6 +420,13 @@ else:
         waiting_for_team_response_df,
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Title": st.column_config.TextColumn("Title", width="large"),
+            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Author": st.column_config.TextColumn("Author"),
+            "Labels": st.column_config.ListColumn("Labels"),
+        },
     )
 st.divider()
 
