@@ -361,30 +361,43 @@ if (
 
 st.divider()
 
-# Maintainers who closed issues with the most reactions
-maintainers_df = df_filtered.copy()
-maintainers_df["closed_by_login"] = maintainers_df["closed_by"].apply(
+# Closers who closed issues with the most reactions
+closers_df = df_filtered.copy()
+closers_df["closed_by_login"] = closers_df["closed_by"].apply(
     lambda x: x.get("login", "") if isinstance(x, dict) else ""
 )
-maintainers_df = maintainers_df[
-    maintainers_df["closed_by_login"].isin(STREAMLIT_TEAM_MEMBERS)
-]
+# Remove entries without a valid closer
+closers_df = closers_df[closers_df["closed_by_login"] != ""]
 
-maintainers_container = st.container(gap=None)
-row = maintainers_container.container(
+closers_container = st.container(gap=None)
+row = closers_container.container(
     horizontal=True, horizontal_alignment="left", vertical_alignment="bottom"
 )
 title_container = row.container(gap=None)
 
-if maintainers_df.empty:
+with row.popover("Modify", width="content"):
+    only_streamlit_team = st.checkbox(
+        "Only Streamlit team", value=True, help="Restrict to Streamlit maintainers"
+    )
+    # We compute max after filtering below; use a placeholder for now
+    top_k_placeholder = st.empty()
+
+if only_streamlit_team:
+    filtered_closers_df = closers_df[
+        closers_df["closed_by_login"].isin(STREAMLIT_TEAM_MEMBERS)
+    ]
+else:
+    filtered_closers_df = closers_df
+
+if filtered_closers_df.empty:
     with title_container:
-        st.markdown("##### Maintainers by Reactions on Closed Issues")
+        st.markdown("##### Closers by Reactions on Closed Issues")
         st.caption(
-            ":material/person: No maintainer-closed issues found for the current filters."
+            ":material/person: No issues found for the current filters and closer selection."
         )
 else:
-    maintainers_stats = (
-        maintainers_df.groupby("closed_by_login")
+    closers_stats = (
+        filtered_closers_df.groupby("closed_by_login")
         .agg(
             total_reactions=("total_reactions", "sum"),
             issues_closed=("total_reactions", "count"),
@@ -392,41 +405,39 @@ else:
         .reset_index()
         .rename(
             columns={
-                "closed_by_login": "Maintainer",
+                "closed_by_login": "Closer",
                 "total_reactions": "Total reactions",
                 "issues_closed": "Issues closed",
             }
         )
     )
-    maintainers_stats["Average reactions per issue"] = (
-        maintainers_stats["Total reactions"] / maintainers_stats["Issues closed"]
+    closers_stats["Average reactions per issue"] = (
+        closers_stats["Total reactions"] / closers_stats["Issues closed"]
     )
-    maintainers_stats = maintainers_stats.sort_values(
-        "Total reactions", ascending=False
-    )
+    closers_stats = closers_stats.sort_values("Total reactions", ascending=False)
 
-    unique_maintainers = len(maintainers_stats)
+    unique_closers = len(closers_stats)
 
+    # Now render the top-k slider inside the same popover location
     with row.popover("Modify", width="content"):
         top_k = st.slider(
             "Show top",
             min_value=1,
-            max_value=unique_maintainers,
-            value=min(15, unique_maintainers),
+            max_value=unique_closers,
+            value=min(15, unique_closers),
         )
 
     with title_container:
-        st.markdown(
-            f"##### Top {top_k} Maintainers by Reactions on Closed Issues"
-        )
+        audience = "Maintainers" if only_streamlit_team else "Closers"
+        st.markdown(f"##### Top {top_k} {audience} by Reactions on Closed Issues")
         st.caption(
             ":material/person: Sorted by total reactions on issues they closed within the selected date range."
         )
 
     st.dataframe(
-        maintainers_stats.head(top_k),
+        closers_stats.head(top_k),
         column_config={
-            "Maintainer": st.column_config.TextColumn(width="medium"),
+            "Closer": st.column_config.TextColumn(width="medium"),
             "Total reactions": st.column_config.NumberColumn(),
             "Issues closed": st.column_config.NumberColumn(),
             "Average reactions per issue": st.column_config.NumberColumn(
