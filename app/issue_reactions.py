@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.utils.github_utils import get_all_github_issues, STREAMLIT_TEAM_MEMBERS
+from app.utils.github_utils import get_all_github_issues
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -375,19 +375,7 @@ row = closers_container.container(
 )
 title_container = row.container(gap=None)
 
-with row.popover("Modify", width="content"):
-    only_streamlit_team = st.checkbox(
-        "Only Streamlit team", value=True, help="Restrict to Streamlit maintainers"
-    )
-    # We compute max after filtering below; use a placeholder for now
-    top_k_placeholder = st.empty()
-
-if only_streamlit_team:
-    filtered_closers_df = closers_df[
-        closers_df["closed_by_login"].isin(STREAMLIT_TEAM_MEMBERS)
-    ]
-else:
-    filtered_closers_df = closers_df
+filtered_closers_df = closers_df
 
 if filtered_closers_df.empty:
     with title_container:
@@ -428,8 +416,7 @@ else:
         )
 
     with title_container:
-        audience = "Maintainers" if only_streamlit_team else "Closers"
-        st.markdown(f"##### Top {top_k} {audience} by Reactions on Closed Issues")
+        st.markdown(f"##### Top {top_k} Closers by Reactions on Closed Issues")
         st.caption(
             ":material/person: Sorted by total reactions on issues they closed within the selected date range."
         )
