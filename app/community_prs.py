@@ -613,7 +613,7 @@ else:
         )
 
         top_mergers_df = merger_counts.rename(
-            columns={"merged_by_login": "Merger", "Merged PRs": "Number of merged PRs"}
+            columns={"merged_by_login": "Merger"}
         )
 
         # Add GitHub profile URL for display
