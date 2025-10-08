@@ -11,6 +11,7 @@ from app.utils.github_utils import (
     get_all_github_prs,
     parse_github_url,
     validate_issue_number,
+    EXPECTED_FLAKY_TESTS,
 )
 from app.utils.interrupt_data import (
     get_community_prs_ready_for_review,
@@ -440,6 +441,13 @@ marker as a last resort.
 """,
 )
 flaky_tests_df = get_flaky_tests(since)
+# Always hide expected flaky tests
+if not flaky_tests_df.empty:
+    mask_not_expected = ~flaky_tests_df["Test"].apply(
+        lambda t: any(t.startswith(prefix) for prefix in EXPECTED_FLAKY_TESTS)
+    )
+    flaky_tests_df = flaky_tests_df[mask_not_expected]
+
 if flaky_tests_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
