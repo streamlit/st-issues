@@ -289,9 +289,9 @@ else:
             df = df.merge(
                 reaction_growth, left_on="number", right_on="issue_number", how="left"
             )
-            df["reaction_growth"] = df["reaction_growth"].fillna(None).astype(int)
+            df["reaction_growth"] = df["reaction_growth"].fillna(0).astype(int)
         else:
-            df["reaction_growth"] = None
+            df["reaction_growth"] = 0
 
     df = df.sort_values(by=["total_reactions", "updated_at"], ascending=[False, False])
 
