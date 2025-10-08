@@ -577,7 +577,7 @@ st.divider()
 # Top Mergers Analysis
 st.markdown("##### Top mergers")
 st.caption(
-    "Users who merged the most community PRs based on the current filters."
+    "Maintainers who merged the most community PRs based on the current filters."
 )
 
 # Helper to fetch the user who merged a PR (cached)
