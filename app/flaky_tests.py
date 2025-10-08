@@ -12,6 +12,7 @@ from app.utils.github_utils import (
     fetch_workflow_run_annotations,
     fetch_workflow_runs,
     fetch_workflow_runs_ids,
+    EXPECTED_FLAKY_TESTS
 )
 
 st.set_page_config(page_title="Flaky Tests", page_icon="🧫")
@@ -27,20 +28,6 @@ rolling_window_size = st.sidebar.slider(
 )
 
 hide_expected_flaky_tests = st.sidebar.checkbox("Hide expected flaky tests", value=True, help="Test that are expected to be flaky and marked with additional reruns (pytest.mark.flaky(reruns=3))")
-
-# Tests that are expected to be flaky and marked with additional reruns (pytest.mark.flaky(reruns=3))
-# This list needs to be updated manually. The test is matched via startswith,
-# so it can cover full test scrits or just individual test methods.
-EXPECTED_FLAKY_TESTS: Final[list[str]] = [
-    "st_video_test.py::test_video_end_time",
-    "st_pydeck_chart_select_test.py",
-    "st_file_uploader_test.py::test_uploads_directory_with_multiple_files",
-    "st_file_uploader_test.py::test_directory_upload_with_file_type_filtering",
-    "st_dataframe_interactions_test.py::test_csv_download_button_in_iframe_with_new_tab_host_config",
-    "st_dataframe_interactions_test.py::test_csv_download_button_in_iframe",
-    "st_video_test.py::test_video_end_time_loop",
-]
-
 
 def is_expected_flaky(test_full_name: str) -> bool:
     """Return True if the given test name matches an expected flaky test prefix.
