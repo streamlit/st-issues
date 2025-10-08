@@ -6,7 +6,11 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.utils.github_utils import STREAMLIT_TEAM_MEMBERS, get_all_github_prs
+from app.utils.github_utils import (
+    STREAMLIT_TEAM_MEMBERS,
+    get_all_github_prs,
+    fetch_pr_info,
+)
 
 st.set_page_config(
     page_title="Community PRs",
@@ -567,3 +571,79 @@ st.dataframe(
     },
     hide_index=True,
 )
+
+st.divider()
+
+# Top Mergers Analysis
+st.markdown("##### Top mergers")
+st.caption(
+    "Users who merged the most community PRs based on the current filters."
+)
+
+# Helper to fetch the user who merged a PR (cached)
+@st.cache_data(ttl=60 * 60 * 24)
+def get_merged_by_login(pr_number: int) -> str | None:
+    pr_info = fetch_pr_info(str(pr_number))
+    if not pr_info:
+        return None
+    merged_by = pr_info.get("merged_by")
+    if merged_by and isinstance(merged_by, dict):
+        return merged_by.get("login")
+    return None
+
+merged_prs_only = df_filtered[df_filtered["status"] == "Merged"].copy()
+
+if merged_prs_only.empty:
+    st.info("No merged PRs in the selected filters.")
+else:
+    with st.spinner("Fetching merger info for merged PRs..."):
+        merged_prs_only["merged_by_login"] = merged_prs_only["number"].apply(
+            get_merged_by_login
+        )
+
+    # Drop PRs where merger info is unavailable
+    merged_prs_only = merged_prs_only.dropna(subset=["merged_by_login"])
+
+    if merged_prs_only.empty:
+        st.info("No merger information available for the selected PRs.")
+    else:
+        # Aggregate counts and average time-to-merge per merger
+        merger_counts = (
+            merged_prs_only.groupby("merged_by_login").size().reset_index(name="Merged PRs")
+        )
+        merger_avg_days = (
+            merged_prs_only.groupby("merged_by_login")["days_to_merge"].mean().reset_index()
+        )
+
+        top_mergers_df = pd.merge(
+            merger_counts,
+            merger_avg_days,
+            on="merged_by_login",
+            how="left",
+        ).rename(columns={"merged_by_login": "Merger", "days_to_merge": "Avg days to merge"})
+
+        # Add GitHub profile URL for display
+        top_mergers_df["Merger"] = top_mergers_df["Merger"].apply(
+            lambda x: f"https://github.com/{x}"
+        )
+
+        # Sort and limit
+        top_mergers_df = top_mergers_df.sort_values(
+            ["Merged PRs", "Avg days to merge"], ascending=[False, True]
+        ).head(20)
+
+        st.dataframe(
+            top_mergers_df,
+            column_config={
+                "Merger": st.column_config.LinkColumn(
+                    display_text="github.com/([^/]+)",
+                ),
+                "Merged PRs": st.column_config.NumberColumn(
+                    format="%d",
+                ),
+                "Avg days to merge": st.column_config.NumberColumn(
+                    format="%.1f days",
+                ),
+            },
+            hide_index=True,
+        )
