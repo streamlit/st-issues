@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.utils.github_utils import get_all_github_issues
+from app.utils.github_utils import get_all_github_issues, STREAMLIT_TEAM_MEMBERS
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -358,3 +358,80 @@ if (
         )
     else:
         st.info("No issues found with the selected feature label.")
+
+st.divider()
+
+# Maintainers who closed issues with the most reactions
+maintainers_df = df_filtered.copy()
+maintainers_df["closed_by_login"] = maintainers_df["closed_by"].apply(
+    lambda x: x.get("login", "") if isinstance(x, dict) else ""
+)
+maintainers_df = maintainers_df[
+    maintainers_df["closed_by_login"].isin(STREAMLIT_TEAM_MEMBERS)
+]
+
+maintainers_container = st.container(gap=None)
+row = maintainers_container.container(
+    horizontal=True, horizontal_alignment="left", vertical_alignment="bottom"
+)
+title_container = row.container(gap=None)
+
+if maintainers_df.empty:
+    with title_container:
+        st.markdown("##### Maintainers by Reactions on Closed Issues")
+        st.caption(
+            ":material/person: No maintainer-closed issues found for the current filters."
+        )
+else:
+    maintainers_stats = (
+        maintainers_df.groupby("closed_by_login")
+        .agg(
+            total_reactions=("total_reactions", "sum"),
+            issues_closed=("total_reactions", "count"),
+        )
+        .reset_index()
+        .rename(
+            columns={
+                "closed_by_login": "Maintainer",
+                "total_reactions": "Total reactions",
+                "issues_closed": "Issues closed",
+            }
+        )
+    )
+    maintainers_stats["Average reactions per issue"] = (
+        maintainers_stats["Total reactions"] / maintainers_stats["Issues closed"]
+    )
+    maintainers_stats = maintainers_stats.sort_values(
+        "Total reactions", ascending=False
+    )
+
+    unique_maintainers = len(maintainers_stats)
+
+    with row.popover("Modify", width="content"):
+        top_k = st.slider(
+            "Show top",
+            min_value=1,
+            max_value=unique_maintainers,
+            value=min(15, unique_maintainers),
+        )
+
+    with title_container:
+        st.markdown(
+            f"##### Top {top_k} Maintainers by Reactions on Closed Issues"
+        )
+        st.caption(
+            ":material/person: Sorted by total reactions on issues they closed within the selected date range."
+        )
+
+    st.dataframe(
+        maintainers_stats.head(top_k),
+        column_config={
+            "Maintainer": st.column_config.TextColumn(width="medium"),
+            "Total reactions": st.column_config.NumberColumn(),
+            "Issues closed": st.column_config.NumberColumn(),
+            "Average reactions per issue": st.column_config.NumberColumn(
+                format="%.2f"
+            ),
+        },
+        hide_index=True,
+    )
