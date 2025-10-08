@@ -213,7 +213,14 @@ def get_issue_waiting_for_team_response() -> pd.DataFrame:
             continue
         labels = {label["name"] for label in i["labels"]}
         if "status:awaiting-team-response" in labels:
-            waiting_for_team_response.append(i)
+            waiting_for_team_response.append({
+                    "Title": i["title"],
+                    "URL": i["html_url"],
+                    "Created": i["created_at"],
+                    "Author": i["user"]["login"],
+                    "Labels": list(labels),
+            })
+
     return pd.DataFrame(waiting_for_team_response)
 
 
