@@ -107,8 +107,12 @@ if "persisted_ex1" not in st.session_state:
     st.session_state.persisted_ex2 = Example("Persistent Foo", "Bar")
 
 st.write("**Persisted objects (created once, stored in session_state):**")
-st.write(f"- ex1 (id: {id(st.session_state.persisted_ex1)}): {st.session_state.persisted_ex1.attr1}")
-st.write(f"- ex2 (id: {id(st.session_state.persisted_ex2)}): {st.session_state.persisted_ex2.attr1}")
+st.write(
+    f"- ex1 (id: {id(st.session_state.persisted_ex1)}): {st.session_state.persisted_ex1.attr1}"
+)
+st.write(
+    f"- ex2 (id: {id(st.session_state.persisted_ex2)}): {st.session_state.persisted_ex2.attr1}"
+)
 
 selected_persistent = st.selectbox(
     "Select Persistent Example",
@@ -139,9 +143,74 @@ with col6:
 
 st.info(
     """
-**This is the proper test!** If identity checks still fail here, then `st.selectbox` 
-is genuinely returning copies. If they pass, the original issue report may have been 
+**This is the proper test!** If identity checks still fail here, then `st.selectbox`
+is genuinely returning copies. If they pass, the original issue report may have been
 due to misunderstanding Streamlit's execution model.
+"""
+)
+
+st.divider()
+
+st.header("Recommended Workaround: The Key Pattern ✅")
+st.write("""
+**Good news!** There's a clean workaround that works for all cases where object identity matters.
+
+Instead of passing objects to selectbox, pass **keys** and look up the objects:
+""")
+
+st.subheader("Key Pattern Example")
+
+# Store objects with keys in session_state
+if "workaround_ex1" not in st.session_state:
+    st.session_state.workaround_ex1 = Example("Workaround Hello", "World")
+    st.session_state.workaround_ex2 = Example("Workaround Foo", "Bar")
+
+st.write("**Objects stored in session_state:**")
+st.write(
+    f"- workaround_ex1 (id: {id(st.session_state.workaround_ex1)}): {st.session_state.workaround_ex1.attr1}"
+)
+st.write(
+    f"- workaround_ex2 (id: {id(st.session_state.workaround_ex2)}): {st.session_state.workaround_ex2.attr1}"
+)
+
+# Select by KEY instead of object
+selected_key = st.selectbox(
+    "Select by Key",
+    ["workaround_ex1", "workaround_ex2"],
+    format_func=lambda key: st.session_state[key].attr1,  # Display name
+    key="selectbox_workaround",
+)
+
+# Get the actual object by looking up the key
+selected_by_key = st.session_state[selected_key]
+
+st.write(
+    f"**Selected object (id: {id(selected_by_key)}): {selected_by_key.attr1} {selected_by_key.attr2}"
+)
+
+st.subheader("Identity Check Results")
+
+col7, col8 = st.columns(2)
+
+with col7:
+    if selected_by_key is st.session_state.workaround_ex1:
+        st.success("✅ Selected IS workaround_ex1")
+    else:
+        st.error("❌ Selected is NOT workaround_ex1")
+
+with col8:
+    if selected_by_key is st.session_state.workaround_ex2:
+        st.success("✅ Selected IS workaround_ex2")
+    else:
+        st.error("❌ Selected is NOT workaround_ex2")
+
+st.success(
+    """
+**✅ This workaround works!** By selecting keys and looking up objects, 
+you get the actual persisted instances with preserved identity.
+
+This pattern is always available because if object identity matters across reruns,
+objects must be in session_state anyway—and session_state uses keys.
 """
 )
 
