@@ -76,15 +76,69 @@ st.write(
 
 st.divider()
 
-st.header("Workaround")
+st.header("Workaround/Comparison Tests")
 st.write("""
-A workaround is to explicitly convert the datatype in the callback:
-
-```python
-def btn_on_click():
-    st.session_state.df_input = df_result.astype({'number': 'float'})
-```
+Below are two working variations that contrast with the bug above:
 """)
+
+st.subheader("Test 1: With Explicit Float Conversion ✅")
+st.write("Using `astype({'number': 'float'})` in the callback to force float type")
+
+
+def btn_on_click_workaround():
+    st.session_state.df_workaround = df_result_workaround.astype({"number": "float"})
+
+
+st.session_state.setdefault(
+    "df_workaround", pd.DataFrame(data=[None, None], columns=["number"])
+)
+
+df_result_workaround = st.data_editor(
+    st.session_state.df_workaround,
+    column_config={"number": st.column_config.NumberColumn(format="%.1f")},
+    key="editor_workaround",
+)
+
+st.button(
+    "Store with float conversion", on_click=btn_on_click_workaround, key="btn_workaround"
+)
+
+st.write(f"**Data type:** {st.session_state.df_workaround['number'].dtype}")
+st.success(
+    "✅ This works! Even after storing integers, you can still enter decimals because we force float type."
+)
+
+st.divider()
+
+st.subheader("Test 2: Initialize with Float Type ✅")
+st.write("Starting with a DataFrame that has float dtype from the beginning")
+
+
+def btn_on_click_float_init():
+    st.session_state.df_float_init = df_result_float_init
+
+
+st.session_state.setdefault(
+    "df_float_init",
+    pd.DataFrame(data=[None, None], columns=["number"], dtype="float64"),
+)
+
+df_result_float_init = st.data_editor(
+    st.session_state.df_float_init,
+    column_config={"number": st.column_config.NumberColumn(format="%.1f")},
+    key="editor_float_init",
+)
+
+st.button(
+    "Store with float init",
+    on_click=btn_on_click_float_init,
+    key="btn_float_init",
+)
+
+st.write(f"**Data type:** {st.session_state.df_float_init['number'].dtype}")
+st.success(
+    "✅ This works! Starting with float64 dtype preserves the type through reruns."
+)
 
 st.divider()
 
