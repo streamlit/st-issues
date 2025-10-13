@@ -58,14 +58,57 @@ st.write(
 
 st.divider()
 
-st.header("Workaround Test")
+st.header("Workaround Tests")
 st.write("""
 The issue can be avoided by either:
 1. Removing the `@st.fragment` decorator, OR
 2. Not using `with container:`
 
-Uncomment the code in the source to test these workarounds.
+Below are three comparison tests showing the different behaviors:
 """)
+
+st.subheader("Test 1: Fragment Only (No Container) ✅")
+st.write("Using `@st.fragment` but NOT using `with container:`")
+
+
+@st.fragment
+def func_fragment_only():
+    show_df = st.button("Show DataFrame (Fragment Only)", key="btn_fragment_only")
+    if show_df:
+        st.dataframe(df, key="df_fragment_only")
+
+
+func_fragment_only()
+
+st.divider()
+
+st.subheader("Test 2: Container Only (No Fragment) ✅")
+st.write("Using `with container:` but NOT using `@st.fragment`")
+
+
+def func_container_only(container):
+    show_df = st.button("Show DataFrame (Container Only)", key="btn_container_only")
+    if show_df:
+        with container:
+            st.dataframe(df, key="df_container_only")
+
+
+container2 = st.container()
+func_container_only(container2)
+
+st.divider()
+
+st.subheader("Test 3: Neither Fragment nor Container ✅")
+st.write("Regular function without `@st.fragment` or `with container:`")
+
+
+def func_neither():
+    show_df = st.button("Show DataFrame (Neither)", key="btn_neither")
+    if show_df:
+        st.dataframe(df, key="df_neither")
+
+
+func_neither()
 
 st.divider()
 
