@@ -93,6 +93,60 @@ with col4:
 
 st.divider()
 
+st.header("Proper Test: Using Session State")
+st.write("""
+**Important:** The test above has a flaw! Because Streamlit reruns the entire script,
+`ex1` and `ex2` are recreated on each run, so we're comparing against *different* objects.
+
+Below is a proper test using `st.session_state` to persist objects across reruns:
+""")
+
+# Initialize objects in session_state (only once)
+if "persisted_ex1" not in st.session_state:
+    st.session_state.persisted_ex1 = Example("Persistent Hello", "World")
+    st.session_state.persisted_ex2 = Example("Persistent Foo", "Bar")
+
+st.write("**Persisted objects (created once, stored in session_state):**")
+st.write(f"- ex1 (id: {id(st.session_state.persisted_ex1)}): {st.session_state.persisted_ex1.attr1}")
+st.write(f"- ex2 (id: {id(st.session_state.persisted_ex2)}): {st.session_state.persisted_ex2.attr1}")
+
+selected_persistent = st.selectbox(
+    "Select Persistent Example",
+    options=[st.session_state.persisted_ex1, st.session_state.persisted_ex2],
+    format_func=lambda ex: ex.attr1,
+    key="selectbox_persistent",
+)
+
+st.write(
+    f"**Selected object (id: {id(selected_persistent)}): {selected_persistent.attr1} {selected_persistent.attr2}"
+)
+
+st.subheader("Identity Check with Persisted Objects")
+
+col5, col6 = st.columns(2)
+
+with col5:
+    if selected_persistent is st.session_state.persisted_ex1:
+        st.success("✅ Selected IS persisted_ex1")
+    else:
+        st.error("❌ Selected is NOT persisted_ex1")
+
+with col6:
+    if selected_persistent is st.session_state.persisted_ex2:
+        st.success("✅ Selected IS persisted_ex2")
+    else:
+        st.error("❌ Selected is NOT persisted_ex2")
+
+st.info(
+    """
+**This is the proper test!** If identity checks still fail here, then `st.selectbox` 
+is genuinely returning copies. If they pass, the original issue report may have been 
+due to misunderstanding Streamlit's execution model.
+"""
+)
+
+st.divider()
+
 st.header("Expected vs Actual")
 st.write("""
 **Expected:**
@@ -135,4 +189,3 @@ This issue was originally reported in 2021 as issue #3703 but moved to enhanceme
 without resolution. It remains a significant limitation when working with objects
 where identity matters.
 """)
-
