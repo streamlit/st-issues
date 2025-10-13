@@ -48,10 +48,12 @@ st.divider()
 
 st.header("Expected vs Actual")
 st.write(
-    "**Expected:** Clicking the button multiple times should replace the existing dataframe."
+    "**Expected:** Only ONE dataframe should be displayed, even after multiple clicks, "
+    "because the same key is used (key='df'). Streamlit should recognize it's the same component."
 )
 st.write(
-    "**Actual:** Each click appends a new copy of the dataframe instead of replacing it."
+    "**Actual:** Each click creates a NEW dataframe in the container, ignoring the key. "
+    "Multiple dataframes appear stacked on top of each other."
 )
 
 st.divider()
