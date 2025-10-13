@@ -27,7 +27,6 @@ import os
 import shutil
 import sys
 import tempfile
-from datetime import datetime
 
 import streamlit as st
 
@@ -122,7 +121,8 @@ with col1:
 with col2:
     if st.session_state.last_upload_size:
         st.metric(
-            "Last Upload Size", f"{st.session_state.last_upload_size / 1024 / 1024:.2f} MB"
+            "Last Upload Size",
+            f"{st.session_state.last_upload_size / 1024 / 1024:.2f} MB",
         )
     else:
         st.metric("Last Upload Size", "N/A")
@@ -135,9 +135,7 @@ try:
     mem_info = process.memory_info()
     st.metric("Current Process RAM", f"{mem_info.rss / 1024 / 1024:.2f} MB")
 except ImportError:
-    st.info(
-        "Install `psutil` to see process memory usage: `pip install psutil`"
-    )
+    st.info("Install `psutil` to see process memory usage: `pip install psutil`")
 
 st.divider()
 
@@ -187,4 +185,3 @@ st.write("""
 - The issue has been confirmed across multiple browsers and operating systems
 - Related to the internal `UploadedFileManager` implementation
 """)
-
