@@ -206,7 +206,7 @@ with col8:
 
 st.success(
     """
-**✅ This workaround works!** By selecting keys and looking up objects, 
+**✅ This workaround works!** By selecting keys and looking up objects,
 you get the actual persisted instances with preserved identity.
 
 This pattern is always available because if object identity matters across reruns,

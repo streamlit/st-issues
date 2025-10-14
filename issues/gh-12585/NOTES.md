@@ -165,6 +165,7 @@ if selected_db is st.session_state.prod_db:  # Works!
 **Critical Insight:** If object identity matters across reruns, objects MUST be stored in `st.session_state`. And if they're in session_state, they already have keys.
 
 **Logic:**
+
 1. Object identity only matters if objects persist across reruns
 2. Persisting across reruns requires `st.session_state`
 3. `st.session_state` uses string keys to store objects
@@ -187,6 +188,7 @@ Given the key pattern workaround is always available and actually a better desig
 ### This Is Correctly An Enhancement, Not A Bug
 
 **Reasons:**
+
 1. **No blocking use case:** Every scenario has a clean workaround
 2. **Workaround is simple:** One extra line to look up by key
 3. **Workaround is better design:** More explicit and Streamlit-friendly
@@ -196,6 +198,7 @@ Given the key pattern workaround is always available and actually a better desig
 ### The Real Problem Is Documentation
 
 The issue is not the copying behavior itself, but that:
+
 1. Docs don't mention copying happens
 2. Docs don't show the key pattern for objects
 3. Users aren't guided to the better pattern
@@ -264,6 +267,7 @@ Based on the analysis, the recommended path forward is:
 ### 2. Fix Documentation (Primary Action Item) 📝
 
 **What to add to st.selectbox docs:**
+
 - Clarify that selected options are returned as copies (deepcopy)
 - Explain why (protects session_state mechanisms)
 - Show the key pattern for when object identity matters:

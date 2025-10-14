@@ -24,7 +24,7 @@ st.header("Reproduction")
 
 st.write("""
 Click the button below to open a long dialog. The dialog contains numbered sections
-from 1 to 20. 
+from 1 to 20.
 
 **Expected:** You should see "Section 1" at the top when the dialog opens.
 
@@ -107,4 +107,3 @@ Operating System: (not specified)
 Browser: (not specified)
 """
 )
-

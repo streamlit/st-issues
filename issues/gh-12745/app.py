@@ -100,7 +100,9 @@ df_result_workaround = st.data_editor(
 )
 
 st.button(
-    "Store with float conversion", on_click=btn_on_click_workaround, key="btn_workaround"
+    "Store with float conversion",
+    on_click=btn_on_click_workaround,
+    key="btn_workaround",
 )
 
 st.write(f"**Data type:** {st.session_state.df_workaround['number'].dtype}")

@@ -1,6 +1,7 @@
 # Issue #12745 Analysis: Expected Behavior vs Bug
 
 ## Issue Summary
+
 When using `st.data_editor` with session_state storage, if a user first inputs integer values and then tries to change them to floats, the data editor prevents entering decimal points. This occurs even when using `st.column_config.NumberColumn(format='%.1f')`.
 
 ## Technical Analysis
@@ -8,6 +9,7 @@ When using `st.data_editor` with session_state storage, if a user first inputs i
 ### How st.data_editor Type Inference Works
 
 **Current Behavior:**
+
 1. `st.data_editor` infers column types from the **pandas DataFrame's dtype**, not from the `column_config`
 2. `st.column_config.NumberColumn(format='%.1f')` is primarily for **display formatting**, not type enforcement
 3. When the DataFrame has `int64` dtype, the editor treats it as an integer column (no decimal input)
@@ -16,6 +18,7 @@ When using `st.data_editor` with session_state storage, if a user first inputs i
 ### What Happens in This Issue
 
 **Step-by-step breakdown:**
+
 1. User starts with `pd.DataFrame(data=[None, None], columns=['number'])` - dtype is likely `object` or `float64`
 2. User enters integers (e.g., 1, 2) → pandas automatically coerces to `int64` dtype (since all values are integers)
 3. DataFrame with `int64` dtype is stored in session_state
@@ -48,6 +51,7 @@ When using `st.data_editor` with session_state storage, if a user first inputs i
 ## Reproduction App Status
 
 ✅ **App Successfully Demonstrates the Issue**
+
 - The reproduction clearly shows the problem
 - Includes working workarounds for comparison
 - Well-documented with clear instructions
@@ -57,6 +61,7 @@ When using `st.data_editor` with session_state storage, if a user first inputs i
 The app demonstrates two effective workarounds:
 
 1. **Explicit Float Conversion:**
+
    ```python
    def btn_on_click():
        st.session_state.df_input = df_result.astype({'number': 'float'})
@@ -72,6 +77,7 @@ The app demonstrates two effective workarounds:
 ### For Streamlit Team
 
 This issue requires team discussion to determine:
+
 1. Is this the intended behavior?
 2. Should `NumberColumn(format='%.1f')` enforce float dtype, not just format display?
 3. Should documentation be improved to explain dtype inference behavior?
@@ -79,6 +85,7 @@ This issue requires team discussion to determine:
 ### Potential Solutions
 
 If considered a bug, possible fixes:
+
 1. Make `NumberColumn` with float format preserve/enforce float dtype
 2. Add a `dtype` parameter to `NumberColumn` for explicit type specification
 3. Add warning when column config format doesn't match DataFrame dtype
@@ -93,7 +100,6 @@ If considered a bug, possible fixes:
 
 ---
 
-**Created:** 2025-01-13  
-**Status:** Pending team review  
+**Created:** 2025-01-13
+**Status:** Pending team review
 **App URL:** https://issues.streamlitapp.com/gh-12745
-
