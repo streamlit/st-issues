@@ -86,15 +86,18 @@ def conversation_selector():
 
     # KEY PATTERN: Simulate fetching "saved conversations" for current patient
     # In the real app, this would be: _saved_conversations = fetch_from_db(patient_id)
-    # This is ALWAYS valid for the current options
-    current_patient_saved = [conversations[0]]  # Fresh data for current patient
+    # This is ALWAYS valid for the current options and CHANGES when patient changes
+    _saved_conversations = [conversations[0]]  # Fresh data for current patient
 
-    # Reporter's pattern: Initialize session state from the fresh data
+    # Reporter's pattern: Initialize OR UPDATE session state from the fresh data
+    # The key: We always set it to the fresh, valid value for current patient
     if "selected_conversation" not in st.session_state:
-        st.session_state.selected_conversation = current_patient_saved
+        st.session_state.selected_conversation = _saved_conversations
 
-    # Use selected_conversation as the default source (might not match widget key!)
-    # Widget key may have OLD values, but default has VALID values for current options
+    # Use selected_conversation as the default source
+    # The widget key "conversation_multiselect" may have OLD values from previous patient
+    # But the default parameter has VALID values for current patient
+    # The bug: Without the workaround, these valid defaults don't show up in the multiselect
 
     # Display session state BEFORE multiselect
     st.markdown("**Session State Debug:**")
@@ -126,34 +129,48 @@ def conversation_selector():
         "Widget key: `conversation_multiselect`, Default from: `selected_conversation`"
     )
 
-    selected = st.multiselect(
-        label="Select conversations",
-        options=conversations,
-        default=st.session_state.selected_conversation,  # Different key, VALID for current options!
-        key="conversation_multiselect",  # Widget key (may have INVALID old values)
-        on_change=on_conversation_change,  # Add callback like reporter's code
-        help="BUG: When options change and widget key is invalid, this may not fall back to default",
-    )
+    # Attempt to render multiselect - may raise error if default is invalid
+    error_occurred = False
+    selected = []
 
-    # Update the session state based on user selection (for next time)
-    if selected:
-        st.session_state.selected_conversation = selected
-
-    # Display what was actually selected
-    st.code(f"Actually selected by multiselect: {selected}", language="python")
-
-    # Show the problem
-    if not selected and st.session_state.selected_conversation:
-        st.error("❌ BUG REPRODUCED!")
-        st.write("- Multiselect is empty")
-        st.write(
-            f"- But `selected_conversation` has: {st.session_state.selected_conversation}"
+    try:
+        selected = st.multiselect(
+            label="Select conversations",
+            options=conversations,
+            default=st.session_state.selected_conversation,  # May have OLD invalid values!
+            key="conversation_multiselect",  # Widget key (may also have OLD invalid values)
+            on_change=on_conversation_change,  # Add callback like reporter's code
+            help="BUG: When options change, this may raise error or show empty",
         )
-        st.write(f"- And those values ARE in current options: {conversations}")
-        st.write("- Widget key has invalid old values")
-        st.write("- Should fall back to `default` parameter, but it's being ignored!")
-    elif selected:
-        st.success("✅ Multiselect has values")
+    except Exception as e:
+        error_occurred = True
+        st.error(f"❌ Exception raised: {type(e).__name__}")
+        st.code(str(e))
+        st.write("**This error suggests:**")
+        st.write("- Default parameter has invalid values (not in current options)")
+        st.write(
+            "- In reporter's case, this might not raise an error but show empty instead"
+        )
+
+    if not error_occurred:
+        # Update the session state based on user selection (for next time)
+        if selected:
+            st.session_state.selected_conversation = selected
+
+        # Display what was actually selected
+        st.code(f"Actually selected by multiselect: {selected}", language="python")
+
+        # Show the problem
+        if not selected and st.session_state.selected_conversation:
+            st.error("❌ POTENTIAL BUG REPRODUCED!")
+            st.write("- Multiselect is empty (no error raised)")
+            st.write(
+                f"- But `selected_conversation` has: {st.session_state.selected_conversation}"
+            )
+            st.write("- These values are not in current options")
+            st.write("- Should either: raise error OR use empty default gracefully")
+        elif selected:
+            st.success("✅ Multiselect has values")
 
 
 st.header("Reproduction Steps")
