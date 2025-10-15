@@ -1,8 +1,8 @@
 # Pending Actions for Issue #12782
 
-## Status: Unable to Reproduce
+## Status: Likely Duplicate / Intended Behavior
 
-Despite multiple attempts to create a reproduction that matches the reporter's description, the bug is **not reproducing** in the test app.
+Unable to reproduce the reported issue. Team member (lukasmasuch) identified this as likely the same underlying issue as #12629, which is labeled as `status:intended-behavior` due to the `key_as_main_identity` changes in 1.50.0.
 
 ## What Was Tested
 
@@ -90,36 +90,49 @@ Add comment explaining:
 - Request reporter provide reproduction that demonstrates the issue
 - Keep issue open for further investigation
 
-## Recommended Action
+## Team Response (Oct 15, 2025)
 
-**Comment on issue with reproduction link and request for additional details:**
+**Lukas Masuch (@lukasmasuch) identified this as related to #12629:**
 
-"Thank you for reporting this issue! 🙏
+- Issue #12629: "Regression (1.50.0): widget value no longer updates when dependent on another widget"
+- Status: `status:intended-behavior`
+- Root cause: Changes to support `key_as_main_identity` in 1.50.0
+- Related comment: https://github.com/streamlit/streamlit/issues/12629#issuecomment-3361642792
 
-I've created a reproduction app to investigate this:
+**Agent (@sfc-gh-lwilby) suggested workaround:**
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://issues.streamlit.app/?issue=gh-12782)
+- Try removing the `key` parameter from the multiselect
+- This may resolve the issue if it's related to the `key_as_main_identity` behavior
 
-However, I'm unable to reproduce the bug you described. The multiselect correctly falls back to the default values even when:
+## Next Steps
 
-- The widget is inside a fragment
-- Options change due to parent widget changes
-- The widget key contains old values that don't exist in new options
-- Defaults come from a separate session state key
+### Awaiting Reporter Response
 
-Since you mentioned you couldn't reproduce it in a minimal example yourself, this suggests it may require very specific conditions. Could you help provide:
+Wait for reporter (@csipapicsa) to respond to:
 
-1. **Exact Streamlit version:** Is it specifically 1.50.0, or 1.50.x?
-2. **Still occurring?** Does this still happen in the latest Streamlit version?
-3. **More complete example:** Can you share a more complete code example that demonstrates the issue?
-4. **Reproduction steps:** Specific steps in your app that trigger the bug?
+1. Whether removing the `key` resolves the issue
+2. Whether the workaround they found is acceptable
+3. Whether they can confirm it's the same issue as #12629
 
-In the meantime, your workaround should continue to work:
+### If Confirmed as Duplicate
 
-````python
-st.session_state[_key] = st.session_state.selected_conversation
-```"
+If reporter confirms this is the same as #12629:
 
-**Label:** Remove `status:needs-triage`, add `status:awaiting-response`
+1. Close as duplicate of #12629
+2. Add link to #12629 in closing comment
+3. Note in journal: Related to `key_as_main_identity` changes (intended behavior)
+4. Keep reproduction app for reference
 
-````
+### If Different Issue
+
+If reporter provides more details showing it's a different issue:
+
+1. Request more complete reproduction code
+2. Re-evaluate with new information
+3. Update reproduction app accordingly
+
+## Reproduction App
+
+Available at: https://issues.streamlit.app/?issue=gh-12782
+
+Status: Unable to reproduce the reported behavior in test scenarios

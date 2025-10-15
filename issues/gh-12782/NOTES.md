@@ -1,6 +1,22 @@
 # Issue #12782 - Technical Analysis
 
-## Issue Summary
+## Resolution Status
+
+**Status:** Likely Duplicate / Intended Behavior
+**Date:** October 15, 2025
+**Resolution:** Unable to reproduce. Likely related to #12629 which is `status:intended-behavior`
+
+**Related Issue:** #12629 - "Regression (1.50.0): widget value no longer updates when dependent on another widget"
+
+- Status: Labeled as `status:intended-behavior` by team
+- Root cause: Changes to support `key_as_main_identity` in 1.50.0
+- Comment: https://github.com/streamlit/streamlit/issues/12629#issuecomment-3361642792
+
+**Awaiting:** Reporter response to confirm if this is the same issue as #12629
+
+---
+
+## Issue Summary (Original Report)
 
 **Regression in 1.50.0:** `st.multiselect` ignores `default` values when:
 
