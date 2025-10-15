@@ -19,13 +19,19 @@ Despite multiple attempts to create a reproduction that matches the reporter's d
 - Multiselect has `on_change` callback
 - **Result:** Bug did not reproduce - multiselect correctly falls back to defaults
 
-### Attempt 3: Match Reporter's Python Version (Current)
+### Attempt 3: Fix Reproduction Logic (Current)
 
-- Added Pipfile to run with Python 3.12 (reporter used 3.12.9)
-- Specified Streamlit 1.50.0 exactly (not 1.50.x)
-- Previous attempts ran on Python 3.10.18
-- This will run in a separate dedicated environment
-- **Result:** Testing in progress - app needs redeployment
+- **Critical fix:** Changed to only initialize `selected_conversation` once (on first load)
+- Previously was updating it every fragment run, which masked the bug
+- Now `selected_conversation` keeps OLD values when patient changes
+- This properly tests if `default` parameter works when it has invalid values
+- **Result:** Testing in progress
+
+### Attempt 4: Python Version Testing (Skipped)
+
+- Initially added Pipfile for Python 3.12 (reporter used 3.12.9)
+- Removed to allow testing on community cloud first
+- Can add back later if bug only reproduces on Python 3.12
 
 ## Observed Behavior
 
