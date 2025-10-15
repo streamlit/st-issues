@@ -16,6 +16,7 @@
 ## Reporter's Context
 
 The reporter specifically noted:
+
 - "Unfortunately, I couldn't reproduce the issue in a minimal code snippet"
 - Issue occurs in complex interaction between fragments, nested state logic, and conditional UI
 - The workaround is: `st.session_state[_key] = st.session_state.selected_conversation`
@@ -42,6 +43,7 @@ _related_conversations = st.multiselect(
 ```
 
 **The actual pattern:**
+
 - Default source: `st.session_state.selected_conversation`
 - Widget key: `_key` (e.g., "conversation_multiselect")
 - These are **different** keys
@@ -58,10 +60,12 @@ _related_conversations = st.multiselect(
 The reproduction app attempts to trigger this by:
 
 1. **Separate keys for defaults vs widget state:**
+
    - `saved_conversation_defaults` - stores the intended default values
    - `conversation_multiselect` - the widget's actual key (persists between parent changes)
 
 2. **Parent that causes options to change:**
+
    - Selectbox for patient selection
    - When changed, the fragment re-renders with NEW options
    - Widget key still has OLD values (from previous patient's conversations)
@@ -77,6 +81,7 @@ The reproduction app attempts to trigger this by:
 ## Potential Root Causes
 
 ### Hypothesis 1: key_as_main_identity with Fragments
+
 The `key_as_main_identity` feature in 1.50.0 includes options in the identity:
 
 ```python
@@ -99,13 +104,16 @@ element_id = compute_and_register_element_id(
 ```
 
 **Potential issue:** In fragments, when options change:
+
 - The element_id computation detects the change
 - This should trigger widget state invalidation
 - Then fall back to the `default` parameter
 - But in fragments, the default parameter resolution might not work correctly
 
 ### Hypothesis 2: Widget Registration Timing in Fragments
+
 After options change and widget state is invalidated:
+
 - The widget registration should look at the `default` parameter
 - But in fragments, there might be a timing issue where:
   - The old widget state is cleared
@@ -113,7 +121,9 @@ After options change and widget state is invalidated:
   - Resulting in an empty widget
 
 ### Hypothesis 3: Default Parameter vs Widget Value Priority
+
 When widget key exists but is invalidated due to options change:
+
 - Should: Clear widget value, use default parameter
 - Bug: Widget value is cleared but default parameter is also ignored
 - Result: Empty widget
@@ -130,6 +140,7 @@ if widget_state.value_changed:
 ```
 
 **Questions:**
+
 1. After `key_as_main_identity` detects options changed, how is the widget state updated?
 2. Does `widget_state.value_changed` properly reflect that defaults should be used?
 3. In fragments, is there a special code path that affects default handling?
@@ -152,11 +163,13 @@ To verify the bug:
 ## Workaround Confirmation
 
 The workaround explicitly syncs keys BEFORE the widget renders:
+
 ```python
 st.session_state[widget_key] = st.session_state[defaults_key]
 ```
 
 This ensures the widget key has the correct value, bypassing the need for:
+
 1. Options change detection
 2. Widget state invalidation
 3. Default parameter fallback
@@ -164,6 +177,7 @@ This ensures the widget key has the correct value, bypassing the need for:
 ## Related Changes to Investigate
 
 Check git history between 1.49.1 and 1.50.0 for changes to:
+
 - `streamlit/elements/lib/utils.py` - `compute_and_register_element_id` with `key_as_main_identity`
 - `streamlit/runtime/state/` - Widget state management after invalidation
 - Fragment-related code - How fragments handle widget state changes
@@ -174,6 +188,7 @@ Check git history between 1.49.1 and 1.50.0 for changes to:
 ## Difficulty Level
 
 ⚠️ **COMPLEX** - Reporter couldn't create minimal reproduction themselves, suggesting:
+
 - Specific combination required: fragment + options change + separate state keys
 - Related to recent `key_as_main_identity` feature (1.50.0 change)
 - May require specific Streamlit version (1.50.0) to reproduce
@@ -182,8 +197,10 @@ Check git history between 1.49.1 and 1.50.0 for changes to:
 ## Additional Notes
 
 The key realization from the team member review:
+
 > "if we DON'T clear the widget key if we will be able to reproduce it. This is consistent with the recent changes to support 'key as main identity'"
 
 This insight shifted the reproduction strategy from:
+
 - ❌ Clearing widget key via on_change
 - ✅ Letting widget key persist with old values while options change
