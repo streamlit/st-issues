@@ -88,11 +88,11 @@ def conversation_selector():
     # In the real app, this would be: _saved_conversations = fetch_from_db(patient_id)
     # This is ALWAYS valid for the current options
     current_patient_saved = [conversations[0]]  # Fresh data for current patient
-    
+
     # Reporter's pattern: Initialize session state from the fresh data
     if "selected_conversation" not in st.session_state:
         st.session_state.selected_conversation = current_patient_saved
-    
+
     # Use selected_conversation as the default source (might not match widget key!)
     # Widget key may have OLD values, but default has VALID values for current options
 
@@ -160,17 +160,17 @@ st.header("Reproduction Steps")
 
 st.markdown("""
 1. Select a patient from the dropdown below (e.g., "Patient A")
-2. Notice the multiselect initializes with the first conversation  
+2. Notice the multiselect initializes with the first conversation
 3. **Optionally:** Change your selection in the multiselect to a different conversation
 4. **Change to a different patient** (e.g., "Patient B")
-5. **Key observation:** 
+5. **Key observation:**
    - Widget key (`conversation_multiselect`) has OLD invalid values: `['Initial Consultation']`
    - Default key (`selected_conversation`) has NEW valid values: `['Emergency Visit']`
    - Options are Patient B's conversations (don't include 'Initial Consultation')
 6. Observe what happens:
    - **Expected (1.49.1):** Multiselect detects widget key is invalid, falls back to `default`, shows "Emergency Visit"
    - **Bug (1.50.0):** Multiselect shows empty even though `default` has valid values
-   
+
 **Why this might happen:**
 - The `key_as_main_identity` includes `"options"` in identity computation (multiselect.py:501-506)
 - When options change, widget key with old values should be invalidated
