@@ -7,16 +7,19 @@ Description:
 This app reproduces a regression in Streamlit 1.50.0 where st.multiselect ignores default
 values from session state when used inside a @st.fragment with on_change callbacks.
 
-The key pattern: The multiselect's default comes from a DIFFERENT session state key than
-the widget's key itself, and the parent's on_change clears the widget key.
+The key pattern relates to the "key as main identity" feature in 1.50.0:
+- When options change (due to parent widget change), the widget should recognize the options changed
+- The old selection becomes invalid (because it referenced options from the previous set)
+- The widget should fall back to the default parameter
+- But in 1.50.0, it may not properly respect the default after options change
 
 Expected Behavior:
-When a parent selector changes and clears the widget's session state key, the multiselect
-should reinitialize with the default value from a separate session state key.
+When options change, the multiselect should reinitialize with the default value from the
+separate session state key.
 
 Actual Behavior (1.50.0):
-The multiselect shows empty even though the separate session state key contains the correct
-default value.
+The multiselect may show empty even though the default session state key contains valid values
+for the new options.
 """
 
 import streamlit as st
@@ -29,12 +32,17 @@ st.header("Issue Overview")
 st.markdown("""
 **Regression in 1.50.0:** `st.multiselect` default values are not respected when:
 - Widget is inside `@st.fragment`
-- Parent widget has `on_change` callback that clears the **widget's key**
+- Parent widget changes, causing the **options** to change
+- Widget key persists but references OLD options (now invalid)
 - Multiselect uses `default` from a **different** session state key
-- This is a common pattern for managing defaults separately from widget state
+- The "key as main identity" logic should detect options changed and use defaults
+- But the default from the separate key may not be respected
 
 **Worked in:** 1.49.1
 **Broken in:** 1.50.0
+
+**Key insight:** This is about the `key_as_main_identity` feature that includes `"options"` 
+in the identity computation (see multiselect.py lines 501-506).
 """)
 
 st.divider()
@@ -48,12 +56,12 @@ PATIENT_CONVERSATIONS = {
 }
 
 
-def reset_widget_key():
-    """Callback when patient changes - clears THE WIDGET KEY (not the defaults key)"""
-    # This is the key pattern - we clear the widget key but NOT the defaults key
-    if "conversation_multiselect" in st.session_state:
-        del st.session_state["conversation_multiselect"]
-        st.toast("🗑️ Cleared widget key 'conversation_multiselect'")
+def on_patient_change():
+    """Callback when patient changes - we DON'T clear anything"""
+    # The widget key will persist with old values (from previous patient)
+    # But the options will change (new patient = new conversations)
+    # This should trigger the "key as main identity" logic to invalidate the old selection
+    st.toast("🔄 Patient changed - options will change")
 
 
 @st.fragment
@@ -76,30 +84,45 @@ def conversation_selector():
         st.session_state.saved_conversation_defaults = [conversations[0]]
     else:
         # Update defaults if the current defaults aren't in the new options
-        if not all(c in conversations for c in st.session_state.saved_conversation_defaults):
+        if not all(
+            c in conversations for c in st.session_state.saved_conversation_defaults
+        ):
             st.session_state.saved_conversation_defaults = [conversations[0]]
 
     # Display session state BEFORE multiselect
+    st.markdown("**Session State Debug:**")
     st.code(
-        f"Default source key: {st.session_state.saved_conversation_defaults}",
+        f"Current options: {conversations}",
         language="python",
     )
     st.code(
-        f"Widget key: {st.session_state.get('conversation_multiselect', 'NOT SET')}",
+        f"Default source key (saved_conversation_defaults): {st.session_state.saved_conversation_defaults}",
         language="python",
     )
+    widget_value = st.session_state.get('conversation_multiselect', 'NOT SET')
+    st.code(
+        f"Widget key (conversation_multiselect): {widget_value}",
+        language="python",
+    )
+    
+    # Check if widget value is from old options
+    if widget_value != 'NOT SET' and isinstance(widget_value, list):
+        if widget_value and not all(v in conversations for v in widget_value):
+            st.warning("⚠️ Widget key contains values from OLD options (should be invalidated)")
 
     # The problematic multiselect
     # KEY: default comes from 'saved_conversation_defaults' but widget key is 'conversation_multiselect'
     st.markdown("**🐛 Bug Demonstration:**")
-    st.caption("Widget key: `conversation_multiselect`, Default from: `saved_conversation_defaults`")
+    st.caption(
+        "Widget key: `conversation_multiselect`, Default from: `saved_conversation_defaults`"
+    )
 
     selected = st.multiselect(
         label="Select conversations",
         options=conversations,
         default=st.session_state.saved_conversation_defaults,  # Different key!
         key="conversation_multiselect",  # Widget key
-        help="BUG: After parent change, this ignores the default from saved_conversation_defaults",
+        help="BUG: When options change, this may ignore the default parameter",
     )
 
     # Update the saved defaults based on user selection
@@ -107,33 +130,38 @@ def conversation_selector():
         st.session_state.saved_conversation_defaults = selected
 
     # Display what was actually selected
-    st.code(f"Actually selected: {selected}", language="python")
+    st.code(f"Actually selected by multiselect: {selected}", language="python")
 
     # Show the problem
     if not selected and st.session_state.saved_conversation_defaults:
         st.error("❌ BUG REPRODUCED!")
         st.write("- Multiselect is empty")
-        st.write(f"- But `saved_conversation_defaults` has: {st.session_state.saved_conversation_defaults}")
-        st.write("- The `default` parameter is being ignored!")
+        st.write(
+            f"- But `saved_conversation_defaults` has: {st.session_state.saved_conversation_defaults}"
+        )
+        st.write("- Options changed, old widget value should be invalidated")
+        st.write("- Should fall back to `default` parameter, but it's being ignored!")
     elif selected:
-        st.success("✅ Multiselect has values (bug not visible or fixed)")
+        st.success("✅ Multiselect has values")
 
 
 st.header("Reproduction Steps")
 
 st.markdown("""
-1. Select a patient from the dropdown below
+1. Select a patient from the dropdown below (e.g., "Patient A")
 2. Notice the multiselect initializes with the first conversation
-3. **Optionally:** Change your selection in the multiselect
-4. **Change to a different patient**
-5. Observe what happens:
-   - **Expected (1.49.1):** Multiselect reinitializes with default from `saved_conversation_defaults`
-   - **Bug (1.50.0):** Multiselect shows empty even though `saved_conversation_defaults` has values
+3. **Optionally:** Change your selection in the multiselect to a different conversation
+4. **Change to a different patient** (e.g., "Patient B")
+5. **Key observation:** The widget key still exists with OLD values (from Patient A's conversations)
+6. Observe what happens:
+   - **Expected (1.49.1):** Multiselect should detect options changed, invalidate old selection, use `default`
+   - **Bug (1.50.0):** Multiselect shows empty even though `saved_conversation_defaults` has valid defaults
    
-**Why this happens:**
-- The `on_change` callback clears the widget's key (`conversation_multiselect`)
-- The `default` parameter should fallback to `saved_conversation_defaults`
-- But in 1.50.0, the default is ignored after the widget key is cleared
+**Why this might happen:**
+- The `key_as_main_identity` includes `"options"` in the identity computation (multiselect.py:501-506)
+- When options change (new patient = new conversations), it should invalidate the old widget value
+- Then it should fall back to the `default` parameter from `saved_conversation_defaults`
+- But in 1.50.0 with fragments, the default may not be respected after options change
 """)
 
 # Parent selector with on_change callback
@@ -141,8 +169,8 @@ st.selectbox(
     "Select Patient",
     options=list(PATIENT_CONVERSATIONS.keys()),
     key="patient",
-    on_change=reset_widget_key,
-    help="Changing this will clear the widget key via on_change callback",
+    on_change=on_patient_change,
+    help="Changing this will change the options for the multiselect",
 )
 
 # Fragment with the problematic multiselect
@@ -186,7 +214,9 @@ if st.session_state.get("patient"):
         if "saved_defaults_workaround" not in st.session_state:
             st.session_state.saved_defaults_workaround = [conversations[0]]
         else:
-            if not all(c in conversations for c in st.session_state.saved_defaults_workaround):
+            if not all(
+                c in conversations for c in st.session_state.saved_defaults_workaround
+            ):
                 st.session_state.saved_defaults_workaround = [conversations[0]]
 
         # WORKAROUND: Explicitly set the widget key before rendering
