@@ -137,6 +137,10 @@ with col3:
         border=True,
     )
 
+with st.expander("Processes"):
+    st.markdown("""
+    - [Issues on Community Cloud](https://www.notion.so/snowflake-corp/Streamlit-OS-Issues-Community-Cloud-dfa2c315cafd434081166f33077c3eb2)
+    """)
 
 # DataFrames
 st.header("Action Items")
