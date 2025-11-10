@@ -17,6 +17,7 @@ page = st.navigation(
             url_path="Open_Issues",
         ),
         st.Page("./app/issue_reactions.py", title="Issue Reactions", icon="🫶"),
+        st.Page("./app/company_requests.py", title="Company Requests", icon="🏢"),
         st.Page("./app/flaky_tests.py", title="Flaky Tests", icon="🧫"),
         st.Page("./app/wheel_size.py", title="Wheel Size", icon="🛞"),
         st.Page(
