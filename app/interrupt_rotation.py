@@ -140,6 +140,7 @@ with col3:
 with st.expander("**🔄 Helpful Processes**"):
     st.markdown("""
     - [Issues on Community Cloud](https://www.notion.so/snowflake-corp/Streamlit-OS-Issues-Community-Cloud-dfa2c315cafd434081166f33077c3eb2)
+    - [Evaluating Memory Leaks in Streamlit](https://www.notion.so/snowflake-corp/Evaluating-Memory-Leaks-in-Streamlit-2af7170bb41680ed8634dbd5ee414f57)
     """)
 
 # DataFrames
