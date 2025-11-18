@@ -4,20 +4,12 @@ from typing import Dict, List, Optional
 import requests
 import streamlit as st
 
+from app.utils.github_utils import get_all_github_prs, get_headers
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+
 def fetch_open_prs() -> List[Dict]:
     """Fetch open PRs from streamlit/streamlit repo."""
-    url = "https://api.github.com/repos/streamlit/streamlit/pulls"
-    params = {"state": "open", "per_page": 100}
-
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        st.error(f"Failed to fetch PRs: {e}")
-        return []
+    return get_all_github_prs(state="open")
 
 
 def filter_spec_prs(prs: List[Dict]) -> List[Dict]:
@@ -36,7 +28,7 @@ def fetch_pr_files(pr_number: int) -> List[Dict]:
     url = f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}/files"
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, headers=get_headers(), timeout=100)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
@@ -67,7 +59,7 @@ def fetch_markdown_content(filepath: str, pr_number: int) -> Optional[str]:
     pr_url = f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}"
 
     try:
-        pr_response = requests.get(pr_url)
+        pr_response = requests.get(pr_url, headers=get_headers(), timeout=100)
         pr_response.raise_for_status()
         pr_data = pr_response.json()
         head_sha = pr_data["head"]["sha"]
@@ -78,7 +70,9 @@ def fetch_markdown_content(filepath: str, pr_number: int) -> Optional[str]:
         )
         params = {"ref": head_sha}
 
-        content_response = requests.get(content_url, params=params)
+        content_response = requests.get(
+            content_url, headers=get_headers(), params=params, timeout=100
+        )
         content_response.raise_for_status()
         content_data = content_response.json()
 
@@ -109,8 +103,7 @@ def main():
     st.divider()
 
     # Fetch open PRs
-    with st.spinner("Fetching open PRs..."):
-        all_prs = fetch_open_prs()
+    all_prs = fetch_open_prs()
 
     if not all_prs:
         st.warning("No PRs found or failed to fetch PRs.")
@@ -133,7 +126,7 @@ def main():
         return
 
     selected_option = st.selectbox(
-        "Select a spec PR:", options=list(pr_options.keys()), index=0
+        "Select a spec PR:", options=list(pr_options.keys()), index=None
     )
 
     if selected_option:
