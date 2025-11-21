@@ -28,10 +28,11 @@ from app.utils.interrupt_data import (
     get_python_test_coverage_metrics,
     get_unprioritized_bugs,
     get_wheel_size_metrics,
+    get_bundle_size_metrics,
 )
 
 # Set page configuration
-st.set_page_config(page_title="Interrupt Rotation - Dashboard", page_icon="🩺")
+st.set_page_config(page_title="Interrupt Rotation - Dashboard", page_icon="🩺", layout="wide")
 
 # Main app
 st.title("🩺 Interrupt Rotation - Dashboard")
@@ -117,6 +118,7 @@ with col1:
         f"{py_coverage_change:+.2f}%",
         delta_color="normal",
         border=True,
+        help="Percentage of lines covered by tests in the Python codebase.",
     )
 with col2:
     fe_coverage, fe_coverage_change = get_frontend_test_coverage_metrics(since)
@@ -126,6 +128,7 @@ with col2:
         f"{fe_coverage_change:+.2f}%",
         delta_color="normal",
         border=True,
+        help="Percentage of lines covered by tests in the Frontend codebase.",
     )
 with col3:
     wheel_size, wheel_size_change = get_wheel_size_metrics(since)
@@ -135,6 +138,34 @@ with col3:
         humanize.naturalsize(wheel_size_change, binary=True),
         delta_color="inverse",
         border=True,
+        help="Size of the Streamlit Python package (wheel file).",
+    )
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    (
+        total_gzip,
+        total_gzip_change,
+        entry_gzip,
+        entry_gzip_change,
+    ) = get_bundle_size_metrics(since)
+
+    st.metric(
+        "Total Bundle (gzip)",
+        humanize.naturalsize(total_gzip, binary=True),
+        humanize.naturalsize(total_gzip_change, binary=True),
+        delta_color="inverse",
+        border=True,
+        help="Total size of all JavaScript files after Gzip compression.",
+    )
+with col2:
+    st.metric(
+        "Entry Bundle (gzip)",
+        humanize.naturalsize(entry_gzip, binary=True),
+        humanize.naturalsize(entry_gzip_change, binary=True),
+        delta_color="inverse",
+        border=True,
+        help="Size of the entry point chunks (initial load) after Gzip compression.",
     )
 
 with st.expander("**🔄 Helpful Processes**"):

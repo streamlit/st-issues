@@ -151,6 +151,72 @@ def get_wheel_size_metrics(since_date: date) -> Tuple[int, int]:
     return latest_size, latest_size - oldest_size
 
 
+@st.cache_data(
+    ttl=60 * 60 * 6, show_spinner="Fetching bundle size metrics..."
+)  # cache for 6 hours
+def get_bundle_size_metrics(since_date: date) -> Tuple[int, int, int, int]:
+    """
+    Get the total and entry gzip size and the change over a period.
+    Returns: (total_gzip, total_gzip_change, entry_gzip, entry_gzip_change)
+    """
+    runs_in_period = fetch_workflow_runs("pr-preview.yml", since=since_date)
+
+    def get_sizes(run_id: int) -> Tuple[int, int]:
+        artifacts = fetch_artifacts(run_id)
+        artifact = next(
+            (a for a in artifacts if a["name"] == "bundle_analysis_json"), None
+        )
+
+        if not artifact:
+            return 0, 0
+
+        content = download_artifact(artifact["archive_download_url"])
+        if not content:
+            return 0, 0
+
+        try:
+            with ZipFile(BytesIO(content)) as z:
+                for name in z.namelist():
+                    if name.endswith(".json"):
+                        with z.open(name) as f:
+                            bundle_data = json.load(f)
+                            total_gzip = 0
+                            entry_gzip = 0
+
+                            for item in bundle_data:
+                                total_gzip += item.get("gzipSize", 0)
+                                if item.get("isEntry"):
+                                    entry_gzip += item.get("gzipSize", 0)
+
+                            return total_gzip, entry_gzip
+        except Exception:
+            return 0, 0
+
+        return 0, 0
+
+    if not runs_in_period:
+        # If there are no runs in the selected period, just get the latest one
+        latest_run = fetch_workflow_runs("pr-preview.yml", limit=1)
+        if not latest_run:
+            return 0, 0, 0, 0
+        latest_total, latest_entry = get_sizes(latest_run[0]["id"])
+        return latest_total, 0, latest_entry, 0
+
+    latest_total, latest_entry = get_sizes(runs_in_period[0]["id"])
+
+    if len(runs_in_period) < 2:
+        return latest_total, 0, latest_entry, 0
+
+    oldest_total, oldest_entry = get_sizes(runs_in_period[-1]["id"])
+
+    return (
+        latest_total,
+        latest_total - oldest_total,
+        latest_entry,
+        latest_entry - oldest_entry
+    )
+
+
 def get_reproducible_example_exists(issue_number: int) -> bool:
     """Check if a reproducible example exists for an issue."""
     issue_folder_name = f"gh-{issue_number}"

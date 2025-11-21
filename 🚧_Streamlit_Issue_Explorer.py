@@ -35,6 +35,11 @@ page = st.navigation(
         st.Page("./app/community_prs.py", title="Community PRs", icon="👥"),
         st.Page("./app/interrupt_rotation.py", title="Interrupt Rotation", icon="🩺"),
         st.Page("./app/spec_renderer.py", title="Spec Renderer", icon="🔧"),
+        st.Page(
+            "./app/frontend_bundle_analysis.py",
+            title="Frontend Bundle Analysis",
+            icon="📦",
+        ),
     ]
 )
 page.run()
