@@ -5,47 +5,22 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import altair as alt
+import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
 import humanize
 
 from app.utils.github_utils import (
-    fetch_workflow_runs,
-    fetch_artifacts,
     download_artifact,
+    fetch_artifacts,
+    fetch_pr_info,
+    fetch_workflow_runs,
+    fetch_workflow_runs_for_commit,
 )
 
 st.set_page_config(page_title="Frontend Bundle Analysis", page_icon="📦", layout="wide")
 
 st.title("📦 Frontend Bundle Analysis")
-st.caption(
-    "This page visualizes the frontend bundle size metrics tracked in the PR preview workflow."
-)
-
-# Sidebar
-time_period = st.sidebar.selectbox(
-    "Time period",
-    options=["All time", "Last 7 days", "Last 30 days", "Last 90 days"],
-    index=0,
-)
-limit = st.sidebar.slider(
-    "Number of workflow runs",
-    min_value=50,
-    max_value=250,
-    value=50,
-    step=50,
-)
-
-# Calculate date
-if time_period == "Last 7 days":
-    since = datetime.now() - timedelta(days=7)
-elif time_period == "Last 30 days":
-    since = datetime.now() - timedelta(days=30)
-elif time_period == "Last 90 days":
-    since = datetime.now() - timedelta(days=90)
-else:
-    since = None
-
 
 @st.cache_data(show_spinner=False)
 def process_bundle_artifact(content):
@@ -76,6 +51,394 @@ def get_html_report_content(url):
     return None
 
 
+def format_bytes(size):
+    return humanize.naturalsize(size, binary=True)
+
+
+def compute_bundle_metrics(bundle_data):
+    metrics = {
+        "total_parsed": 0,
+        "total_gzip": 0,
+        "total_brotli": 0,
+        "entry_parsed": 0,
+        "entry_gzip": 0,
+        "entry_brotli": 0,
+    }
+
+    for item in bundle_data:
+        metrics["total_parsed"] += item.get("parsedSize", 0)
+        metrics["total_gzip"] += item.get("gzipSize", 0)
+        metrics["total_brotli"] += item.get("brotliSize", 0)
+
+        if item.get("isEntry"):
+            metrics["entry_parsed"] += item.get("parsedSize", 0)
+            metrics["entry_gzip"] += item.get("gzipSize", 0)
+            metrics["entry_brotli"] += item.get("brotliSize", 0)
+
+    return metrics
+
+
+def extract_bundle_metrics_from_artifacts(artifacts, include_bundle_data=False):
+    json_artifact = next(
+        (artifact for artifact in artifacts if artifact["name"] == "bundle_analysis_json"),
+        None,
+    )
+
+    if not json_artifact:
+        return None
+
+    content = download_artifact(json_artifact["archive_download_url"])
+    if not content:
+        return None
+
+    bundle_data = process_bundle_artifact(content)
+    if not bundle_data:
+        return (None, None) if include_bundle_data else None
+
+    metrics = compute_bundle_metrics(bundle_data)
+
+    if include_bundle_data:
+        return metrics, bundle_data
+
+    return metrics
+
+
+def get_html_artifact_urls(run, artifacts):
+    html_artifact = next(
+        (artifact for artifact in artifacts if artifact["name"] == "bundle_analysis_html"),
+        None,
+    )
+
+    if not html_artifact:
+        return None, None
+
+    html_artifact_url = html_artifact["archive_download_url"]
+    html_report_url = (
+        f"https://github.com/streamlit/streamlit/actions/runs/{run['id']}/artifacts/{html_artifact['id']}"
+    )
+    return html_artifact_url, html_report_url
+
+
+def build_bundle_record(run, metrics, html_artifact_url=None, html_report_url=None):
+    return {
+        "run_id": run["id"],
+        "created_at": run["created_at"],
+        "commit_sha": run["head_sha"],
+        "commit_url": f"https://github.com/streamlit/streamlit/commit/{run['head_sha']}",
+        "run_url": run["html_url"],
+        "html_artifact_url": html_artifact_url,
+        "html_report_url": html_report_url,
+        **metrics,
+    }
+
+
+def get_bundle_record_for_run(run, include_bundle_data=False):
+    artifacts = fetch_artifacts(run["id"])
+
+    if include_bundle_data:
+        extraction = extract_bundle_metrics_from_artifacts(
+            artifacts, include_bundle_data=True
+        )
+        metrics, bundle_data = extraction if extraction else (None, None)
+    else:
+        metrics = extract_bundle_metrics_from_artifacts(artifacts)
+        bundle_data = None
+
+    if not metrics:
+        return (None, None) if include_bundle_data else None
+
+    html_artifact_url, html_report_url = get_html_artifact_urls(run, artifacts)
+    record = build_bundle_record(run, metrics, html_artifact_url, html_report_url)
+
+    if include_bundle_data:
+        return record, bundle_data
+
+    return record
+
+
+def format_delta_bytes(current, baseline):
+    delta = current - baseline
+    if delta == 0:
+        return "0 B"
+    prefix = "+" if delta > 0 else "-"
+    return f"{prefix}{format_bytes(abs(delta))}"
+
+
+def display_bundle_report(html_artifact_url, title):
+    if not html_artifact_url:
+        st.warning("No HTML report available for this run.")
+        return
+
+    with st.spinner(f"Downloading {title}..."):
+        html_content = get_html_report_content(html_artifact_url)
+
+    if html_content:
+        components.html(html_content, height=800, scrolling=True)
+    else:
+        st.error("Failed to download or parse HTML report.")
+
+
+def build_treemap_dataframe(bundle_data):
+    if not bundle_data:
+        return pd.DataFrame()
+
+    rows = []
+    for item in bundle_data:
+        label = (
+            item.get("label")
+            or item.get("name")
+            or item.get("file")
+            or item.get("fileName")
+            or item.get("chunkName")
+            or item.get("id")
+            or "Unknown"
+        )
+        if isinstance(label, str) and "/" in label:
+            label = label.split("/")[-1]
+
+        rows.append(
+            {
+                "Category": "Entry Chunks" if item.get("isEntry") else "Async/Lazy Chunks",
+                "Label": label,
+                "Size": item.get("parsedSize") or item.get("gzipSize") or 0,
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    df = df.groupby(["Category", "Label"], as_index=False)["Size"].sum()
+    df["Size (Human)"] = df["Size"].apply(format_bytes)
+    return df
+
+
+def render_bundle_treemap(title, bundle_data):
+    df = build_treemap_dataframe(bundle_data)
+    if df.empty:
+        st.warning(f"No bundle data available for {title.lower()}.")
+        return
+
+    fig = px.treemap(
+        df,
+        path=["Category", "Label"],
+        values="Size",
+        color="Size",
+        color_continuous_scale="Blues",
+        hover_data={"Size (Human)": True},
+    )
+    fig.update_traces(
+        hovertemplate="<b>%{label}</b><br>Size: %{customdata[0]}<extra></extra>"
+    )
+
+    st.markdown(f"**{title}**")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def display_pr_bundle_comparison(
+    pr_bundle, develop_bundle, pr_bundle_chunks, develop_bundle_chunks, pr_number
+):
+    st.subheader("PR Bundle Comparison")
+
+    st.markdown(
+        f"**PR Commit:** [{pr_bundle['commit_sha'][:7]}]({pr_bundle['commit_url']}) | "
+        f"**Develop Commit:** [{develop_bundle['commit_sha'][:7]}]({develop_bundle['commit_url']})  \n"
+        f"**PR Workflow Run:** [View Run]({pr_bundle['run_url']}) | "
+        f"**Develop Workflow Run:** [View Run]({develop_bundle['run_url']})"
+    )
+
+    metric_groups = [
+        [
+            (
+                "Total Gzip Size",
+                "total_gzip",
+                "Total size of all JavaScript files after Gzip compression. This approximates the download size.",
+            ),
+            (
+                "Entry Gzip Size",
+                "entry_gzip",
+                "Size of the entry point chunks after Gzip compression. Smaller values improve initial load time.",
+            ),
+        ],
+        [
+            (
+                "Total Brotli Size",
+                "total_brotli",
+                "Total size of all JavaScript files after Brotli compression.",
+            ),
+            (
+                "Entry Brotli Size",
+                "entry_brotli",
+                "Size of the entry point chunks after Brotli compression.",
+            ),
+        ],
+        [
+            (
+                "Total Parsed Size",
+                "total_parsed",
+                "Total size of the JavaScript code after decompression. Impacts parsing and execution time.",
+            ),
+            (
+                "Entry Parsed Size",
+                "entry_parsed",
+                "Size of the entry point chunks after decompression.",
+            ),
+        ],
+    ]
+
+    cols = st.columns(3)
+    for col, group in zip(cols, metric_groups):
+        with col:
+            for label, key, help_text in group:
+                st.metric(
+                    label,
+                    format_bytes(pr_bundle[key]),
+                    format_delta_bytes(pr_bundle[key], develop_bundle[key]),
+                    delta_color="inverse",
+                    help=help_text,
+                    border=True,
+                )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if pr_bundle["html_report_url"]:
+            st.link_button(
+                label=":material/download: Download PR Bundle Report",
+                url=pr_bundle["html_report_url"],
+                use_container_width=True,
+            )
+
+    with col2:
+        if develop_bundle["html_report_url"]:
+            st.link_button(
+                label=":material/download: Download Develop Bundle Report",
+                url=develop_bundle["html_report_url"],
+                use_container_width=True,
+            )
+
+    st.subheader("Bundle Composition Treemaps")
+    treemap_col1, treemap_col2 = st.columns(2)
+
+    with treemap_col1:
+        render_bundle_treemap("PR Bundle", pr_bundle_chunks)
+
+    with treemap_col2:
+        render_bundle_treemap("Develop Bundle", develop_bundle_chunks)
+
+    st.subheader("Bundle Analysis Reports")
+    report_col1, report_col2 = st.columns(2)
+
+    with report_col1:
+        st.markdown("**PR Bundle Report**")
+        if pr_bundle["html_artifact_url"]:
+            display_bundle_report(
+                pr_bundle["html_artifact_url"], "the PR bundle analysis report"
+            )
+        else:
+            st.warning("No HTML report available for the PR run.")
+
+    with report_col2:
+        st.markdown("**Develop Bundle Report**")
+        if develop_bundle["html_artifact_url"]:
+            display_bundle_report(
+                develop_bundle["html_artifact_url"], "the develop bundle analysis report"
+            )
+        else:
+            st.warning("No HTML report available for the develop run.")
+
+
+def handle_pr_mode(pr_number):
+    with st.spinner(f"Fetching data for PR #{pr_number}..."):
+        pr_info = fetch_pr_info(pr_number)
+
+    if not pr_info:
+        st.error(f"Could not fetch information for PR #{pr_number}.")
+        return
+
+    head_sha = pr_info["head"]["sha"]
+
+    with st.spinner("Fetching PR workflow runs..."):
+        pr_runs = fetch_workflow_runs_for_commit(head_sha, "pr-preview.yml")
+
+    if not pr_runs:
+        st.error(
+            f"No successful `pr-preview.yml` workflow runs found for PR commit {head_sha[:7]}."
+        )
+        return
+
+    pr_bundle = None
+    pr_bundle_chunks = None
+    for run in pr_runs:
+        record = get_bundle_record_for_run(run, include_bundle_data=True)
+        if record and record[0]:
+            pr_bundle, pr_bundle_chunks = record
+            break
+
+    if not pr_bundle:
+        st.error("Could not extract bundle metrics from the PR workflow artifacts.")
+        return
+
+    with st.spinner("Fetching latest develop workflow run..."):
+        develop_runs = fetch_workflow_runs("pr-preview.yml", limit=1)
+
+    if not develop_runs:
+        st.error("No successful develop workflow runs found for `pr-preview.yml`.")
+        return
+
+    develop_record = get_bundle_record_for_run(develop_runs[0], include_bundle_data=True)
+    if not develop_record or not develop_record[0]:
+        st.error("Could not extract bundle metrics from the latest develop workflow run.")
+        return
+
+    develop_bundle, develop_bundle_chunks = develop_record
+
+    display_pr_bundle_comparison(
+        pr_bundle, develop_bundle, pr_bundle_chunks, develop_bundle_chunks, pr_number
+    )
+
+
+query_params = st.query_params
+pr_number = query_params.get("pr")
+if isinstance(pr_number, list):
+    pr_number = pr_number[0]
+
+if pr_number:
+    st.caption(
+        f"Comparing bundle metrics for [PR #{pr_number}](https://github.com/streamlit/streamlit/pull/{pr_number}) against the latest develop run."
+    )
+    handle_pr_mode(pr_number)
+    st.stop()
+
+st.caption(
+    "This page visualizes the frontend bundle size metrics tracked in the PR preview workflow."
+)
+
+# Sidebar
+time_period = st.sidebar.selectbox(
+    "Time period",
+    options=["All time", "Last 7 days", "Last 30 days", "Last 90 days"],
+    index=0,
+)
+limit = st.sidebar.slider(
+    "Number of workflow runs",
+    min_value=50,
+    max_value=250,
+    value=50,
+    step=50,
+)
+
+# Calculate date
+if time_period == "Last 7 days":
+    since = datetime.now() - timedelta(days=7)
+elif time_period == "Last 30 days":
+    since = datetime.now() - timedelta(days=30)
+elif time_period == "Last 90 days":
+    since = datetime.now() - timedelta(days=90)
+else:
+    since = None
+
+
 # Fetch runs
 # Analyze frontend bundle is in pr-preview.yml
 runs = fetch_workflow_runs("pr-preview.yml", limit=limit, since=since.date() if since else None)
@@ -100,47 +463,20 @@ with st.spinner("Processing bundle analysis data..."):
             continue
 
         artifacts = fetch_artifacts(run["id"])
-        json_artifact = next((a for a in artifacts if a["name"] == "bundle_analysis_json"), None)
-        html_artifact = next((a for a in artifacts if a["name"] == "bundle_analysis_html"), None)
+        metrics = extract_bundle_metrics_from_artifacts(artifacts)
+        if not metrics:
+            continue
 
-        if json_artifact:
-            content = download_artifact(json_artifact["archive_download_url"])
-            if content:
-                bundle_data = process_bundle_artifact(content)
+        html_artifact_url, html_report_url = get_html_artifact_urls(run, artifacts)
 
-                if bundle_data:
-                    # Calculate metrics
-                    metrics = {
-                        "total_parsed": 0, "total_gzip": 0, "total_brotli": 0,
-                        "entry_parsed": 0, "entry_gzip": 0, "entry_brotli": 0,
-                    }
-
-                    for item in bundle_data:
-                        # Total
-                        metrics["total_parsed"] += item.get("parsedSize", 0)
-                        metrics["total_gzip"] += item.get("gzipSize", 0)
-                        metrics["total_brotli"] += item.get("brotliSize", 0)
-
-                        # Entry
-                        if item.get("isEntry"):
-                            metrics["entry_parsed"] += item.get("parsedSize", 0)
-                            metrics["entry_gzip"] += item.get("gzipSize", 0)
-                            metrics["entry_brotli"] += item.get("brotliSize", 0)
-
-                    html_report_url = None
-                    if html_artifact:
-                        html_report_url = f"https://github.com/streamlit/streamlit/actions/runs/{run['id']}/artifacts/{html_artifact['id']}"
-
-                    data.append({
-                        "run_id": run["id"],
-                        "created_at": run["created_at"],
-                        "commit_sha": run["head_sha"],
-                        "commit_url": f"https://github.com/streamlit/streamlit/commit/{run['head_sha']}",
-                        "run_url": run["html_url"],
-                        "html_artifact_url": html_artifact["archive_download_url"] if html_artifact else None,
-                        "html_report_url": html_report_url,
-                        **metrics
-                    })
+        data.append(
+            build_bundle_record(
+                run,
+                metrics,
+                html_artifact_url=html_artifact_url,
+                html_report_url=html_report_url,
+            )
+        )
 
     progress_bar.empty()
 
@@ -167,9 +503,6 @@ def calculate_delta(current, start):
     return current - start
 
 col1, col2, col3 = st.columns(3)
-
-def format_bytes(size):
-    return humanize.naturalsize(size, binary=True)
 
 with col1:
     st.metric(
@@ -375,11 +708,8 @@ if selection.selection.rows:
 
     if selected_row["html_artifact_url"]:
         st.subheader("Bundle Analysis Report")
-        with st.spinner("Downloading report..."):
-            html_content = get_html_report_content(selected_row["html_artifact_url"])
-            if html_content:
-                components.html(html_content, height=800, scrolling=True)
-            else:
-                st.error("Failed to download or parse HTML report.")
+        display_bundle_report(
+            selected_row["html_artifact_url"], "the selected bundle analysis report"
+        )
     else:
         st.warning("No HTML report available for this run.")
