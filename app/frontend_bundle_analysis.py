@@ -55,6 +55,25 @@ def format_bytes(size):
     return humanize.naturalsize(size, binary=True)
 
 
+ASSET_JS_EXTENSIONS = (".js", ".mjs", ".cjs")
+ASSET_CSS_EXTENSIONS = (".css",)
+
+
+def get_asset_category(filename):
+    if not filename:
+        return "other"
+
+    normalized = filename.split("?", 1)[0].lower()
+
+    if normalized.endswith(ASSET_JS_EXTENSIONS):
+        return "js"
+
+    if normalized.endswith(ASSET_CSS_EXTENSIONS):
+        return "css"
+
+    return "other"
+
+
 def compute_bundle_metrics(bundle_data):
     metrics = {
         "total_parsed": 0,
@@ -63,6 +82,9 @@ def compute_bundle_metrics(bundle_data):
         "entry_parsed": 0,
         "entry_gzip": 0,
         "entry_brotli": 0,
+        "asset_js_gzip": 0,
+        "asset_css_gzip": 0,
+        "asset_other_gzip": 0,
     }
 
     for item in bundle_data:
@@ -74,6 +96,14 @@ def compute_bundle_metrics(bundle_data):
             metrics["entry_parsed"] += item.get("parsedSize", 0)
             metrics["entry_gzip"] += item.get("gzipSize", 0)
             metrics["entry_brotli"] += item.get("brotliSize", 0)
+
+        if item.get("isAsset"):
+            category = get_asset_category(
+                item.get("filename") or item.get("label") or ""
+            )
+            asset_key = f"asset_{category}_gzip"
+            if asset_key in metrics:
+                metrics[asset_key] += item.get("gzipSize", 0)
 
     return metrics
 
@@ -250,36 +280,36 @@ def display_pr_bundle_comparison(
     metric_groups = [
         [
             (
-                "Total Gzip Size",
+                "Total Size (gzip)",
                 "total_gzip",
                 "Total size of all JavaScript files after Gzip compression. This approximates the download size.",
             ),
             (
-                "Entry Gzip Size",
+                "Entry Size (gzip)",
                 "entry_gzip",
                 "Size of the entry point chunks after Gzip compression. Smaller values improve initial load time.",
             ),
         ],
         [
             (
-                "Total Brotli Size",
+                "Total Size (brotli)",
                 "total_brotli",
                 "Total size of all JavaScript files after Brotli compression.",
             ),
             (
-                "Entry Brotli Size",
+                "Entry Size (brotli)",
                 "entry_brotli",
                 "Size of the entry point chunks after Brotli compression.",
             ),
         ],
         [
             (
-                "Total Parsed Size",
+                "Total Size (parsed)",
                 "total_parsed",
                 "Total size of the JavaScript code after decompression. Impacts parsing and execution time.",
             ),
             (
-                "Entry Parsed Size",
+                "Entry Size (parsed)",
                 "entry_parsed",
                 "Size of the entry point chunks after decompression.",
             ),
@@ -298,6 +328,37 @@ def display_pr_bundle_comparison(
                     help=help_text,
                     border=True,
                 )
+
+    st.markdown("**Asset Size Breakdown**")
+    asset_cols = st.columns(3)
+    asset_metric_groups = [
+        (
+            "JS Asset Size (gzip)",
+            "asset_js_gzip",
+            "Total Size (gzip) of emitted JavaScript assets (including standalone chunks).",
+        ),
+        (
+            "CSS Asset Size (gzip)",
+            "asset_css_gzip",
+            "Total Size (gzip) of emitted CSS assets.",
+        ),
+        (
+            "Other Asset Size (gzip)",
+            "asset_other_gzip",
+            "Total Size (gzip) of all remaining asset files (images, fonts, etc.).",
+        ),
+    ]
+
+    for col, (label, key, help_text) in zip(asset_cols, asset_metric_groups):
+        with col:
+            st.metric(
+                label,
+                format_bytes(pr_bundle[key]),
+                format_delta_bytes(pr_bundle[key], develop_bundle[key]),
+                delta_color="inverse",
+                help=help_text,
+                border=True,
+            )
 
     col1, col2 = st.columns(2)
 
@@ -506,7 +567,7 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     st.metric(
-        "Total Gzip Size",
+        "Total Size (gzip)",
         format_bytes(latest["total_gzip"]),
         delta=format_bytes(calculate_delta(latest["total_gzip"], start_run["total_gzip"])),
         delta_color="inverse",
@@ -517,7 +578,7 @@ with col1:
     )
 
     st.metric(
-        "Entry Gzip Size",
+        "Entry Size (gzip)",
         format_bytes(latest["entry_gzip"]),
         delta=format_bytes(calculate_delta(latest["entry_gzip"], start_run["entry_gzip"])),
         delta_color="inverse",
@@ -529,7 +590,7 @@ with col1:
 
 with col2:
     st.metric(
-        "Total Brotli Size",
+        "Total Size (brotli)",
         format_bytes(latest["total_brotli"]),
         delta=format_bytes(calculate_delta(latest["total_brotli"], start_run["total_brotli"])),
         delta_color="inverse",
@@ -540,7 +601,7 @@ with col2:
     )
 
     st.metric(
-        "Entry Brotli Size",
+        "Entry Size (brotli)",
         format_bytes(latest["entry_brotli"]),
         delta=format_bytes(calculate_delta(latest["entry_brotli"], start_run["entry_brotli"])),
         delta_color="inverse",
@@ -552,7 +613,7 @@ with col2:
 
 with col3:
     st.metric(
-        "Total Parsed Size",
+        "Total Size (parsed)",
         format_bytes(latest["total_parsed"]),
         delta=format_bytes(calculate_delta(latest["total_parsed"], start_run["total_parsed"])),
         delta_color="inverse",
@@ -563,7 +624,7 @@ with col3:
     )
 
     st.metric(
-        "Entry Parsed Size",
+        "Entry Size (parsed)",
         format_bytes(latest["entry_parsed"]),
         delta=format_bytes(calculate_delta(latest["entry_parsed"], start_run["entry_parsed"])),
         delta_color="inverse",
@@ -572,6 +633,39 @@ with col3:
         chart_data=sparkline_data["entry_parsed"],
         chart_type="area",
     )
+
+st.subheader("Asset Size Breakdown")
+asset_cols_overview = st.columns(3)
+asset_metric_configs = [
+    (
+        "JS Asset Size (gzip)",
+        "asset_js_gzip",
+        "Total Size (gzip) of emitted JavaScript assets (including standalone chunks).",
+    ),
+    (
+        "CSS Asset Size (gzip)",
+        "asset_css_gzip",
+        "Total Size (gzip) of emitted CSS assets.",
+    ),
+    (
+        "Other Asset Size (gzip)",
+        "asset_other_gzip",
+        "Total Size (gzip) of all remaining asset files (images, fonts, etc.).",
+    ),
+]
+
+for col, (label, key, help_text) in zip(asset_cols_overview, asset_metric_configs):
+    with col:
+        st.metric(
+            label,
+            format_bytes(latest[key]),
+            delta=format_bytes(calculate_delta(latest[key], start_run[key])),
+            delta_color="inverse",
+            help=help_text,
+            border=True,
+            chart_data=sparkline_data[key],
+            chart_type="area",
+        )
 
 
 # Charts
@@ -651,10 +745,23 @@ display_df["total_brotli_change"] = display_df["total_brotli"].pct_change(period
 display_df["entry_brotli_change"] = display_df["entry_brotli"].pct_change(periods=-1)
 display_df["total_parsed_change"] = display_df["total_parsed"].pct_change(periods=-1)
 display_df["entry_parsed_change"] = display_df["entry_parsed"].pct_change(periods=-1)
+display_df["asset_js_gzip_change"] = display_df["asset_js_gzip"].pct_change(periods=-1)
+display_df["asset_css_gzip_change"] = display_df["asset_css_gzip"].pct_change(periods=-1)
+display_df["asset_other_gzip_change"] = display_df["asset_other_gzip"].pct_change(periods=-1)
 
 
 # Add formatted columns for display
-for col in ["total_gzip", "entry_gzip", "total_brotli", "entry_brotli", "total_parsed", "entry_parsed"]:
+for col in [
+    "total_gzip",
+    "entry_gzip",
+    "total_brotli",
+    "entry_brotli",
+    "total_parsed",
+    "entry_parsed",
+    "asset_js_gzip",
+    "asset_css_gzip",
+    "asset_other_gzip",
+]:
     display_df[f"{col}_fmt"] = display_df[col].apply(format_bytes)
 
 # Configure columns
@@ -672,6 +779,12 @@ column_config = {
     "total_parsed_change": st.column_config.NumberColumn("Total Parsed Change", format="percent"),
     "entry_parsed_fmt": st.column_config.TextColumn("Entry Parsed"),
     "entry_parsed_change": st.column_config.NumberColumn("Entry Parse Change", format="percent"),
+    "asset_js_gzip_fmt": st.column_config.TextColumn("JS Asset Gzip"),
+    "asset_js_gzip_change": st.column_config.NumberColumn("JS Asset Gzip Change", format="percent"),
+    "asset_css_gzip_fmt": st.column_config.TextColumn("CSS Asset Gzip"),
+    "asset_css_gzip_change": st.column_config.NumberColumn("CSS Asset Gzip Change", format="percent"),
+    "asset_other_gzip_fmt": st.column_config.TextColumn("Other Asset Gzip"),
+    "asset_other_gzip_change": st.column_config.NumberColumn("Other Asset Gzip Change", format="percent"),
     "run_url": st.column_config.LinkColumn("Workflow Run", display_text="View Run"),
     "commit_url": st.column_config.LinkColumn(
             "Commit",
@@ -693,6 +806,9 @@ selection = st.dataframe(
         "entry_brotli_fmt", "entry_brotli_change",
         "total_parsed_fmt", "total_parsed_change",
         "entry_parsed_fmt", "entry_parsed_change",
+        "asset_js_gzip_fmt", "asset_js_gzip_change",
+        "asset_css_gzip_fmt", "asset_css_gzip_change",
+        "asset_other_gzip_fmt", "asset_other_gzip_change",
         "run_url", "commit_url", "html_report_url",
     ]],
     column_config=column_config,
