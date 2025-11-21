@@ -61,6 +61,7 @@ EXPECTED_FLAKY_TESTS: Final[list[str]] = [
     "st_dataframe_interactions_test.py::test_csv_download_button_in_iframe_with_new_tab_host_config",
     "st_dataframe_interactions_test.py::test_csv_download_button_in_iframe",
     "st_video_test.py::test_video_end_time_loop",
+    "st_layouts_container_various_elements_test.py::test_layouts_container_expanders",
 ]
 
 
@@ -473,6 +474,44 @@ def fetch_pr_info(pr_number: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         st.error(f"Error fetching PR info: {e}")
         return None
+
+
+@st.cache_data(ttl=60 * 60 * 3, show_spinner=False)
+def fetch_pr_reviews(pr_number: int) -> List[Dict[str, Any]]:
+    """Fetch all reviews for a given PR."""
+    reviews: List[Dict[str, Any]] = []
+    page = 1
+
+    while True:
+        try:
+            response = requests.get(
+                f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}/reviews",
+                headers=get_headers(),
+                params={"per_page": 100, "page": page},
+                timeout=30,
+            )
+
+            if response.status_code != 200:
+                st.error(
+                    f"Error fetching PR reviews for #{pr_number}: {response.status_code}"
+                )
+                break
+
+            data = response.json()
+            if not data:
+                break
+
+            reviews.extend(data)
+
+            if len(data) < 100:
+                break
+
+            page += 1
+        except Exception as e:
+            st.error(f"Error fetching PR reviews for #{pr_number}: {e}")
+            break
+
+    return reviews
 
 
 def fetch_workflow_runs_for_commit(
