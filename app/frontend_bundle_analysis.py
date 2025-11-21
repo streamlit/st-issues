@@ -4,7 +4,7 @@ import io
 from datetime import datetime, timedelta
 
 import pandas as pd
-import plotly.express as px
+import altair as alt
 import streamlit as st
 import streamlit.components.v1 as components
 import humanize
@@ -251,43 +251,56 @@ def create_trend_chart(df, metric_suffix, title):
         id_vars=["created_at", "commit_sha"],
         value_vars=[f"total_{metric_suffix}", f"entry_{metric_suffix}"],
         var_name="Category",
-        value_name="Size"
+        value_name="Size",
     )
 
     # Rename categories for legend
-    chart_data["Category"] = chart_data["Category"].replace({
-        f"total_{metric_suffix}": "Total",
-        f"entry_{metric_suffix}": "Entry",
-    })
+    chart_data["Category"] = chart_data["Category"].replace(
+        {
+            f"total_{metric_suffix}": "Total",
+            f"entry_{metric_suffix}": "Entry",
+        }
+    )
 
     # Add human readable size for tooltip
     chart_data["Size (Human)"] = chart_data["Size"].apply(lambda x: format_bytes(x))
 
-    fig = px.line(
-        chart_data,
-        x="created_at",
-        y="Size",
-        color="Category",
-        title=title,
-        markers=True,
-        hover_data=["commit_sha", "Size (Human)"]
+    chart = (
+        alt.Chart(chart_data)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("created_at", title="Date"),
+            y=alt.Y("Size", title="Size (Bytes)"),
+            color="Category",
+            tooltip=[
+                alt.Tooltip("created_at", title="Date", format="%Y-%m-%d %H:%M"),
+                alt.Tooltip("Category", title="Type"),
+                alt.Tooltip("Size (Human)", title="Size"),
+                alt.Tooltip("commit_sha", title="Commit"),
+            ],
+        )
+        .properties(title=title)
+        .interactive()
     )
+    return chart
 
-    fig.update_layout(
-        xaxis_title="Date",
-        yaxis_title="Size (Bytes)",
-        hovermode="closest"
-    )
-    return fig
 
 with tab_gzip:
-    st.plotly_chart(create_trend_chart(df, "gzip", "Gzip Size Over Time"), use_container_width=True)
+    st.altair_chart(
+        create_trend_chart(df, "gzip", "Gzip Size Over Time"), use_container_width=True
+    )
 
 with tab_brotli:
-    st.plotly_chart(create_trend_chart(df, "brotli", "Brotli Size Over Time"), use_container_width=True)
+    st.altair_chart(
+        create_trend_chart(df, "brotli", "Brotli Size Over Time"),
+        use_container_width=True,
+    )
 
 with tab_parsed:
-    st.plotly_chart(create_trend_chart(df, "parsed", "Parsed Size Over Time"), use_container_width=True)
+    st.altair_chart(
+        create_trend_chart(df, "parsed", "Parsed Size Over Time"),
+        use_container_width=True,
+    )
 
 
 # Detailed Data Table
