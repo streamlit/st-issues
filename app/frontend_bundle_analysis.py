@@ -28,7 +28,13 @@ time_period = st.sidebar.selectbox(
     options=["All time", "Last 7 days", "Last 30 days", "Last 90 days"],
     index=0,
 )
-limit = st.sidebar.slider("Number of workflow runs", 10, 200, 50)
+limit = st.sidebar.slider(
+    "Number of workflow runs",
+    min_value=50,
+    max_value=250,
+    value=50,
+    step=50,
+)
 
 # Calculate date
 if time_period == "Last 7 days":
