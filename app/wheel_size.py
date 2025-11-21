@@ -124,8 +124,10 @@ st.plotly_chart(fig, use_container_width=True)
 # Create a table with the data
 st.subheader("Wheel Size Details")
 
+history_df = df.sort_values("created_at", ascending=False)
+
 st.dataframe(
-    df[["created_at", "commit_sha", "size_human", "run_url", "commit_url"]],
+    history_df[["created_at", "commit_sha", "size_human", "run_url", "commit_url"]],
     use_container_width=True,
     column_config={
         "created_at": st.column_config.DatetimeColumn("Date", format="MMM DD, YYYY"),
