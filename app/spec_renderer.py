@@ -163,6 +163,77 @@ def replace_local_images_with_github_urls(
         return markdown_content  # Return original content if we can't get PR details
 
 
+@st.cache_data(ttl=300)
+def fetch_issue_details(issue_number: int) -> Optional[Dict]:
+    """Fetch issue details from GitHub API."""
+    url = f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}"
+
+    try:
+        response = requests.get(url, headers=get_headers(), timeout=100)
+        response.raise_for_status()
+        issue_data = response.json()
+        return {
+            "title": issue_data["title"],
+            "url": issue_data["html_url"],
+            "state": issue_data["state"],
+            "number": issue_data["number"],
+        }
+    except requests.RequestException:
+        return None
+
+
+def replace_issue_references_with_previews(markdown_content: str) -> str:
+    """Replace issue references with styled previews."""
+
+    # Pattern for standalone issue numbers like #1234
+    standalone_pattern = r"(?<!\[)#(\d+)(?!\])"
+
+    # Pattern for issue links like [#12331](https://github.com/streamlit/streamlit/issues/12331)
+    link_pattern = r"\[#(\d+)\]\(https://github\.com/streamlit/streamlit/issues/\d+\)"
+
+    def create_issue_preview(issue_number: int) -> str:
+        """Create a styled issue preview using only markdown features."""
+        issue_details = fetch_issue_details(issue_number)
+
+        if not issue_details:
+            return f"#{issue_number}"
+
+        # Choose badge content based on issue state
+        if issue_details["state"] == "open":
+            badge = ":green-badge[:material/circle: Open]"
+        else:
+            badge = ":violet-badge[:material/check_circle: Closed]"
+
+        # Truncate title if too long
+        title = issue_details["title"]
+        if len(title) > 50:
+            title = title[:50] + "..."
+
+        # Create preview using Streamlit's built-in markdown features
+        # Format: :gray[#1234] [Issue title here](url) :green-badge[:material/circle: Open]
+        preview = f":gray[#{issue_details['number']}] [{title}]({issue_details['url']}) {badge}"
+
+        return preview
+
+    def replace_standalone_issue(match):
+        issue_number = int(match.group(1))
+        return create_issue_preview(issue_number)
+
+    def replace_issue_link(match):
+        issue_number = int(match.group(1))
+        return create_issue_preview(issue_number)
+
+    # Replace standalone issue references first
+    updated_content = re.sub(
+        standalone_pattern, replace_standalone_issue, markdown_content
+    )
+
+    # Then replace issue links
+    updated_content = re.sub(link_pattern, replace_issue_link, updated_content)
+
+    return updated_content
+
+
 def main():
     st.title("🔧 Spec Renderer")
     st.markdown(
@@ -234,6 +305,12 @@ def main():
             processed_content = replace_local_images_with_github_urls(
                 markdown_content, pr_number, spec_file
             )
+
+            # Replace issue references with styled previews
+            processed_content = replace_issue_references_with_previews(
+                processed_content
+            )
+
             st.markdown(processed_content)
         else:
             st.error("Failed to fetch markdown content.")
