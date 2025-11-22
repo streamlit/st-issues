@@ -177,6 +177,7 @@ def fetch_issue_details(issue_number: int) -> Optional[Dict]:
             "url": issue_data["html_url"],
             "state": issue_data["state"],
             "number": issue_data["number"],
+            "upvotes": issue_data.get("reactions", {}).get("+1", 0),
         }
     except requests.RequestException:
         return None
@@ -209,9 +210,13 @@ def replace_issue_references_with_previews(markdown_content: str) -> str:
         if len(title) > 50:
             title = title[:50] + "..."
 
+        # Add upvotes badge
+        upvotes = issue_details.get("upvotes", 0)
+        upvotes_badge = f":orange-badge[{upvotes} :material/thumb_up:]"
+
         # Create preview using Streamlit's built-in markdown features
-        # Format: :gray[#1234] [Issue title here](url) :green-badge[:material/circle: Open]
-        preview = f":gray[#{issue_details['number']}] [{title}]({issue_details['url']}) {badge}"
+        # Format: :orange-badge[123 :material/thumb_up:] :gray[#1234] [Issue title here](url) :green-badge[:material/circle: Open]
+        preview = f"{upvotes_badge} :gray[#{issue_details['number']}] [{title}]({issue_details['url']}) {badge}"
 
         return preview
 
