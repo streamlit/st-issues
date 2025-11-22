@@ -52,7 +52,6 @@ def find_spec_markdown_file(files: List[Dict]) -> Optional[str]:
     return None
 
 
-@st.cache_data(ttl=300)
 def fetch_markdown_content(filepath: str, pr_number: int) -> Optional[str]:
     """Fetch the content of a markdown file from a PR."""
     # Get the PR details to find the head SHA
