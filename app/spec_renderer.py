@@ -460,9 +460,6 @@ def main():
                 processed_content
             )
 
-            # Replace GitHub mentions with clickable links
-            processed_content = replace_github_mentions_with_links(processed_content)
-
             st.markdown(processed_content)
         else:
             st.error("Failed to fetch markdown content.")
