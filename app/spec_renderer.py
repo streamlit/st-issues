@@ -94,6 +94,75 @@ def clean_spec_title(title: str) -> str:
     return cleaned.strip()
 
 
+def replace_local_images_with_github_urls(
+    markdown_content: str, pr_number: int, spec_file_path: str
+) -> str:
+    """Replace local image references with GitHub raw URLs."""
+    # Get the PR details to find the head SHA
+    pr_url = f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}"
+
+    try:
+        pr_response = requests.get(pr_url, headers=get_headers(), timeout=100)
+        pr_response.raise_for_status()
+        pr_data = pr_response.json()
+        head_sha = pr_data["head"]["sha"]
+
+        # Get the directory of the spec file to resolve relative paths
+        spec_dir = "/".join(
+            spec_file_path.split("/")[:-1]
+        )  # Remove filename, keep directory
+
+        # Pattern to match markdown images with local paths
+        # Matches: ![alt text](./path/to/image.ext) or ![](./path/to/image.ext) or ![alt](path/to/image.ext)
+        image_pattern = r"!\[([^\]]*)\]\((?!https?://)([^)]+)\)"
+
+        def replace_image(match):
+            alt_text = match.group(1)
+            image_path = match.group(2)
+
+            # Handle relative paths
+            if image_path.startswith("./"):
+                # Remove ./ and join with spec directory
+                clean_path = image_path[2:]
+                full_path = f"{spec_dir}/{clean_path}" if spec_dir else clean_path
+            elif image_path.startswith("../"):
+                # Handle parent directory references
+                # Split spec_dir into parts and go up directories as needed
+                dir_parts = spec_dir.split("/") if spec_dir else []
+                path_parts = image_path.split("/")
+
+                # Count how many ../ we have
+                up_count = 0
+                remaining_parts = []
+                for part in path_parts:
+                    if part == "..":
+                        up_count += 1
+                    else:
+                        remaining_parts.append(part)
+
+                # Go up the directory tree
+                final_dir_parts = (
+                    dir_parts[:-up_count] if up_count <= len(dir_parts) else []
+                )
+                full_path = "/".join(final_dir_parts + remaining_parts)
+            else:
+                # Assume it's relative to the spec directory
+                full_path = f"{spec_dir}/{image_path}" if spec_dir else image_path
+
+            # Create GitHub raw URL
+            github_url = f"https://raw.githubusercontent.com/streamlit/streamlit/{head_sha}/{full_path}"
+
+            return f"![{alt_text}]({github_url})"
+
+        # Replace all local image references
+        updated_content = re.sub(image_pattern, replace_image, markdown_content)
+        return updated_content
+
+    except requests.RequestException as e:
+        st.warning(f"Failed to fetch PR details for image URL replacement: {e}")
+        return markdown_content  # Return original content if we can't get PR details
+
+
 def main():
     st.title("🔧 Spec Renderer")
     st.markdown(
@@ -161,7 +230,11 @@ def main():
             markdown_content = fetch_markdown_content(spec_file, pr_number)
 
         if markdown_content:
-            st.markdown(markdown_content)
+            # Replace local image references with GitHub URLs
+            processed_content = replace_local_images_with_github_urls(
+                markdown_content, pr_number, spec_file
+            )
+            st.markdown(processed_content)
         else:
             st.error("Failed to fetch markdown content.")
 
