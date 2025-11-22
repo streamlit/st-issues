@@ -199,11 +199,11 @@ def replace_issue_references_with_previews(markdown_content: str) -> str:
         if not issue_details:
             return f"#{issue_number}"
 
-        # Choose badge content based on issue state
+        # Choose icon and color based on issue state
         if issue_details["state"] == "open":
-            badge = ":green-badge[:material/circle: Open]"
+            status_icon = ":green[:material/circle:]"
         else:
-            badge = ":violet-badge[:material/check_circle: Closed]"
+            status_icon = ":violet[:material/check_circle:]"
 
         # Truncate title if too long
         title = issue_details["title"]
@@ -215,8 +215,8 @@ def replace_issue_references_with_previews(markdown_content: str) -> str:
         upvotes_badge = f":orange-badge[{upvotes} :material/thumb_up:]"
 
         # Create preview using Streamlit's built-in markdown features
-        # Format: :gray[#1234] [Issue title here](url) :green-badge[:material/circle: Open] :orange-badge[123 :material/thumb_up:]
-        preview = f":gray[#{issue_details['number']}] [{title}]({issue_details['url']}) {badge} {upvotes_badge}"
+        # Format: :green[:material/circle:] :gray[#1234] [Issue title here](url) :orange-badge[123 :material/thumb_up:]
+        preview = f"{status_icon} :gray[#{issue_details['number']}] [{title}]({issue_details['url']}) {upvotes_badge}"
 
         return preview
 
