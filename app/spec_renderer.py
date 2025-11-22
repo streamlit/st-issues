@@ -349,6 +349,10 @@ def main():
 
     st.divider()
 
+    # Get query parameters
+    query_params = st.query_params
+    pr_param = query_params.get("pr", None)
+
     # Fetch open PRs
     all_prs = fetch_open_prs()
 
@@ -372,13 +376,28 @@ def main():
     if not pr_options:
         return
 
+    # Determine default index based on query parameter
+    default_index = None
+    if pr_param:
+        try:
+            pr_number = int(pr_param)
+            for i, (option_key, pr) in enumerate(pr_options.items()):
+                if pr["number"] == pr_number:
+                    default_index = i
+                    break
+        except ValueError:
+            pass
+
     selected_option = st.selectbox(
-        "Select a spec PR:", options=list(pr_options.keys()), index=None
+        "Select a spec PR:", options=list(pr_options.keys()), index=default_index
     )
 
     if selected_option:
         selected_pr = pr_options[selected_option]
         pr_number = selected_pr["number"]
+
+        # Update query parameter to reflect current selection
+        st.query_params["pr"] = str(pr_number)
 
         # Fetch PR files
         with st.spinner("Fetching PR files..."):
