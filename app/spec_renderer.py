@@ -234,6 +234,108 @@ def replace_issue_references_with_previews(markdown_content: str) -> str:
     return updated_content
 
 
+def replace_github_mentions_with_links(markdown_content: str) -> str:
+    """Replace GitHub username mentions with clickable links."""
+
+    # Pattern for GitHub mentions like @username
+    # Avoid matching email addresses by ensuring no dot after @
+    mention_pattern = (
+        r"@([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})(?!\.[a-zA-Z])"
+    )
+
+    def create_mention_link(match):
+        username = match.group(1)
+        # Create a link to the GitHub profile
+        return f"[@{username}](https://github.com/{username})"
+
+    # Replace all GitHub mentions
+    updated_content = re.sub(mention_pattern, create_mention_link, markdown_content)
+
+    return updated_content
+
+
+def extract_frontmatter(markdown_content: str) -> tuple[Optional[Dict], str]:
+    """Extract YAML frontmatter from markdown content."""
+    # Pattern to match frontmatter at the beginning of the document
+    frontmatter_pattern = r"^---\s*\n(.*?)\n---\s*\n"
+
+    match = re.match(frontmatter_pattern, markdown_content, re.DOTALL)
+    if not match:
+        return None, markdown_content
+
+    frontmatter_text = match.group(1)
+    content_without_frontmatter = markdown_content[match.end() :]
+
+    # Parse the frontmatter (simple key: value parsing)
+    frontmatter = {}
+    for line in frontmatter_text.strip().split("\n"):
+        if ":" in line:
+            key, value = line.split(":", 1)
+            frontmatter[key.strip()] = value.strip()
+
+    return frontmatter, content_without_frontmatter
+
+
+def render_frontmatter_caption(frontmatter: Dict) -> None:
+    """Render frontmatter as caption."""
+    if not frontmatter:
+        return
+
+    info_parts = []
+
+    # Add author (with link if it's a GitHub mention)
+    if "author" in frontmatter:
+        author = frontmatter["author"]
+        if author.startswith("@"):
+            username = author[1:]  # Remove @
+            author_link = f"[@{username}](https://github.com/{username})"
+            info_parts.append(f"By {author_link}")
+        else:
+            info_parts.append(f"By {author}")
+
+    # Add created date
+    if "created" in frontmatter:
+        info_parts.append(frontmatter["created"])
+
+    # Add status
+    if "status" in frontmatter:
+        status = frontmatter["status"]
+        # Add a colored badge with material icon for status
+        if status.lower() == "draft":
+            status_badge = f":orange-badge[:material/edit: {status}]"
+        elif status.lower() == "approved":
+            status_badge = f":green-badge[:material/check_circle: {status}]"
+        elif status.lower() == "implemented":
+            status_badge = f":blue-badge[:material/deployed_code: {status}]"
+        else:
+            status_badge = f":gray-badge[:material/help: {status}]"
+        info_parts.append(status_badge)
+
+    if info_parts:
+        info_text = " • ".join(info_parts)
+        st.caption(info_text)
+
+
+def extract_title_and_content(markdown_content: str) -> tuple[Optional[str], str]:
+    """Extract the first heading as title and return remaining content."""
+    lines = markdown_content.split("\n")
+    title = None
+    content_lines = []
+    title_found = False
+
+    for line in lines:
+        if not title_found and line.strip().startswith("# "):
+            title = line.strip()[2:].strip()  # Remove '# ' and whitespace
+            title_found = True
+        elif title_found:
+            content_lines.append(line)
+        else:
+            content_lines.append(line)
+
+    remaining_content = "\n".join(content_lines)
+    return title, remaining_content
+
+
 def main():
     st.title("🔧 Spec Renderer")
     st.markdown(
@@ -301,15 +403,36 @@ def main():
             markdown_content = fetch_markdown_content(spec_file, pr_number)
 
         if markdown_content:
+            # Extract frontmatter
+            frontmatter, content_without_frontmatter = extract_frontmatter(
+                markdown_content
+            )
+
+            # Extract title and remaining content
+            title, remaining_content = extract_title_and_content(
+                content_without_frontmatter
+            )
+
+            # Render title if found
+            if title:
+                st.markdown(f"# {title}")
+
+            # Render frontmatter as caption below title
+            if frontmatter:
+                render_frontmatter_caption(frontmatter)
+
             # Replace local image references with GitHub URLs
             processed_content = replace_local_images_with_github_urls(
-                markdown_content, pr_number, spec_file
+                remaining_content, pr_number, spec_file
             )
 
             # Replace issue references with styled previews
             processed_content = replace_issue_references_with_previews(
                 processed_content
             )
+
+            # Replace GitHub mentions with clickable links
+            processed_content = replace_github_mentions_with_links(processed_content)
 
             st.markdown(processed_content)
         else:
