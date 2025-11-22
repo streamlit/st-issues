@@ -347,8 +347,6 @@ def main():
         "Read product specs from the Streamlit repo. So far only supports PRs, not merged specs."
     )
 
-    st.divider()
-
     # Get query parameters
     query_params = st.query_params
     pr_param = query_params.get("pr", None)
