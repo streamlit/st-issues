@@ -215,8 +215,8 @@ def replace_issue_references_with_previews(markdown_content: str) -> str:
         upvotes_badge = f":orange-badge[{upvotes} :material/thumb_up:]"
 
         # Create preview using Streamlit's built-in markdown features
-        # Format: :orange-badge[123 :material/thumb_up:] :gray[#1234] [Issue title here](url) :green-badge[:material/circle: Open]
-        preview = f"{upvotes_badge} :gray[#{issue_details['number']}] [{title}]({issue_details['url']}) {badge}"
+        # Format: :gray[#1234] [Issue title here](url) :green-badge[:material/circle: Open] :orange-badge[123 :material/thumb_up:]
+        preview = f":gray[#{issue_details['number']}] [{title}]({issue_details['url']}) {badge} {upvotes_badge}"
 
         return preview
 
