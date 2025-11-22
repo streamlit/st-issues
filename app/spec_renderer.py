@@ -386,15 +386,23 @@ def main():
             pass
 
     selected_option = st.selectbox(
-        "Select a spec PR:", options=list(pr_options.keys()), index=default_index
+        "Select a spec PR:",
+        options=list(pr_options.keys()),
+        index=default_index,
+        key="spec_selector",
     )
 
     if selected_option:
         selected_pr = pr_options[selected_option]
         pr_number = selected_pr["number"]
 
-        # Update query parameter to reflect current selection
-        st.query_params["pr"] = str(pr_number)
+        # Only update query parameter if selection has changed
+        if (
+            "last_selected_pr" not in st.session_state
+            or st.session_state.last_selected_pr != pr_number
+        ):
+            st.query_params["pr"] = str(pr_number)
+            st.session_state.last_selected_pr = pr_number
 
         # Fetch PR files
         with st.spinner("Fetching PR files..."):
