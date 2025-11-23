@@ -25,6 +25,28 @@ st.caption(
 )
 
 
+REACTION_EMOJI = {
+    "+1": "👍",
+    "-1": "👎",
+    "confused": "😕",
+    "eyes": "👀",
+    "heart": "❤️",
+    "hooray": "🎉",
+    "laugh": "😄",
+    "rocket": "🚀",
+}
+
+
+def reactions_to_str(reactions):
+    return " ".join(
+        [
+            f"{reactions[name]} {emoji}"
+            for name, emoji in REACTION_EMOJI.items()
+            if reactions[name] > 0
+        ]
+    )
+
+
 # Function to determine issue type based on labels
 def get_issue_type(labels):
     is_bug = any(label["name"] == "type:bug" for label in labels)
@@ -52,7 +74,9 @@ all_issues_df["total_reactions"] = all_issues_df["reactions"].apply(
 )
 
 chart_container = st.container(gap=None)
-row = chart_container.container(horizontal=True, horizontal_alignment="left", vertical_alignment="bottom")
+row = chart_container.container(
+    horizontal=True, horizontal_alignment="left", vertical_alignment="bottom"
+)
 title_container = row.container(gap=None)
 
 with row.popover("Modify", width="content"):
@@ -156,7 +180,9 @@ fig.update_layout(
 
 
 # Display the chart
-event_data = chart_container.plotly_chart(fig, use_container_width=True, on_select="rerun")
+event_data = chart_container.plotly_chart(
+    fig, use_container_width=True, on_select="rerun"
+)
 
 # Show issues for selected month when a bar is clicked
 if event_data and "selection" in event_data and event_data["selection"]["points"]:
@@ -275,7 +301,9 @@ unique_labels = len(label_df["label"].unique())
 
 chart_container = st.container(gap=None)
 
-row = chart_container.container(horizontal=True, horizontal_alignment="left", vertical_alignment="bottom")
+row = chart_container.container(
+    horizontal=True, horizontal_alignment="left", vertical_alignment="bottom"
+)
 title_container = row.container(gap=None)
 
 with row.popover("Modify", width="content"):
@@ -402,7 +430,9 @@ else:
     closers_stats["Average reactions per issue"] = (
         closers_stats["Total reactions"] / closers_stats["Issues closed"]
     )
-    closers_stats = closers_stats.sort_values("Total reactions", ascending=False)
+    closers_stats = closers_stats.sort_values(
+        "Total reactions", ascending=False
+    ).reset_index(drop=True)
 
     unique_closers = len(closers_stats)
 
@@ -421,16 +451,62 @@ else:
             ":material/person: Sorted by total reactions on issues they closed within the selected date range."
         )
 
-    st.dataframe(
+    selection = st.dataframe(
         closers_stats.head(top_k),
         column_config={
             "Closer": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
             "Total reactions": st.column_config.NumberColumn(),
             "Issues closed": st.column_config.NumberColumn(),
-            "Average reactions per issue": st.column_config.NumberColumn(
-                format="%.2f"
-            ),
-
+            "Average reactions per issue": st.column_config.NumberColumn(format="%.2f"),
         },
         hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
     )
+
+    if selection.selection.rows:
+        selected_index = selection.selection.rows[0]
+        selected_closer = closers_stats.iloc[selected_index]["Closer"]
+
+        # Filter issues closed by the selected user
+        # We need to go back to the filtered_closers_df which has the raw data
+        closer_issues = filtered_closers_df[
+            filtered_closers_df["closed_by_login"] == selected_closer
+        ].copy()
+
+        if not closer_issues.empty:
+            st.divider()
+            st.markdown(f"##### Issues closed by {selected_closer}")
+
+            # Prepare the detailed dataframe
+            detailed_df = pd.DataFrame(
+                {
+                    "Title": closer_issues["title"],
+                    "Reactions": closer_issues["total_reactions"],
+                    "Type": closer_issues["labels"].apply(get_issue_type),
+                    "Closed on": closer_issues["closed_at"].dt.date,
+                    "Link": closer_issues["html_url"],
+                    "Comments": closer_issues["comments"],
+                    "Reaction Types": closer_issues["reactions"].apply(
+                        reactions_to_str
+                    ),
+                }
+            )
+
+            # Sort by date
+            detailed_df = detailed_df.sort_values("Closed on", ascending=False)
+
+            st.dataframe(
+                detailed_df,
+                column_config={
+                    "Title": st.column_config.TextColumn(width="large"),
+                    "Link": st.column_config.LinkColumn(display_text="Open Issue"),
+                    "Type": st.column_config.ListColumn(),
+                    "Closed on": st.column_config.DateColumn(format="MMM DD, YYYY"),
+                    "Reactions": st.column_config.NumberColumn(
+                        format="%d 🫶", help="Total number of reactions"
+                    ),
+                    "Comments": st.column_config.NumberColumn(format="%d 💬"),
+                },
+                hide_index=True,
+            )
