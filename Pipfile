@@ -25,6 +25,7 @@ httpx = "*"
 polars = "*"
 jinja2 = "*"
 streamlit-pdf = "*"
+git-fame = "*"
 
 [dev-packages]
 black = "*"
@@ -32,7 +33,6 @@ mypy = "*"
 flake8 = "*"
 isort = "*"
 watchdog = "*"
-
 
 [requires]
 python_version = "3.9"

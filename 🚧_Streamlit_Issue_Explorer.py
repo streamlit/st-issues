@@ -40,6 +40,7 @@ page = st.navigation(
             title="Frontend Bundle Analysis",
             icon="📦",
         ),
+        st.Page("./app/github_stats.py", title="Github Stats", icon="📊"),
     ]
 )
 page.run()

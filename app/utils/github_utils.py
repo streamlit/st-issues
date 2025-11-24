@@ -2,20 +2,33 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Any, Dict, Final, List, Literal, Optional
+import urllib.parse
 
 import requests
 import streamlit as st
 
 # Streamlit team members:
-STREAMLIT_TEAM_MEMBERS = [
+
+ACTIVTE_STREAMLIT_TEAM_MEMBERS = [
     "lukasmasuch",
-    "tconkling",
-    "vdonato",
     "kmcgrady",
     "mayagbarnes",
-    "kajarenrc",
+    "jrieke",
+    "sfc-gh-lwilby",
+    "sfc-gh-bnisco",
+    "sfc-gh-nbellante",
+    "sfc-gh-tteixeira",
+    "sfc-gh-dmatthews",
+    "sfc-gh-lmasuch",
+]
+
+STREAMLIT_TEAM_MEMBERS = [
+    *ACTIVTE_STREAMLIT_TEAM_MEMBERS,
+    "tconkling",
+    "kajarenc",
     "willhuang1997",
     "AnOctopus",
+    "vdonato",
     "tvst",
     "kantuni",
     "raethlein",
@@ -42,12 +55,25 @@ STREAMLIT_TEAM_MEMBERS = [
     "treuille",
     "Amey-D",
     "CharlyWargnier",
-    "kajarenc",
     "karriebear",
-    "jrieke",
     "erikhopf",
     "domoritz",
     "dcaminos",
+    "aaj-st",
+    "sfc-gh-jcarroll",
+    "sfc-gh-aamadhavan",
+    "sfc-gh-smohile",
+    "sfc-gh-mnowotka",
+    "sfc-gh-tszerszen",
+    "sfc-gh-dswiecki",
+    "sfc-gh-wihuang",
+    "sfc-gh-kjavadyan",
+    "sfc-gh-kbregula",
+    "sfc-gh-pchiu",
+    "sfc-gh-jgarcia",
+    "sfc-gh-jkinkead",
+    "sfc-gh-kmcgrady",
+    "sfc-gh-jrieke",
 ]
 
 # Tests that are expected to be flaky and marked with additional reruns (pytest.mark.flaky(reruns=3))
@@ -255,7 +281,7 @@ def load_issue_data() -> bool:
             return False
 
 
-@st.cache_data(ttl=60 * 60 * 12)  # cache for 12 hours
+@st.cache_data(ttl=60 * 60 * 24)  # cache for 24 hours
 def get_all_github_issues(
     state: Literal["open", "closed", "all"] = "all",
 ) -> List[Dict[str, Any]]:
@@ -608,3 +634,31 @@ def parse_github_url(url):
         return repo_info, issue_number
 
     return None, None
+
+
+@st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
+def get_count_issues_commented_by_user(
+    username: str, repo: str = "streamlit/streamlit"
+) -> int:
+    """
+    Get the number of issues commented on by a user.
+    """
+    headers = get_headers()
+    query = f"repo:streamlit/streamlit is:issue commenter:{username}"
+    # Manually encode the query to ensure compatibility
+    # safe="" ensures that slashes are also encoded
+    encoded_query = urllib.parse.quote(query, safe="")
+    url = f"https://api.github.com/search/issues?q={encoded_query}&per_page=1"
+
+    try:
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        return response.json().get("total_count", 0)
+    except Exception as e:
+        st.error(f"Error fetching commented issues count for {username}: {e}")
+        try:
+            # Try to show the error message from GitHub
+            st.error(f"GitHub API Error: {response.text}")
+        except Exception:
+            pass
+        return 0
