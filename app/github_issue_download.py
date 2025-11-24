@@ -137,10 +137,5 @@ if issues_df is not None and not issues_df.empty:
     )
 
     with st.expander("Preview (first 20 issues without body)"):
-        preview_columns = [
-            col
-            for col in issues_df.columns
-            if col not in {"body"}
-        ]
-        st.dataframe(issues_df.loc[:, preview_columns].head(20), use_container_width=True)
-
+        preview_columns = [col for col in issues_df.columns if col not in {"body"}]
+        st.dataframe(issues_df.loc[:, preview_columns].head(20), width="stretch")

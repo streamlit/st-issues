@@ -22,6 +22,7 @@ st.set_page_config(page_title="Frontend Bundle Analysis", page_icon="📦", layo
 
 st.title("📦 Frontend Bundle Analysis")
 
+
 @st.cache_data(show_spinner=False)
 def process_bundle_artifact(content):
     try:
@@ -110,7 +111,11 @@ def compute_bundle_metrics(bundle_data):
 
 def extract_bundle_metrics_from_artifacts(artifacts, include_bundle_data=False):
     json_artifact = next(
-        (artifact for artifact in artifacts if artifact["name"] == "bundle_analysis_json"),
+        (
+            artifact
+            for artifact in artifacts
+            if artifact["name"] == "bundle_analysis_json"
+        ),
         None,
     )
 
@@ -135,7 +140,11 @@ def extract_bundle_metrics_from_artifacts(artifacts, include_bundle_data=False):
 
 def get_html_artifact_urls(run, artifacts):
     html_artifact = next(
-        (artifact for artifact in artifacts if artifact["name"] == "bundle_analysis_html"),
+        (
+            artifact
+            for artifact in artifacts
+            if artifact["name"] == "bundle_analysis_html"
+        ),
         None,
     )
 
@@ -143,9 +152,7 @@ def get_html_artifact_urls(run, artifacts):
         return None, None
 
     html_artifact_url = html_artifact["archive_download_url"]
-    html_report_url = (
-        f"https://github.com/streamlit/streamlit/actions/runs/{run['id']}/artifacts/{html_artifact['id']}"
-    )
+    html_report_url = f"https://github.com/streamlit/streamlit/actions/runs/{run['id']}/artifacts/{html_artifact['id']}"
     return html_artifact_url, html_report_url
 
 
@@ -228,7 +235,9 @@ def build_treemap_dataframe(bundle_data):
 
         rows.append(
             {
-                "Category": "Entry Chunks" if item.get("isEntry") else "Async/Lazy Chunks",
+                "Category": "Entry Chunks"
+                if item.get("isEntry")
+                else "Async/Lazy Chunks",
                 "Label": label,
                 "Size": item.get("parsedSize") or item.get("gzipSize") or 0,
             }
@@ -262,7 +271,7 @@ def render_bundle_treemap(title, bundle_data):
     )
 
     st.markdown(f"**{title}**")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def display_pr_bundle_comparison(
@@ -367,7 +376,7 @@ def display_pr_bundle_comparison(
             st.link_button(
                 label=":material/download: Download PR Bundle Report",
                 url=pr_bundle["html_report_url"],
-                use_container_width=True,
+                width="stretch",
             )
 
     with col2:
@@ -375,7 +384,7 @@ def display_pr_bundle_comparison(
             st.link_button(
                 label=":material/download: Download Develop Bundle Report",
                 url=develop_bundle["html_report_url"],
-                use_container_width=True,
+                width="stretch",
             )
 
     st.subheader("Bundle Composition Treemaps")
@@ -403,7 +412,8 @@ def display_pr_bundle_comparison(
         st.markdown("**Develop Bundle Report**")
         if develop_bundle["html_artifact_url"]:
             display_bundle_report(
-                develop_bundle["html_artifact_url"], "the develop bundle analysis report"
+                develop_bundle["html_artifact_url"],
+                "the develop bundle analysis report",
             )
         else:
             st.warning("No HTML report available for the develop run.")
@@ -447,9 +457,13 @@ def handle_pr_mode(pr_number):
         st.error("No successful develop workflow runs found for `pr-preview.yml`.")
         return
 
-    develop_record = get_bundle_record_for_run(develop_runs[0], include_bundle_data=True)
+    develop_record = get_bundle_record_for_run(
+        develop_runs[0], include_bundle_data=True
+    )
     if not develop_record or not develop_record[0]:
-        st.error("Could not extract bundle metrics from the latest develop workflow run.")
+        st.error(
+            "Could not extract bundle metrics from the latest develop workflow run."
+        )
         return
 
     develop_bundle, develop_bundle_chunks = develop_record
@@ -502,7 +516,9 @@ else:
 
 # Fetch runs
 # Analyze frontend bundle is in pr-preview.yml
-runs = fetch_workflow_runs("pr-preview.yml", limit=limit, since=since.date() if since else None)
+runs = fetch_workflow_runs(
+    "pr-preview.yml", limit=limit, since=since.date() if since else None
+)
 
 if not runs:
     st.warning("No workflow runs found.")
@@ -558,10 +574,12 @@ sparkline_data = df.tail(20)
 # We compare the latest run with the first run in the selected period
 start_run = df.iloc[0]
 
+
 def calculate_delta(current, start):
     if start == 0:
         return None
     return current - start
+
 
 col1, col2, col3 = st.columns(3)
 
@@ -569,7 +587,9 @@ with col1:
     st.metric(
         "Total Size (gzip)",
         format_bytes(latest["total_gzip"]),
-        delta=format_bytes(calculate_delta(latest["total_gzip"], start_run["total_gzip"])),
+        delta=format_bytes(
+            calculate_delta(latest["total_gzip"], start_run["total_gzip"])
+        ),
         delta_color="inverse",
         help="Total size of all JavaScript files after Gzip compression. This is a good approximation of the download size for most users.",
         border=True,
@@ -580,7 +600,9 @@ with col1:
     st.metric(
         "Entry Size (gzip)",
         format_bytes(latest["entry_gzip"]),
-        delta=format_bytes(calculate_delta(latest["entry_gzip"], start_run["entry_gzip"])),
+        delta=format_bytes(
+            calculate_delta(latest["entry_gzip"], start_run["entry_gzip"])
+        ),
         delta_color="inverse",
         help="Size of the entry point chunks (initial load) after Gzip compression. Smaller entry size means faster initial page load.",
         border=True,
@@ -592,7 +614,9 @@ with col2:
     st.metric(
         "Total Size (brotli)",
         format_bytes(latest["total_brotli"]),
-        delta=format_bytes(calculate_delta(latest["total_brotli"], start_run["total_brotli"])),
+        delta=format_bytes(
+            calculate_delta(latest["total_brotli"], start_run["total_brotli"])
+        ),
         delta_color="inverse",
         help="Total size of all JavaScript files after Brotli compression. Brotli usually provides better compression than Gzip but is slower to compress.",
         border=True,
@@ -603,7 +627,9 @@ with col2:
     st.metric(
         "Entry Size (brotli)",
         format_bytes(latest["entry_brotli"]),
-        delta=format_bytes(calculate_delta(latest["entry_brotli"], start_run["entry_brotli"])),
+        delta=format_bytes(
+            calculate_delta(latest["entry_brotli"], start_run["entry_brotli"])
+        ),
         delta_color="inverse",
         help="Size of the entry point chunks (initial load) after Brotli compression.",
         border=True,
@@ -615,7 +641,9 @@ with col3:
     st.metric(
         "Total Size (parsed)",
         format_bytes(latest["total_parsed"]),
-        delta=format_bytes(calculate_delta(latest["total_parsed"], start_run["total_parsed"])),
+        delta=format_bytes(
+            calculate_delta(latest["total_parsed"], start_run["total_parsed"])
+        ),
         delta_color="inverse",
         help="Total size of the JavaScript code after decompression (as it exists in memory). This affects parsing and execution time in the browser.",
         border=True,
@@ -626,7 +654,9 @@ with col3:
     st.metric(
         "Entry Size (parsed)",
         format_bytes(latest["entry_parsed"]),
-        delta=format_bytes(calculate_delta(latest["entry_parsed"], start_run["entry_parsed"])),
+        delta=format_bytes(
+            calculate_delta(latest["entry_parsed"], start_run["entry_parsed"])
+        ),
         delta_color="inverse",
         help="Size of the entry point chunks after decompression.",
         border=True,
@@ -673,6 +703,7 @@ st.subheader("Bundle Size Trends")
 
 tab_gzip, tab_brotli, tab_parsed = st.tabs(["Gzip Size", "Brotli Size", "Parsed Size"])
 
+
 def create_trend_chart(df, metric_suffix, title):
     chart_data = df.melt(
         id_vars=["created_at", "commit_sha"],
@@ -714,25 +745,28 @@ def create_trend_chart(df, metric_suffix, title):
 
 with tab_gzip:
     st.altair_chart(
-        create_trend_chart(df, "gzip", "Gzip Size Over Time"), use_container_width=True
+        create_trend_chart(df, "gzip", "Gzip Size Over Time"),
+        width="stretch",
     )
 
 with tab_brotli:
     st.altair_chart(
         create_trend_chart(df, "brotli", "Brotli Size Over Time"),
-        use_container_width=True,
+        width="stretch",
     )
 
 with tab_parsed:
     st.altair_chart(
         create_trend_chart(df, "parsed", "Parsed Size Over Time"),
-        use_container_width=True,
+        width="stretch",
     )
 
 
 # Detailed Data Table
 st.subheader("Bundle Size History")
-st.caption(":material/keyboard_arrow_down: Select a row to view the Bundle Analysis HTML report.")
+st.caption(
+    ":material/keyboard_arrow_down: Select a row to view the Bundle Analysis HTML report."
+)
 
 # Prepare display dataframe
 display_df = df.copy()
@@ -746,8 +780,12 @@ display_df["entry_brotli_change"] = display_df["entry_brotli"].pct_change(period
 display_df["total_parsed_change"] = display_df["total_parsed"].pct_change(periods=-1)
 display_df["entry_parsed_change"] = display_df["entry_parsed"].pct_change(periods=-1)
 display_df["asset_js_gzip_change"] = display_df["asset_js_gzip"].pct_change(periods=-1)
-display_df["asset_css_gzip_change"] = display_df["asset_css_gzip"].pct_change(periods=-1)
-display_df["asset_other_gzip_change"] = display_df["asset_other_gzip"].pct_change(periods=-1)
+display_df["asset_css_gzip_change"] = display_df["asset_css_gzip"].pct_change(
+    periods=-1
+)
+display_df["asset_other_gzip_change"] = display_df["asset_other_gzip"].pct_change(
+    periods=-1
+)
 
 
 # Add formatted columns for display
@@ -768,27 +806,45 @@ for col in [
 column_config = {
     "created_at": st.column_config.DatetimeColumn("Date", format="distance"),
     "total_gzip_fmt": st.column_config.TextColumn("Total Gzip"),
-    "total_gzip_change": st.column_config.NumberColumn("Total Gzip Change", format="percent"),
+    "total_gzip_change": st.column_config.NumberColumn(
+        "Total Gzip Change", format="percent"
+    ),
     "entry_gzip_fmt": st.column_config.TextColumn("Entry Gzip"),
-    "entry_gzip_change": st.column_config.NumberColumn("Entry Gzip Change", format="percent"),
+    "entry_gzip_change": st.column_config.NumberColumn(
+        "Entry Gzip Change", format="percent"
+    ),
     "total_brotli_fmt": st.column_config.TextColumn("Total Brotli"),
-    "total_brotli_change": st.column_config.NumberColumn("Total Brotli Change", format="percent"),
+    "total_brotli_change": st.column_config.NumberColumn(
+        "Total Brotli Change", format="percent"
+    ),
     "entry_brotli_fmt": st.column_config.TextColumn("Entry Brotli"),
-    "entry_brotli_change": st.column_config.NumberColumn("Entry Brotli Change", format="percent"),
+    "entry_brotli_change": st.column_config.NumberColumn(
+        "Entry Brotli Change", format="percent"
+    ),
     "total_parsed_fmt": st.column_config.TextColumn("Total Parsed"),
-    "total_parsed_change": st.column_config.NumberColumn("Total Parsed Change", format="percent"),
+    "total_parsed_change": st.column_config.NumberColumn(
+        "Total Parsed Change", format="percent"
+    ),
     "entry_parsed_fmt": st.column_config.TextColumn("Entry Parsed"),
-    "entry_parsed_change": st.column_config.NumberColumn("Entry Parse Change", format="percent"),
+    "entry_parsed_change": st.column_config.NumberColumn(
+        "Entry Parse Change", format="percent"
+    ),
     "asset_js_gzip_fmt": st.column_config.TextColumn("JS Asset Gzip"),
-    "asset_js_gzip_change": st.column_config.NumberColumn("JS Asset Gzip Change", format="percent"),
+    "asset_js_gzip_change": st.column_config.NumberColumn(
+        "JS Asset Gzip Change", format="percent"
+    ),
     "asset_css_gzip_fmt": st.column_config.TextColumn("CSS Asset Gzip"),
-    "asset_css_gzip_change": st.column_config.NumberColumn("CSS Asset Gzip Change", format="percent"),
+    "asset_css_gzip_change": st.column_config.NumberColumn(
+        "CSS Asset Gzip Change", format="percent"
+    ),
     "asset_other_gzip_fmt": st.column_config.TextColumn("Other Asset Gzip"),
-    "asset_other_gzip_change": st.column_config.NumberColumn("Other Asset Gzip Change", format="percent"),
+    "asset_other_gzip_change": st.column_config.NumberColumn(
+        "Other Asset Gzip Change", format="percent"
+    ),
     "run_url": st.column_config.LinkColumn("Workflow Run", display_text="View Run"),
     "commit_url": st.column_config.LinkColumn(
-            "Commit",
-            display_text="https://github.com/streamlit/streamlit/commit/([a-f0-9]{7}).*",
+        "Commit",
+        display_text="https://github.com/streamlit/streamlit/commit/([a-f0-9]{7}).*",
     ),
     "html_report_url": st.column_config.LinkColumn(
         "HTML Report",
@@ -798,24 +854,37 @@ column_config = {
 }
 
 selection = st.dataframe(
-    display_df[[
-        "created_at",
-        "total_gzip_fmt", "total_gzip_change",
-        "entry_gzip_fmt", "entry_gzip_change",
-        "total_brotli_fmt", "total_brotli_change",
-        "entry_brotli_fmt", "entry_brotli_change",
-        "total_parsed_fmt", "total_parsed_change",
-        "entry_parsed_fmt", "entry_parsed_change",
-        "asset_js_gzip_fmt", "asset_js_gzip_change",
-        "asset_css_gzip_fmt", "asset_css_gzip_change",
-        "asset_other_gzip_fmt", "asset_other_gzip_change",
-        "run_url", "commit_url", "html_report_url",
-    ]],
+    display_df[
+        [
+            "created_at",
+            "total_gzip_fmt",
+            "total_gzip_change",
+            "entry_gzip_fmt",
+            "entry_gzip_change",
+            "total_brotli_fmt",
+            "total_brotli_change",
+            "entry_brotli_fmt",
+            "entry_brotli_change",
+            "total_parsed_fmt",
+            "total_parsed_change",
+            "entry_parsed_fmt",
+            "entry_parsed_change",
+            "asset_js_gzip_fmt",
+            "asset_js_gzip_change",
+            "asset_css_gzip_fmt",
+            "asset_css_gzip_change",
+            "asset_other_gzip_fmt",
+            "asset_other_gzip_change",
+            "run_url",
+            "commit_url",
+            "html_report_url",
+        ]
+    ],
     column_config=column_config,
     hide_index=True,
     selection_mode="single-row",
     on_select="rerun",
-    use_container_width=True
+    width="stretch",
 )
 
 if selection.selection.rows:

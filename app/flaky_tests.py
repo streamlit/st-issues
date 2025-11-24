@@ -12,7 +12,7 @@ from app.utils.github_utils import (
     fetch_workflow_run_annotations,
     fetch_workflow_runs,
     fetch_workflow_runs_ids,
-    EXPECTED_FLAKY_TESTS
+    EXPECTED_FLAKY_TESTS,
 )
 
 st.set_page_config(page_title="Flaky Tests", page_icon="🧫")
@@ -27,7 +27,12 @@ rolling_window_size = st.sidebar.slider(
     "Flaky trend window size", min_value=5, max_value=50, value=25, step=5
 )
 
-hide_expected_flaky_tests = st.sidebar.checkbox("Hide expected flaky tests", value=True, help="Test that are expected to be flaky and marked with additional reruns (pytest.mark.flaky(reruns=3))")
+hide_expected_flaky_tests = st.sidebar.checkbox(
+    "Hide expected flaky tests",
+    value=True,
+    help="Test that are expected to be flaky and marked with additional reruns (pytest.mark.flaky(reruns=3))",
+)
+
 
 def is_expected_flaky(test_full_name: str) -> bool:
     """Return True if the given test name matches an expected flaky test prefix.
@@ -38,6 +43,7 @@ def is_expected_flaky(test_full_name: str) -> bool:
         if test_full_name.startswith(expected_prefix):
             return True
     return False
+
 
 # Fetch workflow runs
 flaky_tests: Counter[str] = Counter()
@@ -120,13 +126,17 @@ if total_successful_runs > 0:
 else:
     flaky_tests_df["Workflow Failure Probability"] = float("nan")
 
-overall_failure_prob = 1 - (1 - flaky_tests_df["Workflow Failure Probability"].fillna(0)).prod()
+overall_failure_prob = (
+    1 - (1 - flaky_tests_df["Workflow Failure Probability"].fillna(0)).prod()
+)
 
 
 total_flaky_failures = int(flaky_tests_df["Failures"].sum())
 top5_reduction_pct = 0.0
 if total_flaky_failures > 0:
-    top5_reduction_pct = round(flaky_tests_df[:5]["Failures"].sum() / total_flaky_failures * 100, 2)
+    top5_reduction_pct = round(
+        flaky_tests_df[:5]["Failures"].sum() / total_flaky_failures * 100, 2
+    )
 
 st.caption(
     f"**{total_flaky_failures} flaky reruns** in the "
@@ -138,7 +148,7 @@ st.caption(
 )
 st.dataframe(
     flaky_tests_df,
-    use_container_width=True,
+    width="stretch",
     column_config={
         "Test Name": st.column_config.TextColumn(width="large"),
         "Last Failure Date": st.column_config.DatetimeColumn(
@@ -150,7 +160,9 @@ st.dataframe(
         "Latest Run": st.column_config.LinkColumn(display_text="Open"),
         "Test Script": st.column_config.LinkColumn(display_text="Open"),
         "Workflow Failure Probability": st.column_config.ProgressColumn(
-            "Workflow Failure Probability", format="percent", help="The approximate probability that this test causes a workflow failure."
+            "Workflow Failure Probability",
+            format="percent",
+            help="The approximate probability that this test causes a workflow failure.",
         ),
     },
 )
@@ -258,7 +270,7 @@ if not workflow_df.empty:
     # Combine the charts
     chart = line_chart + rule
 
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
     st.caption(
         f"This chart shows the rolling average (window of {rolling_window_size} runs) of the proportion of workflow runs "

@@ -180,9 +180,7 @@ fig.update_layout(
 
 
 # Display the chart
-event_data = chart_container.plotly_chart(
-    fig, use_container_width=True, on_select="rerun"
-)
+event_data = chart_container.plotly_chart(fig, width="stretch", on_select="rerun")
 
 # Show issues for selected month when a bar is clicked
 if event_data and "selection" in event_data and event_data["selection"]["points"]:
@@ -334,7 +332,7 @@ fig_labels.update_layout(
 
 # Display the chart
 feature_event_data = chart_container.plotly_chart(
-    fig_labels, use_container_width=True, on_select="rerun"
+    fig_labels, width="stretch", on_select="rerun"
 )
 
 # Show issues for selected feature label when a bar is clicked

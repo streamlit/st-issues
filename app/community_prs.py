@@ -195,7 +195,7 @@ if status_filter:
 
 col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
 
-with col2.popover("Modify", use_container_width=True):
+with col2.popover("Modify", width="stretch"):
     # Allow user to select time grouping
     time_grouping = st.selectbox(
         "Group PRs by", options=["Day", "Week", "Month", "Year"], index=2
@@ -296,7 +296,7 @@ fig.update_layout(
 )
 
 # Display the chart
-event_data = st.plotly_chart(fig, use_container_width=True, on_select="rerun")
+event_data = st.plotly_chart(fig, width="stretch", on_select="rerun")
 
 # Show PRs for selected time period when a bar is clicked
 if event_data and "selection" in event_data and event_data["selection"]["points"]:
@@ -461,7 +461,7 @@ if not closed_prs.empty:
     )
 
     # Display the chart
-    st.plotly_chart(fig_velocity, use_container_width=True)
+    st.plotly_chart(fig_velocity, width="stretch")
 
     # Display overall metrics
     col1, col2 = st.columns(2)
@@ -580,6 +580,7 @@ st.caption(
     "Maintainers who merged the most community PRs based on the current filters."
 )
 
+
 # Helper to fetch the user who merged a PR (cached)
 @st.cache_data(ttl=60 * 60 * 24, show_spinner=False)
 def get_merged_by_login(pr_number: int) -> str | None:
@@ -590,6 +591,7 @@ def get_merged_by_login(pr_number: int) -> str | None:
     if merged_by and isinstance(merged_by, dict):
         return merged_by.get("login")
     return None
+
 
 merged_prs_only = df_filtered[df_filtered["status"] == "Merged"].copy()
 
@@ -609,12 +611,12 @@ else:
     else:
         # Aggregate counts and average time-to-merge per merger
         merger_counts = (
-            merged_prs_only.groupby("merged_by_login").size().reset_index(name="Merged PRs")
+            merged_prs_only.groupby("merged_by_login")
+            .size()
+            .reset_index(name="Merged PRs")
         )
 
-        top_mergers_df = merger_counts.rename(
-            columns={"merged_by_login": "Merger"}
-        )
+        top_mergers_df = merger_counts.rename(columns={"merged_by_login": "Merger"})
 
         # Add GitHub profile URL for display
         top_mergers_df["Merger"] = top_mergers_df["Merger"].apply(
@@ -622,9 +624,9 @@ else:
         )
 
         # Sort and limit
-        top_mergers_df = top_mergers_df.sort_values(
-            "Merged PRs", ascending=False
-        ).head(50)
+        top_mergers_df = top_mergers_df.sort_values("Merged PRs", ascending=False).head(
+            50
+        )
 
         st.dataframe(
             top_mergers_df,
@@ -634,7 +636,7 @@ else:
                 ),
                 "Merged PRs": st.column_config.NumberColumn(
                     format="%d",
-                )
+                ),
             },
             hide_index=True,
         )

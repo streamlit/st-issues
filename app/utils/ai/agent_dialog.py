@@ -69,7 +69,7 @@ def show_agent_prompt_dialog():
         include_comments = st.checkbox("Include Comments", value=True)
 
     # Generate prompt button
-    if st.button("🤖 Generate Agent Prompt", type="primary", use_container_width=True):
+    if st.button("🤖 Generate Agent Prompt", type="primary", width="stretch"):
         # Get issue data from session state
         issue_title = st.session_state.issue_data.get("title", "")
         issue_body = st.session_state.issue_data.get("body", "")

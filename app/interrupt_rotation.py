@@ -32,7 +32,9 @@ from app.utils.interrupt_data import (
 )
 
 # Set page configuration
-st.set_page_config(page_title="Interrupt Rotation - Dashboard", page_icon="🩺", layout="wide")
+st.set_page_config(
+    page_title="Interrupt Rotation - Dashboard", page_icon="🩺", layout="wide"
+)
 
 # Main app
 st.title("🩺 Interrupt Rotation - Dashboard")
@@ -45,7 +47,7 @@ timeframe = st.sidebar.selectbox(
     ("Last 7 days", "Last 14 days"),
     index=0,
 )
-if st.sidebar.button(":material/refresh: Refresh data", use_container_width=True):
+if st.sidebar.button(":material/refresh: Refresh data", width="stretch"):
     # Refresh issue and PR data:
     get_all_github_issues.clear()
     get_all_github_prs.clear()
@@ -83,7 +85,7 @@ with st.sidebar.form("issue_form"):
         help="Enter a GitHub issue number to generate an agent prompt",
     )
 
-    submitted = st.form_submit_button("Open Dialog", use_container_width=True)
+    submitted = st.form_submit_button("Open Dialog", width="stretch")
 
 if submitted and manual_issue_number:
     # Validate issue number
@@ -211,7 +213,7 @@ if needs_triage_df.empty:
 else:
     st.dataframe(
         needs_triage_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
@@ -232,7 +234,7 @@ if missing_labels_df.empty:
 else:
     st.dataframe(
         missing_labels_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
@@ -294,7 +296,7 @@ if unprioritized_bugs_df.empty:
 else:
     st.dataframe(
         unprioritized_bugs_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
@@ -325,7 +327,7 @@ else:
 
     st.dataframe(
         p0_p1_bugs_df.drop("Priority_Sort", axis=1, errors="ignore"),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
@@ -348,7 +350,7 @@ if missing_labels_prs_df.empty:
 else:
     st.dataframe(
         missing_labels_prs_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
@@ -374,7 +376,7 @@ if prs_needing_approval_df.empty:
 else:
     st.dataframe(
         prs_needing_approval_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
@@ -406,7 +408,7 @@ if community_prs_ready_df.empty:
 else:
     st.dataframe(
         community_prs_ready_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
@@ -435,7 +437,7 @@ if dependabot_prs_df.empty:
 else:
     st.dataframe(
         dependabot_prs_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
@@ -455,7 +457,7 @@ if waiting_for_team_response_df.empty:
 else:
     st.dataframe(
         waiting_for_team_response_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
@@ -490,7 +492,7 @@ else:
     flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
     st.dataframe(
         flaky_tests_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Test": st.column_config.TextColumn("Test", width="large"),
@@ -523,7 +525,7 @@ if confirmed_bugs_without_repro_df.empty:
 else:
     st.dataframe(
         confirmed_bugs_without_repro_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),

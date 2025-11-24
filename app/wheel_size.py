@@ -119,7 +119,7 @@ fig.update_layout(
     hovermode="closest",
 )
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # Create a table with the data
 st.subheader("Wheel Size Details")
@@ -128,7 +128,7 @@ history_df = df.sort_values("created_at", ascending=False)
 
 st.dataframe(
     history_df[["created_at", "commit_sha", "size_human", "run_url", "commit_url"]],
-    use_container_width=True,
+    width="stretch",
     column_config={
         "created_at": st.column_config.DatetimeColumn("Date", format="MMM DD, YYYY"),
         "commit_sha": st.column_config.TextColumn("Commit"),
@@ -181,7 +181,7 @@ if len(df) > 1:
             coloraxis_showscale=False,
         )
 
-        st.plotly_chart(fig_changes, use_container_width=True)
+        st.plotly_chart(fig_changes, width="stretch")
 
         # Show a table of significant changes
         significant_changes = df_changes[
@@ -202,7 +202,7 @@ if len(df) > 1:
                         "commit_url",
                     ]
                 ],
-                use_container_width=True,
+                width="stretch",
                 column_config={
                     "created_at": st.column_config.DatetimeColumn(
                         "Date", format="MMM DD, YYYY"

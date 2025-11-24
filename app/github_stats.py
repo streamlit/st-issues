@@ -722,7 +722,7 @@ if selected_metrics == "Contribution Metrics":
         df = df.sort_values(by="Surviving LOC", ascending=False).reset_index(drop=True)
         st.dataframe(
             df,
-            use_container_width=True,
+            width="stretch",
             column_config={
                 "Surviving LOC %": st.column_config.NumberColumn(format="%.1f%%"),
                 "Commits to Main %": st.column_config.NumberColumn(format="%.1f%%"),
@@ -838,7 +838,7 @@ elif selected_metrics == "Team Productivity Metrics":
             fig_prs = px.bar(
                 monthly_pr_stats, x="Date", y="Merged PRs", title="Monthly Merged PRs"
             )
-            st.plotly_chart(fig_prs, use_container_width=True)
+            st.plotly_chart(fig_prs, width="stretch")
 
         with tab2:
             st.caption("Excluding PRs open for more than 60 days.")
@@ -853,7 +853,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 title="Median Time Trends (Hours)",
                 markers=True,
             )
-            st.plotly_chart(fig_time, use_container_width=True)
+            st.plotly_chart(fig_time, width="stretch")
 
         with tab3:
             # Melt for LOC chart
@@ -872,7 +872,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 title="Monthly LOC Changes",
                 color_discrete_map={"Additions": "#28a745", "Deletions": "#dc3545"},
             )
-            st.plotly_chart(fig_loc, use_container_width=True)
+            st.plotly_chart(fig_loc, width="stretch")
 
         with tab4:
             # Melt for Types chart
@@ -891,7 +891,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 title="Monthly Merged Features vs Bugfixes",
                 barmode="group",
             )
-            st.plotly_chart(fig_types, use_container_width=True)
+            st.plotly_chart(fig_types, width="stretch")
 
     else:
         st.info("No merged PRs found for the selected period.")
@@ -995,7 +995,7 @@ elif selected_metrics == "Team Productivity Metrics":
             barmode="group",
             title="Monthly Issues: Created vs Closed",
         )
-        st.plotly_chart(fig_issues, use_container_width=True)
+        st.plotly_chart(fig_issues, width="stretch")
 
     else:
         st.info("No issues found.")

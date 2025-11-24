@@ -259,7 +259,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
         )
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # Display file-level coverage
     st.header("File Coverage Details")
@@ -360,10 +360,10 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
         col1.link_button(
             label=":material/download: Download HTML Coverage Report",
             url=html_report_url,
-            use_container_width=True,
+            width="stretch",
         )
     if run_id:
-        if col2.button(":material/preview: View PR Report", use_container_width=True):
+        if col2.button(":material/preview: View PR Report", width="stretch"):
             display_coverage_report_dialog(run_id=run_id)
 
     # Create a horizontal bar chart for file coverage
@@ -391,7 +391,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
             hover_data=["Lines Covered", "Lines Missed", "Total Lines"],
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         st.subheader("Coverage by File")
 
@@ -418,7 +418,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
         )
 
         fig.update_layout(yaxis={"categoryorder": "total descending"})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         # Display coverage distribution
         st.subheader("Coverage Distribution of Files")
@@ -451,7 +451,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
             },
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 def get_latest_develop_coverage() -> Optional[Dict[str, Any]]:
@@ -622,9 +622,9 @@ def display_pr_coverage_comparison(
             st.link_button(
                 label=":material/download: Download PR Coverage Report",
                 url=pr_html_report_url,
-                use_container_width=True,
+                width="stretch",
             )
-            if st.button(":material/preview: View PR Report", use_container_width=True):
+            if st.button(":material/preview: View PR Report", width="stretch"):
                 display_coverage_report_dialog(pr_coverage["run_id"])
 
     with col2:
@@ -632,11 +632,9 @@ def display_pr_coverage_comparison(
             st.link_button(
                 label=":material/download: Download Develop Coverage Report",
                 url=develop_html_report_url,
-                use_container_width=True,
+                width="stretch",
             )
-            if st.button(
-                ":material/preview: View Develop Report", use_container_width=True
-            ):
+            if st.button(":material/preview: View Develop Report", width="stretch"):
                 display_coverage_report_dialog(develop_coverage["run_id"])
 
     # Get detailed coverage data for both PR and develop
@@ -846,7 +844,7 @@ def display_pr_detailed_comparison(pr_coverage_data: Dict, develop_coverage_data
         )
 
         fig.update_layout(yaxis={"categoryorder": "total descending"})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("No files with coverage changes found.")
 
@@ -981,7 +979,7 @@ fig_coverage.update_layout(
 # Display the chart with selection
 plotly_chart_state = st.plotly_chart(
     fig_coverage,
-    use_container_width=True,
+    width="stretch",
     theme="streamlit",
 )
 
@@ -1017,7 +1015,7 @@ fig_metrics.update_layout(
     hovermode="closest",
 )
 
-st.plotly_chart(fig_metrics, use_container_width=True, theme="streamlit")
+st.plotly_chart(fig_metrics, width="stretch", theme="streamlit")
 
 # Create a table with the data
 st.subheader("Coverage History")
@@ -1051,7 +1049,7 @@ coverage_history_df["html_report_url"] = coverage_history_df["run_id"].apply(
 # Display the dataframe with row selection enabled
 df_selection = st.dataframe(
     coverage_history_df,
-    use_container_width=True,
+    width="stretch",
     column_config={
         "created_at": st.column_config.DatetimeColumn("Date", format="distance"),
         "commit_sha": st.column_config.TextColumn("Commit"),

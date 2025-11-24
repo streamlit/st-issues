@@ -495,7 +495,7 @@ else:
                             create_horizontal_bar_chart(
                                 priority_df, "Priority", "Count", "Priority"
                             ),
-                            use_container_width=True,
+                            width="stretch",
                         )
                     else:
                         st.write("No priority data available")
@@ -516,7 +516,7 @@ else:
                             create_horizontal_bar_chart(
                                 status_df, "Status", "Count", "Status"
                             ),
-                            use_container_width=True,
+                            width="stretch",
                         )
                     else:
                         st.write("No status data available")
@@ -538,7 +538,7 @@ else:
                             create_horizontal_bar_chart(
                                 feature_df, "Feature", "Count", "Feature"
                             ),
-                            use_container_width=True,
+                            width="stretch",
                         )
                     else:
                         st.write("No feature data available")
@@ -559,7 +559,7 @@ else:
                             create_horizontal_bar_chart(
                                 area_df, "Area", "Count", "Area"
                             ),
-                            use_container_width=True,
+                            width="stretch",
                         )
                     else:
                         st.write("No area data available")
@@ -580,7 +580,7 @@ else:
                             create_horizontal_bar_chart(
                                 type_df, "Type", "Count", "Type"
                             ),
-                            use_container_width=True,
+                            width="stretch",
                         )
                     else:
                         st.write("No type data available")

@@ -28,12 +28,17 @@ issue_input = st.text_input(
 issue_number = None
 if issue_input:
     issue_input = issue_input.strip()
-    
+
     # Check if it's a GitHub URL
     if "github.com/streamlit/streamlit/issues/" in issue_input:
         try:
             # Extract issue number from URL
-            issue_number = issue_input.split("/issues/")[-1].split("/")[0].split("?")[0].split("#")[0]
+            issue_number = (
+                issue_input.split("/issues/")[-1]
+                .split("/")[0]
+                .split("?")[0]
+                .split("#")[0]
+            )
         except (IndexError, ValueError):
             st.error("Invalid GitHub URL format")
             st.stop()
@@ -254,7 +259,7 @@ if issue_number:
         st.dataframe(
             df_grouped[["Avatar", "Username", "Company", "Engagement", "Profile"]],
             column_config=column_config,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=600,
         )
