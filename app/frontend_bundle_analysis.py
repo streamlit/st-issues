@@ -20,7 +20,13 @@ from app.utils.github_utils import (
 
 st.set_page_config(page_title="Frontend Bundle Analysis", page_icon="📦", layout="wide")
 
-st.title("📦 Frontend Bundle Analysis")
+title_row = st.container(
+    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+)
+with title_row:
+    st.title("📦 Frontend Bundle Analysis")
+    if st.button(":material/refresh: Refresh Data", type="tertiary"):
+        fetch_workflow_runs.clear()
 
 
 @st.cache_data(show_spinner=False)
