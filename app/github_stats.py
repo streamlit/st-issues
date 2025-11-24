@@ -120,7 +120,7 @@ def get_git_fame_stats():
     return stats
 
 
-@st.cache_data(ttl=60 * 60 * 72, show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 72, show_spinner="Fetching PR metrics...")
 def fetch_pr_metrics(merged_since: date):
     return fetch_merged_pr_metrics(merged_since=merged_since)
 
