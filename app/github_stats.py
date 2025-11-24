@@ -73,7 +73,7 @@ st.caption("GitHub-based metrics aggregated from issue and pull request data.")
 
 contribution_metrics = st.query_params.get("contribution", None)
 selected_metrics = st.segmented_control(
-    "",
+    "Metric Collection",
     options=["Team Productivity Metrics", "Contribution Metrics"],
     label_visibility="collapsed",
     width="stretch",
