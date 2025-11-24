@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import gitfame._gitfame
 import subprocess
 import re
 from datetime import date
@@ -105,6 +104,8 @@ def get_git_fame_stats():
             check=True,
             capture_output=True,
         )
+
+        import gitfame._gitfame
 
         # Run git-fame
         # churn=gitfame._gitfame.CHURN_SLOC is needed to calculate surviving LOC
