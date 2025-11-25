@@ -794,6 +794,10 @@ elif selected_metrics == "Team Productivity Metrics":
                 total_deletions=("deletions", "sum"),
                 merged_features=("is_feature", "sum"),
                 merged_bugfixes=("is_bugfix", "sum"),
+                total_review_comments=("num_review_comments", "sum"),
+                total_issue_comments=("num_issue_comments", "sum"),
+                median_review_comments=("num_review_comments", "median"),
+                median_issue_comments=("num_issue_comments", "median"),
             )
             .reset_index()
             .rename(
@@ -804,6 +808,10 @@ elif selected_metrics == "Team Productivity Metrics":
                     "total_deletions": "Deletions",
                     "merged_features": "Features",
                     "merged_bugfixes": "Bugfixes",
+                    "total_review_comments": "Total Review Comments",
+                    "total_issue_comments": "Total Issue Comments",
+                    "median_review_comments": "Median Review Comments",
+                    "median_issue_comments": "Median Issue Comments",
                 }
             )
         )
@@ -835,8 +843,15 @@ elif selected_metrics == "Team Productivity Metrics":
             )
         )
 
-        tab1, tab2, tab3, tab4 = st.tabs(
-            ["Merged PRs over Time", "Time Trends", "LOC Changes", "PR Types"]
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+            [
+                "Merged PRs over Time",
+                "Time Trends",
+                "LOC Changes",
+                "PR Types",
+                "Active Contributors",
+                "Comments",
+            ]
         )
 
         with tab1:
@@ -897,6 +912,84 @@ elif selected_metrics == "Team Productivity Metrics":
                 barmode="group",
             )
             st.plotly_chart(fig_types, width="stretch")
+
+        with tab5:
+            row = st.container()
+            col1, col2 = row.columns([1, 0.2])
+            with col2.popover("Modify", width="content"):
+                min_prs = st.number_input(
+                    "Minimum merged PRs", min_value=1, value=3, step=1
+                )
+
+            with col1:
+                st.markdown(
+                    f"##### Monthly Active Contributors (>= {min_prs} Merged PRs)"
+                )
+
+            # Calculate Active Contributors
+            # Group by month and author to count PRs
+            author_monthly_prs = (
+                merged_prs_df.groupby(["merge_month", "author"])
+                .size()
+                .reset_index(name="pr_count")
+            )
+
+            # Filter for authors with >= min_prs in a month
+            active_authors_monthly = author_monthly_prs[
+                author_monthly_prs["pr_count"] >= min_prs
+            ]
+
+            # Count unique active authors per month
+            active_contributors_stats = (
+                active_authors_monthly.groupby("merge_month")["author"]
+                .nunique()
+                .reset_index(name="Active Contributors")
+                .rename(columns={"merge_month": "Date"})
+            )
+
+            st.caption(
+                f"Active contributors are users who have merged at least {min_prs} PRs in a given month."
+            )
+            if not active_contributors_stats.empty:
+                fig_active = px.bar(
+                    active_contributors_stats,
+                    x="Date",
+                    y="Active Contributors",
+                )
+                st.plotly_chart(fig_active, width="stretch")
+            else:
+                st.info("No active contributors found for the selected period.")
+
+        with tab6:
+            show_median = st.checkbox("Show Median per PR", value=False)
+
+            if show_median:
+                value_vars = ["Median Review Comments", "Median Issue Comments"]
+                title = "Monthly Median PR Comments per PR (Review vs Issue)"
+            else:
+                value_vars = ["Total Review Comments", "Total Issue Comments"]
+                title = "Monthly Total PR Comments (Review vs Issue)"
+
+            # Melt for Comments chart
+            comments_melted = monthly_pr_stats.melt(
+                id_vars="Date",
+                value_vars=value_vars,
+                var_name="Type",
+                value_name="Count",
+            )
+
+            fig_comments = px.bar(
+                comments_melted,
+                x="Date",
+                y="Count",
+                color="Type",
+                title=title,
+                barmode="stack" if not show_median else "group",
+            )
+            st.plotly_chart(fig_comments, width="stretch")
+            st.caption(
+                "Note: These metrics include comments from bots and automated systems."
+            )
 
     else:
         st.info("No merged PRs found for the selected period.")
@@ -1002,6 +1095,42 @@ elif selected_metrics == "Team Productivity Metrics":
             title="Monthly Issues: Created vs Closed",
         )
         st.plotly_chart(fig_issues, width="stretch")
+
+        # --- New Visualization: Created Issues by Type ---
+        created_by_type = created_in_period.copy()
+        created_by_type["Type"] = created_by_type["labels"].apply(
+            lambda labels: "Bug"
+            if any(label["name"] == "type:bug" for label in labels)
+            else (
+                "Feature"
+                if any(label["name"] == "type:enhancement" for label in labels)
+                else None
+            )
+        )
+        created_by_type = created_by_type.dropna(subset=["Type"])
+
+        if not created_by_type.empty:
+            created_by_type_monthly = (
+                created_by_type.groupby(
+                    [created_by_type["created_at"].dt.to_period("M"), "Type"]
+                )
+                .size()
+                .reset_index(name="Count")
+                .rename(columns={"created_at": "Month"})
+            )
+            created_by_type_monthly["Month"] = created_by_type_monthly[
+                "Month"
+            ].dt.to_timestamp()
+
+            fig_created_by_type = px.bar(
+                created_by_type_monthly,
+                x="Month",
+                y="Count",
+                color="Type",
+                title="Monthly Created Issues: Bugs vs Features",
+                barmode="group",
+            )
+            st.plotly_chart(fig_created_by_type, width="stretch")
 
         # Priority Bug Resolution Time
         st.markdown("##### :material/timer: Bug Resolution Time by Priority")
