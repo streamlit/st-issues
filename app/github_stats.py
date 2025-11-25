@@ -1,18 +1,19 @@
-import streamlit as st
+import re
+import subprocess
+import tempfile
+from datetime import date
+
 import pandas as pd
 import plotly.express as px
-import subprocess
-import re
-from datetime import date
+import streamlit as st
+
+from app.utils.github_graphql_utils import fetch_merged_pr_metrics
 from app.utils.github_utils import (
     ACTIVTE_STREAMLIT_TEAM_MEMBERS,
     STREAMLIT_TEAM_MEMBERS,
     get_all_github_issues,
     get_count_issues_commented_by_user,
 )
-from app.utils.github_graphql_utils import fetch_merged_pr_metrics
-
-import tempfile
 
 # Define the repo URL
 GITHUB_REPO = "streamlit/streamlit"
@@ -755,12 +756,16 @@ elif selected_metrics == "Team Productivity Metrics":
         total_loc_changed = merged_prs_df["loc_changes"].sum()
 
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Merged PRs", total_merged_prs)
-        col2.metric("Median Time to Merge", f"{median_open_to_merge:.1f} h")
-        col3.metric(
-            "Median Time to First Review", f"{median_open_to_first_review:.1f} h"
+        col1.metric("Merged PRs", total_merged_prs, border=True)
+        col2.metric(
+            "Median Time to Merge", f"{median_open_to_merge:.1f} h", border=True
         )
-        col4.metric("Total LOC Changed", f"{total_loc_changed:,}")
+        col3.metric(
+            "Median Time to First Review",
+            f"{median_open_to_first_review:.1f} h",
+            border=True,
+        )
+        col4.metric("Total LOC Changed", f"{total_loc_changed:,}", border=True)
 
         # Monthly PR Trends
         # Prepare data for monthly trends
@@ -943,13 +948,14 @@ elif selected_metrics == "Team Productivity Metrics":
         ).median()  # In days
 
         col1, col2, col3 = st.columns(3)
-        col1.metric("Issues Created", total_created)
-        col2.metric("Issues Closed", total_closed)
+        col1.metric("Issues Created", total_created, border=True)
+        col2.metric("Issues Closed", total_closed, border=True)
         col3.metric(
             "Median Time to Close",
             f"{median_time_to_close:.1f} days"
             if not pd.isna(median_time_to_close)
             else "—",
+            border=True,
         )
 
         # Monthly Issue Trends
@@ -1021,7 +1027,7 @@ elif selected_metrics == "Team Productivity Metrics":
         ]
 
         if not priority_bugs.empty:
-             # Calculate time to close in days
+            # Calculate time to close in days
             priority_bugs["time_to_close_days"] = (
                 priority_bugs["time_to_close"].dt.total_seconds() / 3600 / 24
             )
@@ -1036,8 +1042,8 @@ elif selected_metrics == "Team Productivity Metrics":
                 title="Time to Close by Bug Priority (Days)",
                 labels={"priority": "Priority", "time_to_close_days": "Days to Close"},
                 category_orders={"priority": priority_order},
-                points="all", # Show all points
-                hover_data=["title", "html_url"]
+                points="all",  # Show all points
+                hover_data=["title", "html_url"],
             )
             st.plotly_chart(fig_priority, width="stretch")
 
@@ -1054,10 +1060,10 @@ elif selected_metrics == "Team Productivity Metrics":
             )
 
             # Calculate rolling average
-            monthly_priority_stats["rolling_median"] = (
-                monthly_priority_stats.groupby("priority")["median_time_to_close"].transform(
-                    lambda x: x.rolling(window=3, min_periods=1).mean()
-                )
+            monthly_priority_stats["rolling_median"] = monthly_priority_stats.groupby(
+                "priority"
+            )["median_time_to_close"].transform(
+                lambda x: x.rolling(window=3, min_periods=1).mean()
             )
 
             fig_priority_over_time = px.line(
