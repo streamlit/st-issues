@@ -209,6 +209,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
                 "Path": info["file_path"],
                 "Lines Covered": len(info["executed_lines"]),
                 "Lines Missed": len(info["missing_lines"]),
+                "Lines Uncovered": len(info["missing_lines"]),
                 "Total Lines": info["total_lines"],
                 # "Coverage": round(info["coverage"], 2),
                 "Coverage %": round(info["coverage_pct"], 2),
@@ -283,6 +284,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
                 min_value=0,
                 max_value=100,
             ),
+            "Lines Uncovered": st.column_config.NumberColumn("Lines Uncovered"),
             "File": st.column_config.LinkColumn(
                 "File",
                 help="View file in GitHub repository",
@@ -294,6 +296,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
         column_order=[
             "File",
             "Lines Covered",
+            "Lines Uncovered",
             "Lines Missed",
             "Total Lines",
             "Coverage %",

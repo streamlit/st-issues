@@ -265,6 +265,7 @@ def display_coverage_details(
                 "Path": info["file_path"],
                 "Lines Total": info["lines_total"],
                 "Lines Covered": info["lines_covered"],
+                "Lines Uncovered": info["lines_total"] - info["lines_covered"],
                 "Lines Coverage %": info["lines_pct"],
                 "Functions Total": info["functions_total"],
                 "Functions Covered": info["functions_covered"],
@@ -385,6 +386,7 @@ def display_coverage_details(
                 min_value=0,
                 max_value=100,
             ),
+            "Lines Uncovered": st.column_config.NumberColumn("Lines Uncovered"),
             "File": st.column_config.LinkColumn(
                 "File",
                 help="View file in GitHub repository",
@@ -396,6 +398,7 @@ def display_coverage_details(
         column_order=[
             "File",
             "Lines Covered",
+            "Lines Uncovered",
             "Lines Total",
             "Lines Coverage %",
             "Functions Covered",
