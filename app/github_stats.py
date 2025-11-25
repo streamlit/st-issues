@@ -997,5 +997,86 @@ elif selected_metrics == "Team Productivity Metrics":
         )
         st.plotly_chart(fig_issues, width="stretch")
 
+        # Priority Bug Resolution Time
+        st.markdown("##### :material/timer: Bug Resolution Time by Priority")
+
+        # Filter for bugs with priority labels
+        priority_bugs = closed_in_period.copy()
+
+        # Extract priority
+        def extract_priority(labels):
+            for label in labels:
+                if label["name"].startswith("priority:"):
+                    return label["name"].split("priority:")[-1]
+            return None
+
+        priority_bugs["priority"] = priority_bugs["labels"].apply(extract_priority)
+
+        # Filter for only rows with priority and is a bug
+        priority_bugs["is_bug"] = priority_bugs["labels"].apply(
+            lambda x: any(l["name"] == "type:bug" for l in x)
+        )
+        priority_bugs = priority_bugs[
+            (priority_bugs["priority"].notna()) & (priority_bugs["is_bug"])
+        ]
+
+        if not priority_bugs.empty:
+             # Calculate time to close in days
+            priority_bugs["time_to_close_days"] = (
+                priority_bugs["time_to_close"].dt.total_seconds() / 3600 / 24
+            )
+
+            # Sort order for priorities
+            priority_order = ["P0", "P1", "P2", "P3", "P4"]
+
+            fig_priority = px.box(
+                priority_bugs,
+                x="priority",
+                y="time_to_close_days",
+                title="Time to Close by Bug Priority (Days)",
+                labels={"priority": "Priority", "time_to_close_days": "Days to Close"},
+                category_orders={"priority": priority_order},
+                points="all", # Show all points
+                hover_data=["title", "html_url"]
+            )
+            st.plotly_chart(fig_priority, width="stretch")
+
+            # Median Time to Close over Time
+            priority_bugs["close_month"] = (
+                priority_bugs["closed_at"].dt.to_period("M").dt.to_timestamp()
+            )
+
+            monthly_priority_stats = (
+                priority_bugs.groupby(["close_month", "priority"])
+                .agg(median_time_to_close=("time_to_close_days", "median"))
+                .reset_index()
+                .sort_values("close_month")
+            )
+
+            # Calculate rolling average
+            monthly_priority_stats["rolling_median"] = (
+                monthly_priority_stats.groupby("priority")["median_time_to_close"].transform(
+                    lambda x: x.rolling(window=3, min_periods=1).mean()
+                )
+            )
+
+            fig_priority_over_time = px.line(
+                monthly_priority_stats,
+                x="close_month",
+                y="rolling_median",
+                color="priority",
+                title="Median Time to Close over Time (3-month rolling avg)",
+                labels={
+                    "close_month": "Date",
+                    "rolling_median": "Median Days to Close",
+                    "priority": "Priority",
+                },
+                category_orders={"priority": priority_order},
+                markers=True,
+            )
+            st.plotly_chart(fig_priority_over_time, width="stretch")
+        else:
+            st.info("No priority bugs found in the selected period.")
+
     else:
         st.info("No issues found.")
