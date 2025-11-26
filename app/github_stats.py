@@ -251,7 +251,7 @@ if selected_metrics == "Contribution Metrics":
                     display_text="github.com/([^/]+)"
                 ),
                 "% of Others' PRs": st.column_config.NumberColumn(
-                    format="%.1f%%",
+                    format="percent",
                     help="Percentage of PRs reviewed by the user that were not authored by the user",
                 ),
                 "Show PRs": st.column_config.LinkColumn(
