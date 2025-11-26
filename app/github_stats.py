@@ -177,6 +177,19 @@ if selected_metrics == "Contribution Metrics":
             .reset_index(drop=True)
         )
 
+        # Calculate totals for percentages
+        total_prs = len(merged_prs_df)
+        total_features = merged_prs_df["is_feature"].sum()
+        total_bugfixes = merged_prs_df["is_bugfix"].sum()
+
+        author_stats["pct_total_prs"] = author_stats["prs_merged"] / total_prs * 100
+        author_stats["pct_total_features"] = (
+            author_stats["merged_features"] / total_features * 100 if total_features > 0 else 0
+        )
+        author_stats["pct_total_bugfixes"] = (
+            author_stats["merged_bugfixes"] / total_bugfixes * 100 if total_bugfixes > 0 else 0
+        )
+
         # Add links
         author_stats["Show PRs"] = author_stats["author"].apply(
             lambda x: f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+author%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
@@ -192,8 +205,17 @@ if selected_metrics == "Contribution Metrics":
                     "Author", display_text="github.com/([^/]+)"
                 ),
                 "prs_merged": st.column_config.NumberColumn("Merged PRs"),
+                "pct_total_prs": st.column_config.NumberColumn(
+                    "% of Total", format="%.1f%%"
+                ),
                 "merged_features": st.column_config.NumberColumn("Feature PRs"),
+                "pct_total_features": st.column_config.NumberColumn(
+                    "% of Features", format="%.1f%%"
+                ),
                 "merged_bugfixes": st.column_config.NumberColumn("Bugfix PRs"),
+                "pct_total_bugfixes": st.column_config.NumberColumn(
+                    "% of Bugfixes", format="%.1f%%"
+                ),
                 "total_loc_changes": st.column_config.NumberColumn("LOC Changed"),
                 "total_additions": st.column_config.NumberColumn("LOC Additions"),
                 "total_deletions": st.column_config.NumberColumn("LOC Deletions"),
