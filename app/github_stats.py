@@ -224,6 +224,7 @@ if selected_metrics == "Contribution Metrics":
                 ),
             },
             hide_index=True,
+            column_order=["author", "prs_merged", "pct_total_prs", "merged_features", "pct_total_features", "merged_bugfixes", "pct_total_bugfixes", "total_loc_changes", "total_additions", "total_deletions", "Show PRs"],
         )
     else:
         st.info("No merged PRs found for the selected period.")
