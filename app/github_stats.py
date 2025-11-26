@@ -526,6 +526,15 @@ if selected_metrics == "Contribution Metrics":
                 }
             )
         )
+
+        # Calculate percentage of total reactions
+        total_closed_reactions = closers_stats["Total reactions"].sum()
+        closers_stats["pct_total_reactions"] = (
+            closers_stats["Total reactions"] / total_closed_reactions * 100
+            if total_closed_reactions > 0
+            else 0
+        )
+
         closers_stats["Average reactions per issue"] = (
             closers_stats["Total reactions"] / closers_stats["Issues closed"]
         )
@@ -554,6 +563,9 @@ if selected_metrics == "Contribution Metrics":
                     display_text="github.com/([^/]+)"
                 ),
                 "Total reactions": st.column_config.NumberColumn(),
+                "pct_total_reactions": st.column_config.NumberColumn(
+                    "% of Total", format="%.1f%%"
+                ),
                 "Issues closed": st.column_config.NumberColumn(),
                 "Bugs": st.column_config.NumberColumn(),
                 "Enhancements": st.column_config.NumberColumn(),
@@ -562,6 +574,16 @@ if selected_metrics == "Contribution Metrics":
                     format="%.2f"
                 ),
             },
+            column_order=[
+                "Closer",
+                "Total reactions",
+                "pct_total_reactions",
+                "Issues closed",
+                "Bugs",
+                "Enhancements",
+                "Others",
+                "Average reactions per issue",
+            ],
             hide_index=True,
             on_select="rerun",
             selection_mode="single-row",
