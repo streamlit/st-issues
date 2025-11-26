@@ -7,13 +7,14 @@ import streamlit as st
 
 from app.utils.ai.agent_dialog import show_agent_prompt_dialog
 from app.utils.github_utils import (
+    EXPECTED_FLAKY_TESTS,
     get_all_github_issues,
     get_all_github_prs,
     parse_github_url,
     validate_issue_number,
-    EXPECTED_FLAKY_TESTS,
 )
 from app.utils.interrupt_data import (
+    get_bundle_size_metrics,
     get_community_prs_ready_for_review,
     get_confirmed_bugs_without_repro_script,
     get_flaky_tests,
@@ -28,7 +29,6 @@ from app.utils.interrupt_data import (
     get_python_test_coverage_metrics,
     get_unprioritized_bugs,
     get_wheel_size_metrics,
-    get_bundle_size_metrics,
 )
 
 # Set page configuration
@@ -470,15 +470,15 @@ else:
 st.divider()
 
 st.subheader(
-    "Flaky tests with ≥ 5 failures",
+    "Flaky tests with ≥ 10 failures",
     help="""
-Lists flaky tests with ≥ 5 failures in the selected timeframe.
+Lists flaky tests with ≥ 10 failures in the selected timeframe.
 
-Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky(reruns=4)`
+Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky(reruns=3)`
 marker as a last resort.
 """,
 )
-flaky_tests_df = get_flaky_tests(since)
+flaky_tests_df = get_flaky_tests(since, min_failures=10)
 # Always hide expected flaky tests
 if not flaky_tests_df.empty:
     mask_not_expected = ~flaky_tests_df["Test"].apply(

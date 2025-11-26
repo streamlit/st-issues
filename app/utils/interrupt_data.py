@@ -213,7 +213,7 @@ def get_bundle_size_metrics(since_date: date) -> Tuple[int, int, int, int]:
         latest_total,
         latest_total - oldest_total,
         latest_entry,
-        latest_entry - oldest_entry
+        latest_entry - oldest_entry,
     )
 
 
@@ -279,13 +279,15 @@ def get_issue_waiting_for_team_response() -> pd.DataFrame:
             continue
         labels = {label["name"] for label in i["labels"]}
         if "status:awaiting-team-response" in labels:
-            waiting_for_team_response.append({
+            waiting_for_team_response.append(
+                {
                     "Title": i["title"],
                     "URL": i["html_url"],
                     "Created": i["created_at"],
                     "Author": i["user"]["login"],
                     "Labels": list(labels),
-            })
+                }
+            )
 
     return pd.DataFrame(waiting_for_team_response)
 
@@ -481,8 +483,8 @@ def get_confirmed_bugs_without_repro_script(since_date: date) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
-def get_flaky_tests(since_date: date) -> pd.DataFrame:
-    """Get flaky tests with >= 5 failures."""
+def get_flaky_tests(since_date: date, min_failures: int = 10) -> pd.DataFrame:
+    """Get flaky tests with >= min_failures."""
     flaky_tests_counter: Counter[str] = Counter()
     example_run: dict[str, str] = {}
     last_failure_date: dict[str, date] = {}
@@ -518,8 +520,9 @@ def get_flaky_tests(since_date: date) -> pd.DataFrame:
             "Last Failure Date": last_failure_date[test],
         }
         for test, count in flaky_tests_counter.items()
-        # Should be atleast 5 failures and the last failure should be in the last 4 days
-        if count >= 5 and last_failure_date[test] > date.today() - timedelta(days=4)
+        # Should be atleast min_failures and the last failure should be in the last 4 days
+        if count >= min_failures
+        and last_failure_date[test] > date.today() - timedelta(days=4)
     ]
     return pd.DataFrame(data)
 
