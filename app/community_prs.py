@@ -17,6 +17,19 @@ st.set_page_config(
     page_icon="👥",
 )
 
+
+# Helper to fetch the user who merged a PR (cached)
+@st.cache_data(ttl=60 * 60 * 24, show_spinner=False)
+def get_merged_by_login(pr_number: int) -> str | None:
+    pr_info = fetch_pr_info(str(pr_number))
+    if not pr_info:
+        return None
+    merged_by = pr_info.get("merged_by")
+    if merged_by and isinstance(merged_by, dict):
+        return merged_by.get("login")
+    return None
+
+
 title_row = st.container(
     horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
 )
@@ -586,18 +599,6 @@ st.markdown("##### Top mergers")
 st.caption(
     "Maintainers who merged the most community PRs based on the current filters."
 )
-
-
-# Helper to fetch the user who merged a PR (cached)
-@st.cache_data(ttl=60 * 60 * 24, show_spinner=False)
-def get_merged_by_login(pr_number: int) -> str | None:
-    pr_info = fetch_pr_info(str(pr_number))
-    if not pr_info:
-        return None
-    merged_by = pr_info.get("merged_by")
-    if merged_by and isinstance(merged_by, dict):
-        return merged_by.get("login")
-    return None
 
 
 merged_prs_only = df_filtered[df_filtered["status"] == "Merged"].copy()

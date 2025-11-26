@@ -68,40 +68,6 @@ def get_issue_emoji(labels):
         return "❓"
 
 
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
-with title_row:
-    st.title("📊 GitHub Stats")
-    if st.button(":material/refresh: Refresh Data", type="tertiary"):
-        fetch_merged_pr_metrics.clear()
-        get_all_github_issues.clear()
-
-st.caption("GitHub-based metrics aggregated from issue and pull request data.")
-
-contribution_metrics = st.query_params.get("contribution", None)
-selected_metrics = st.segmented_control(
-    "Metric Collection",
-    options=["Team Productivity Metrics", "Contribution Metrics"],
-    label_visibility="collapsed",
-    width="stretch",
-    default="Team Productivity Metrics"
-    if not contribution_metrics
-    else "Contribution Metrics",
-)
-
-with st.sidebar:
-    today = date.today()
-
-    since_input = st.date_input(
-        "Since",
-        value=date.fromisoformat("2022-04-01"),
-        max_value=today,
-        help="Include PRs and issues closed on or after this date.",
-    )
-    exclude_bot_prs = st.toggle("Exclude Bot PRs")
-
-
 @st.cache_data(show_spinner="Cloning and analyzing repository...")
 def get_git_fame_stats():
     # Use a temporary directory
@@ -131,6 +97,43 @@ def get_git_fame_stats():
 @st.cache_data(ttl=60 * 60 * 72, show_spinner="Fetching PR metrics...")
 def fetch_pr_metrics(merged_since: date):
     return fetch_merged_pr_metrics(merged_since=merged_since)
+
+
+title_row = st.container(
+    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+)
+with title_row:
+    st.title("📊 GitHub Stats")
+    if st.button(":material/refresh: Refresh Data", type="tertiary"):
+        get_git_fame_stats.clear()
+        fetch_pr_metrics.clear()
+        fetch_merged_pr_metrics.clear()
+        get_all_github_issues.clear()
+        get_count_issues_commented_by_user.clear()
+
+st.caption("GitHub-based metrics aggregated from issue and pull request data.")
+
+contribution_metrics = st.query_params.get("contribution", None)
+selected_metrics = st.segmented_control(
+    "Metric Collection",
+    options=["Team Productivity Metrics", "Contribution Metrics"],
+    label_visibility="collapsed",
+    width="stretch",
+    default="Team Productivity Metrics"
+    if not contribution_metrics
+    else "Contribution Metrics",
+)
+
+with st.sidebar:
+    today = date.today()
+
+    since_input = st.date_input(
+        "Since",
+        value=date.fromisoformat("2022-04-01"),
+        max_value=today,
+        help="Include PRs and issues closed on or after this date.",
+    )
+    exclude_bot_prs = st.toggle("Exclude Bot PRs")
 
 
 merged_prs_df = fetch_pr_metrics(merged_since=since_input)
