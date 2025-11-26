@@ -219,6 +219,23 @@ if selected_metrics == "Contribution Metrics":
             .reset_index(drop=True)
         )
 
+        # Calculate % of others' PRs reviewed
+        total_prs = len(merged_prs_df)
+        author_counts_map = merged_prs_df["author"].value_counts().to_dict()
+
+        def calculate_percentage(row):
+            reviewer = row["reviewers"]
+            prs_reviewed = row["PRs Reviewed"]
+            prs_authored = author_counts_map.get(reviewer, 0)
+            eligible_prs = total_prs - prs_authored
+            if eligible_prs > 0:
+                return prs_reviewed / eligible_prs
+            return 0
+
+        reviewer_counts["% of Others' PRs"] = reviewer_counts.apply(
+            calculate_percentage, axis=1
+        )
+
         # Add links
         reviewer_counts["Show PRs"] = reviewer_counts["reviewers"].apply(
             lambda x: f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
@@ -232,6 +249,10 @@ if selected_metrics == "Contribution Metrics":
             column_config={
                 "reviewers": st.column_config.LinkColumn(
                     display_text="github.com/([^/]+)"
+                ),
+                "% of Others' PRs": st.column_config.NumberColumn(
+                    format="%.1f%%",
+                    help="Percentage of PRs reviewed by the user that were not authored by the user",
                 ),
                 "Show PRs": st.column_config.LinkColumn(
                     display_text=":material/open_in_new:"
