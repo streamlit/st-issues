@@ -1,14 +1,14 @@
+import io
 import json
 import zipfile
-import io
 from datetime import datetime, timedelta
 
-import pandas as pd
 import altair as alt
+import humanize
+import pandas as pd
 import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
-import humanize
 
 from app.utils.github_utils import (
     download_artifact,
@@ -600,7 +600,7 @@ with col1:
         help="Total size of all JavaScript files after Gzip compression. This is a good approximation of the download size for most users.",
         border=True,
         chart_data=sparkline_data["total_gzip"],
-        chart_type="area",
+        chart_type="line",
     )
 
     st.metric(
@@ -613,7 +613,7 @@ with col1:
         help="Size of the entry point chunks (initial load) after Gzip compression. Smaller entry size means faster initial page load.",
         border=True,
         chart_data=sparkline_data["entry_gzip"],
-        chart_type="area",
+        chart_type="line",
     )
 
 with col2:
@@ -627,7 +627,7 @@ with col2:
         help="Total size of all JavaScript files after Brotli compression. Brotli usually provides better compression than Gzip but is slower to compress.",
         border=True,
         chart_data=sparkline_data["total_brotli"],
-        chart_type="area",
+        chart_type="line",
     )
 
     st.metric(
@@ -640,7 +640,7 @@ with col2:
         help="Size of the entry point chunks (initial load) after Brotli compression.",
         border=True,
         chart_data=sparkline_data["entry_brotli"],
-        chart_type="area",
+        chart_type="line",
     )
 
 with col3:
@@ -654,7 +654,7 @@ with col3:
         help="Total size of the JavaScript code after decompression (as it exists in memory). This affects parsing and execution time in the browser.",
         border=True,
         chart_data=sparkline_data["total_parsed"],
-        chart_type="area",
+        chart_type="line",
     )
 
     st.metric(
@@ -667,7 +667,7 @@ with col3:
         help="Size of the entry point chunks after decompression.",
         border=True,
         chart_data=sparkline_data["entry_parsed"],
-        chart_type="area",
+        chart_type="line",
     )
 
 st.subheader("Asset Size Breakdown")
@@ -700,7 +700,7 @@ for col, (label, key, help_text) in zip(asset_cols_overview, asset_metric_config
             help=help_text,
             border=True,
             chart_data=sparkline_data[key],
-            chart_type="area",
+            chart_type="line",
         )
 
 
