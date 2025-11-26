@@ -94,6 +94,10 @@ def get_all_reactions(issue_numbers: list):
     return pd.concat(reactions_dfs)
 
 
+if st.sidebar.button(":material/refresh: Refresh data", width="stretch"):
+    get_all_github_issues.clear()
+
+
 # Add checkbox for showing statistics
 show_statistics = st.sidebar.checkbox("Show issue statistics", value=False)
 show_reactions_growth = st.sidebar.checkbox("Show reactions growth", value=False)
