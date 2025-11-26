@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import streamlit as st
 
 # We cannot change the script name since its not possible to change the main script on community cloud.
@@ -41,6 +42,7 @@ page = st.navigation(
             icon="📦",
         ),
         st.Page("./app/github_stats.py", title="GitHub Stats", icon="📊"),
+        st.Page("./app/bug_explorer.py", title="Bug Prioritization Explorer", icon="🐛"),
     ]
 )
 page.run()
