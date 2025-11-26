@@ -72,7 +72,13 @@ query_params = st.query_params
 pr_number = query_params.get("pr")
 
 # Page title and description
-st.title("☂️ Test Coverage (Frontend)")
+title_row = st.container(
+    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+)
+with title_row:
+    st.title("☂️ Test Coverage (Frontend)")
+    if st.button(":material/refresh: Refresh Data", type="tertiary"):
+        fetch_workflow_runs.clear()
 if pr_number is not None:
     st.caption(f"""
     Analyzing coverage for [PR #{pr_number}](https://github.com/streamlit/streamlit/pull/{pr_number})

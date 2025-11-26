@@ -11,7 +11,13 @@ from app.utils.github_utils import fetch_artifacts, fetch_workflow_runs
 
 st.set_page_config(page_title="Wheel Size", page_icon="🛞")
 
-st.title("🛞 Wheel Size")
+title_row = st.container(
+    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+)
+with title_row:
+    st.title("🛞 Wheel Size")
+    if st.button(":material/refresh: Refresh Data", type="tertiary"):
+        fetch_workflow_runs.clear()
 st.caption(
     "This page visualizes the size of wheel files created in the PR preview workflow."
 )

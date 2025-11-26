@@ -68,7 +68,14 @@ def get_issue_emoji(labels):
         return "❓"
 
 
-st.title("📊 GitHub Stats")
+title_row = st.container(
+    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+)
+with title_row:
+    st.title("📊 GitHub Stats")
+    if st.button(":material/refresh: Refresh Data", type="tertiary"):
+        fetch_merged_pr_metrics.clear()
+        get_all_github_issues.clear()
 
 st.caption("GitHub-based metrics aggregated from issue and pull request data.")
 

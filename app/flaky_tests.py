@@ -2,22 +2,27 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date, datetime
-from typing import Final
 
 import altair as alt
 import pandas as pd
 import streamlit as st
 
 from app.utils.github_utils import (
+    EXPECTED_FLAKY_TESTS,
     fetch_workflow_run_annotations,
     fetch_workflow_runs,
     fetch_workflow_runs_ids,
-    EXPECTED_FLAKY_TESTS,
 )
 
 st.set_page_config(page_title="Flaky Tests", page_icon="🧫")
 
-st.title("🧫 Flaky Tests")
+title_row = st.container(
+    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+)
+with title_row:
+    st.title("🧫 Flaky Tests")
+    if st.button(":material/refresh: Refresh Data", type="tertiary"):
+        fetch_workflow_runs.clear()
 
 workflow_runs_limit = st.sidebar.slider(
     "Number of workflow runs", min_value=100, max_value=1000, value=200, step=100
