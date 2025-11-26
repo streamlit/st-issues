@@ -3,3 +3,6 @@ showErrorDetails = true
 
 [logger]
 enableRich = true
+
+[server]
+enableStaticServing = true
