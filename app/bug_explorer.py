@@ -1,18 +1,14 @@
 import json
 import urllib.request
 from datetime import datetime
-from typing import Dict, List
+from typing import List
 
 import pandas as pd
 import streamlit as st
 
 from app.utils.github_utils import get_all_github_issues
 
-st.set_page_config(
-    page_title="Bug Prioritization",
-    page_icon="🐛",
-    layout="wide"
-)
+st.set_page_config(page_title="Bug Prioritization", page_icon="🐛", layout="wide")
 
 title_row = st.container(
     horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
@@ -22,9 +18,35 @@ with title_row:
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_all_github_issues.clear()
 
-st.caption("Explore the bugs and adapt prioritization based on the number of views, reactions, comments, and days since last updated.")\
+st.caption(
+    "Explore the bugs and adapt prioritization based on the number of views, reactions, comments, and days since last updated."
+)
+
+# Mode selection
+priority_mode = st.segmented_control(
+    "Priority Action",
+    options=[
+        ":material/arrow_cool_down: Move Priority Down",
+        ":material/arrow_warm_up: Move Priority Up",
+    ],
+    default=":material/arrow_cool_down: Move Priority Down",
+    label_visibility="collapsed",
+    width="stretch",
+)
+
+is_move_up = priority_mode == ":material/arrow_warm_up: Move Priority Up"
+
+if is_move_up:
+    st.caption(
+        "**Finding high-engagement issues** that may deserve higher priority (e.g., P3 → P2)"
+    )
+else:
+    st.caption(
+        "**Finding low-engagement issues** that may deserve lower priority (e.g., P3 → P4)"
+    )
 
 # --- Helper Functions ---
+
 
 @st.cache_data(ttl=60 * 60 * 12)  # cache for 12 hours
 def get_view_counts(issue_numbers_series: pd.Series) -> pd.Series:
@@ -70,6 +92,7 @@ def get_view_counts(issue_numbers_series: pd.Series) -> pd.Series:
     # Map the view counts back to the original series
     return issue_numbers_series.map(view_counts)
 
+
 def labels_to_type(labels: List[str]):
     if "type:enhancement" in labels:
         return "✨"
@@ -82,6 +105,7 @@ def labels_to_type(labels: List[str]):
     else:
         return "❓"
 
+
 REACTION_EMOJI = {
     "+1": "👍",
     "-1": "👎",
@@ -93,6 +117,7 @@ REACTION_EMOJI = {
     "rocket": "🚀",
 }
 
+
 def reactions_to_str(reactions):
     return " ".join(
         [
@@ -101,6 +126,7 @@ def reactions_to_str(reactions):
             if reactions.get(name, 0) > 0
         ]
     )
+
 
 # --- Data Loading ---
 
@@ -151,36 +177,58 @@ for labels in df["label_names"]:
             all_priorities.add(label)
 
 sorted_priorities = sorted(list(all_priorities))
+default_priorities = ["priority:P3"]
+# Only use defaults that exist in the available priorities
+default_priorities = [p for p in default_priorities if p in sorted_priorities]
 selected_priorities = st.sidebar.multiselect(
-    "Filter by Priority",
-    options=sorted_priorities,
-    default=["priority:P3"]
+    "Filter by Priority", options=sorted_priorities, default=default_priorities
 )
 
-# 2. Max Reactions
-max_reactions = st.sidebar.number_input(
-    "Max number of reactions",
-    min_value=0,
-    value=4,
-    step=1
-)
+# 2. Reactions Filter
+if is_move_up:
+    min_reactions = st.sidebar.number_input(
+        "Min number of reactions",
+        min_value=0,
+        value=5,
+        step=1,
+        help="Show issues with at least this many reactions",
+    )
+else:
+    max_reactions = st.sidebar.number_input(
+        "Max number of reactions", min_value=0, value=4, step=1
+    )
 
-# 3. Max Comments
-max_comments = st.sidebar.number_input(
-    "Max number of comments",
-    min_value=0,
-    value=3,
-    step=1
-)
+# 3. Comments Filter
+if is_move_up:
+    min_comments = st.sidebar.number_input(
+        "Min number of comments",
+        min_value=0,
+        value=3,
+        step=1,
+        help="Show issues with at least this many comments",
+    )
+else:
+    max_comments = st.sidebar.number_input(
+        "Max number of comments", min_value=0, value=3, step=1
+    )
 
-# 4. Min Days Since Last Updated
-min_days_since_update = st.sidebar.number_input(
-    "Min days since last updated",
-    min_value=0,
-    value=90,
-    step=1,
-    help="Show issues updated at least this many days ago"
-)
+# 4. Days Since Last Updated Filter
+if is_move_up:
+    max_days_since_update = st.sidebar.number_input(
+        "Max days since last updated",
+        min_value=0,
+        value=30,
+        step=1,
+        help="Show issues updated within this many days (recently active)",
+    )
+else:
+    min_days_since_update = st.sidebar.number_input(
+        "Min days since last updated",
+        min_value=0,
+        value=90,
+        step=1,
+        help="Show issues updated at least this many days ago",
+    )
 
 # Apply Filters (except views, which we fetch after basic filtering to save API calls)
 filtered_df = df.copy()
@@ -194,9 +242,27 @@ if selected_priorities:
 
     filtered_df = filtered_df[filtered_df["label_names"].apply(has_selected_priority)]
 
-filtered_df = filtered_df[filtered_df["total_reactions"] <= max_reactions]
-filtered_df = filtered_df[filtered_df["comments"] <= max_comments]
-filtered_df = filtered_df[filtered_df["days_since_updated"] >= min_days_since_update]
+# Apply reactions filter
+if is_move_up:
+    filtered_df = filtered_df[filtered_df["total_reactions"] >= min_reactions]
+else:
+    filtered_df = filtered_df[filtered_df["total_reactions"] <= max_reactions]
+
+# Apply comments filter
+if is_move_up:
+    filtered_df = filtered_df[filtered_df["comments"] >= min_comments]
+else:
+    filtered_df = filtered_df[filtered_df["comments"] <= max_comments]
+
+# Apply days since updated filter
+if is_move_up:
+    filtered_df = filtered_df[
+        filtered_df["days_since_updated"] <= max_days_since_update
+    ]
+else:
+    filtered_df = filtered_df[
+        filtered_df["days_since_updated"] >= min_days_since_update
+    ]
 
 # 5. Max Views (Fetch views for filtered results)
 # Fetch views only for the remaining issues to minimize API calls
@@ -206,18 +272,26 @@ if not filtered_df.empty:
 else:
     filtered_df["views"] = []
 
-# Filter by views
-# User wants to filter by Max Views. We need an input for this.
-# Range of views can be large.
-max_views_input = st.sidebar.number_input(
-    "Max number of views",
-    min_value=0,
-    value=100, # High default
-    step=1
-)
+# 5. Views Filter
+if is_move_up:
+    min_views_input = st.sidebar.number_input(
+        "Min number of views",
+        min_value=0,
+        value=100,
+        step=1,
+        help="Show issues with at least this many views",
+    )
+else:
+    max_views_input = st.sidebar.number_input(
+        "Max number of views", min_value=0, value=100, step=1
+    )
 
+# Apply views filter
 if not filtered_df.empty:
-    filtered_df = filtered_df[filtered_df["views"].fillna(0) <= max_views_input]
+    if is_move_up:
+        filtered_df = filtered_df[filtered_df["views"].fillna(0) >= min_views_input]
+    else:
+        filtered_df = filtered_df[filtered_df["views"].fillna(0) <= max_views_input]
 
 # --- Display ---
 
@@ -240,7 +314,7 @@ if not filtered_df.empty:
         "html_url",
         "assignee_avatar",
         "state",
-        "reaction_types" # Optional
+        "reaction_types",  # Optional
     ]
 
     # Configure columns
@@ -249,20 +323,24 @@ if not filtered_df.empty:
         "total_reactions": st.column_config.NumberColumn("Reactions", format="%d 🫶"),
         "views": st.column_config.NumberColumn("Views", format="%d 👁️"),
         "comments": st.column_config.NumberColumn("Comments", format="%d 💬"),
-        "days_since_updated": st.column_config.NumberColumn("Days Since Update", format="%d days"),
-        "updated_at": st.column_config.DatetimeColumn("Last Updated", format="distance"),
+        "days_since_updated": st.column_config.NumberColumn(
+            "Days Since Update", format="%d days"
+        ),
+        "updated_at": st.column_config.DatetimeColumn(
+            "Last Updated", format="distance"
+        ),
         "author_avatar": st.column_config.ImageColumn("Author"),
         "assignee_avatar": st.column_config.ImageColumn("Assignee"),
         "html_url": st.column_config.LinkColumn("Link", display_text="Open"),
         "state": "State",
-        "reaction_types": "Reaction Types"
+        "reaction_types": "Reaction Types",
     }
 
     st.dataframe(
         filtered_df[display_cols],
         column_config=column_config,
         hide_index=True,
-        use_container_width=True
+        use_container_width=True,
     )
 else:
     st.info("No issues match the current filters.")

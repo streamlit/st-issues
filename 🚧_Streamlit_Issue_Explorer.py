@@ -35,7 +35,6 @@ page = st.navigation(
             url_path="Test_Coverage_(Frontend)",
         ),
         st.Page("./app/community_prs.py", title="Community PRs", icon="👥"),
-
         st.Page("./app/spec_renderer.py", title="Spec Renderer", icon="🔧"),
         st.Page(
             "./app/frontend_bundle_analysis.py",
