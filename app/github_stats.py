@@ -94,7 +94,10 @@ def get_git_fame_stats():
     return stats
 
 
-@st.cache_data(ttl=60 * 60 * 72, show_spinner="Fetching PR metrics...")
+@st.cache_data(
+    ttl=60 * 60 * 72,
+    show_spinner="Fetching PR metrics (this may take a couple of minutes)...",
+)
 def fetch_pr_metrics(merged_since: date):
     return fetch_merged_pr_metrics(merged_since=merged_since)
 
@@ -184,10 +187,14 @@ if selected_metrics == "Contribution Metrics":
 
         author_stats["pct_total_prs"] = author_stats["prs_merged"] / total_prs * 100
         author_stats["pct_total_features"] = (
-            author_stats["merged_features"] / total_features * 100 if total_features > 0 else 0
+            author_stats["merged_features"] / total_features * 100
+            if total_features > 0
+            else 0
         )
         author_stats["pct_total_bugfixes"] = (
-            author_stats["merged_bugfixes"] / total_bugfixes * 100 if total_bugfixes > 0 else 0
+            author_stats["merged_bugfixes"] / total_bugfixes * 100
+            if total_bugfixes > 0
+            else 0
         )
 
         # Add links
@@ -224,7 +231,19 @@ if selected_metrics == "Contribution Metrics":
                 ),
             },
             hide_index=True,
-            column_order=["author", "prs_merged", "pct_total_prs", "merged_features", "pct_total_features", "merged_bugfixes", "pct_total_bugfixes", "total_loc_changes", "total_additions", "total_deletions", "Show PRs"],
+            column_order=[
+                "author",
+                "prs_merged",
+                "pct_total_prs",
+                "merged_features",
+                "pct_total_features",
+                "merged_bugfixes",
+                "pct_total_bugfixes",
+                "total_loc_changes",
+                "total_additions",
+                "total_deletions",
+                "Show PRs",
+            ],
         )
     else:
         st.info("No merged PRs found for the selected period.")
