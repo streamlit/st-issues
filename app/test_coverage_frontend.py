@@ -772,15 +772,39 @@ with st.spinner("Fetching data..."):
         st.warning("No coverage data found in the workflow runs.")
         st.stop()
 
-# Display metrics
+# Display metrics - show latest values with delta over the time period
+# df is sorted by created_at ascending, so last row is latest, first row is oldest
+latest = df.iloc[-1]
+oldest = df.iloc[0]
+
+# Calculate deltas (change from oldest to latest in the time range)
+lines_delta = latest["lines_pct"] - oldest["lines_pct"]
+functions_delta = latest["functions_pct"] - oldest["functions_pct"]
+branches_delta = latest["branches_pct"] - oldest["branches_pct"]
+
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("Average Lines Coverage", f"{df['lines_pct'].mean():.2f}%")
+    st.metric(
+        "Lines Coverage",
+        f"{latest['lines_pct']:.2f}%",
+        delta=f"{lines_delta:+.2f}%",
+        border=True,
+    )
 with col2:
-    st.metric("Average Functions Coverage", f"{df['functions_pct'].mean():.2f}%")
+    st.metric(
+        "Functions Coverage",
+        f"{latest['functions_pct']:.2f}%",
+        delta=f"{functions_delta:+.2f}%",
+        border=True,
+    )
 with col3:
-    st.metric("Average Branches Coverage", f"{df['branches_pct'].mean():.2f}%")
+    st.metric(
+        "Branches Coverage",
+        f"{latest['branches_pct']:.2f}%",
+        delta=f"{branches_delta:+.2f}%",
+        border=True,
+    )
 
 
 # Create a Plotly figure for the coverage over time

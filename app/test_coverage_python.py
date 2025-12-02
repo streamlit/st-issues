@@ -951,15 +951,41 @@ with st.spinner("Fetching data..."):
         st.warning("No coverage data found in the workflow runs.")
         st.stop()
 
-# Display metrics
+# Display metrics - show latest values with delta over the time period
+# df is sorted by created_at ascending, so last row is latest, first row is oldest
+latest = df.iloc[-1]
+oldest = df.iloc[0]
+
+# Calculate deltas (change from oldest to latest in the time range)
+coverage_delta = latest["coverage_pct"] - oldest["coverage_pct"]
+stmts_delta = latest["total_stmts"] - oldest["total_stmts"]
+miss_delta = latest["total_miss"] - oldest["total_miss"]
+
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("Average Coverage", f"{df['coverage_pct'].mean():.2f}%")
+    st.metric(
+        "Coverage",
+        f"{latest['coverage_pct']:.2f}%",
+        delta=f"{coverage_delta:+.2f}%",
+        border=True,
+    )
 with col2:
-    st.metric("Minimum Coverage", f"{df['coverage_pct'].min():.2f}%")
+    st.metric(
+        "Total Statements",
+        f"{latest['total_stmts']:,}",
+        delta=f"{stmts_delta:+,}",
+        delta_color="off",
+        border=True,
+    )
 with col3:
-    st.metric("Maximum Coverage", f"{df['coverage_pct'].max():.2f}%")
+    st.metric(
+        "Missed Statements",
+        f"{latest['total_miss']:,}",
+        delta=f"{miss_delta:+,}",
+        delta_color="inverse",
+        border=True,
+    )
 
 
 # Create a Plotly figure for the coverage over time
