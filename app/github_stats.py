@@ -325,10 +325,11 @@ if selected_metrics == "Contribution Metrics":
             selected_reviewer_url = reviewer_counts.iloc[selected_index]["reviewers"]
             selected_reviewer = selected_reviewer_url.split("/")[-1]
 
-            # Filter PRs reviewed by the selected user
+            # Filter PRs reviewed by the selected user (excluding self-authored PRs)
             # We check if the selected reviewer is in the list of reviewers for each PR
             reviewer_prs = merged_prs_df[
-                merged_prs_df["reviewers"].apply(lambda x: selected_reviewer in x)
+                (merged_prs_df["reviewers"].apply(lambda x: selected_reviewer in x))
+                & (merged_prs_df["author"] != selected_reviewer)
             ].copy()
 
             if not reviewer_prs.empty:
