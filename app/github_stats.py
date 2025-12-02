@@ -262,6 +262,11 @@ if selected_metrics == "Contribution Metrics":
         # Filter out None values if any
         reviewers_exploded = reviewers_exploded.dropna(subset=["reviewers"])
 
+        # Exclude PRs where the reviewer is also the author
+        reviewers_exploded = reviewers_exploded[
+            reviewers_exploded["reviewers"] != reviewers_exploded["author"]
+        ]
+
         # Count reviews by reviewer
         reviewer_counts = (
             reviewers_exploded.groupby("reviewers")
