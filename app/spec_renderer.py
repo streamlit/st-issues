@@ -341,7 +341,13 @@ def extract_title_and_content(markdown_content: str) -> tuple[Optional[str], str
 
 
 def main():
-    st.title("🔧 Spec Renderer")
+    title_row = st.container(
+        horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+    )
+    with title_row:
+        st.title("🔧 Spec Renderer")
+        if st.button(":material/refresh: Refresh Data", type="tertiary"):
+            get_all_github_prs.clear(state="open")
     st.markdown(
         "Read product specs from the Streamlit repo. So far only supports PRs, not merged specs."
     )
