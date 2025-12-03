@@ -289,7 +289,7 @@ def render_frontmatter_caption(frontmatter: Dict) -> None:
 
     # Add author (with link if it's a GitHub mention)
     if "author" in frontmatter:
-        author = frontmatter["author"]
+        author = frontmatter["author"].strip("\"'")  # Remove surrounding quotes
         if author.startswith("@"):
             username = author[1:]  # Remove @
             author_link = f"[@{username}](https://github.com/{username})"
