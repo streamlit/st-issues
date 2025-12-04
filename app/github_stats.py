@@ -717,7 +717,7 @@ if selected_metrics == "Contribution Metrics":
         )
 
         st.dataframe(
-            author_counts.head(15),
+            author_counts,
             column_config={
                 "author": st.column_config.LinkColumn(
                     display_text="github.com/([^/]+)"
