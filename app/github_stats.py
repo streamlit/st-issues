@@ -681,11 +681,6 @@ if selected_metrics == "Contribution Metrics":
 
     st.markdown("#### :material/contract_edit: Issue Authors")
 
-    st.caption(
-        f"GitHub users who created the most issues on `streamlit/streamlit` since {since_input.strftime('%Y/%m/%d')}. "
-        f"Total issues created: **{len(all_issues_df)}**."
-    )
-
     # Calculate top issue authors
     authors_df = all_issues_df.copy()
     authors_df["author"] = authors_df["user"].apply(
@@ -695,6 +690,11 @@ if selected_metrics == "Contribution Metrics":
 
     if since_input:
         authors_df = authors_df[authors_df["created_at"].dt.date >= since_input]
+
+    st.caption(
+        f"GitHub users who created the most issues on `streamlit/streamlit` since {since_input.strftime('%Y/%m/%d')}. "
+        f"Total issues created: **{len(authors_df)}**."
+    )
 
     if not authors_df.empty:
         author_counts = (
