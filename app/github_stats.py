@@ -130,9 +130,19 @@ selected_metrics = st.segmented_control(
 with st.sidebar:
     today = date.today()
 
+    # Get since date from query params, default to 2022-04-01
+    since_param = st.query_params.get("since", None)
+    if since_param:
+        try:
+            default_since = date.fromisoformat(since_param)
+        except ValueError:
+            default_since = date.fromisoformat("2022-04-01")
+    else:
+        default_since = date.fromisoformat("2022-04-01")
+
     since_input = st.date_input(
         "Since",
-        value=date.fromisoformat("2022-04-01"),
+        value=default_since,
         max_value=today,
         help="Include PRs and issues closed on or after this date.",
     )
