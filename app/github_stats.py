@@ -682,7 +682,8 @@ if selected_metrics == "Contribution Metrics":
     st.markdown("#### :material/contract_edit: Issue Authors")
 
     st.caption(
-        f"GitHub users who created the most issues on `streamlit/streamlit` since {since_input.strftime('%Y/%m/%d')}."
+        f"GitHub users who created the most issues on `streamlit/streamlit` since {since_input.strftime('%Y/%m/%d')}. "
+        f"Total issues created: **{len(all_issues_df)}**."
     )
 
     # Calculate top issue authors
