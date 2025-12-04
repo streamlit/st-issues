@@ -704,6 +704,10 @@ if selected_metrics == "Contribution Metrics":
             .reset_index(drop=True)
         )
 
+        # Calculate percentage of total
+        total_issues = author_counts["Issue Count"].sum()
+        author_counts["% of Total"] = author_counts["Issue Count"] / total_issues * 100
+
         # Add links
         author_counts["Show Issues"] = author_counts["author"].apply(
             lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue+author%3A{x}"
@@ -719,11 +723,13 @@ if selected_metrics == "Contribution Metrics":
                     display_text="github.com/([^/]+)"
                 ),
                 "Issue Count": st.column_config.NumberColumn(format="%d 📝"),
+                "% of Total": st.column_config.NumberColumn(format="%.1f%%"),
                 "Show Issues": st.column_config.LinkColumn(
                     display_text=":material/open_in_new:"
                 ),
             },
             hide_index=True,
+            column_order=["author", "Issue Count", "% of Total", "Show Issues"],
         )
     else:
         st.info("No issue authors found.")
@@ -1097,9 +1103,6 @@ elif selected_metrics == "Team Productivity Metrics":
 
     # --- Issue Metrics ---
     st.markdown("##### :material/problem: Issue Metrics")
-    st.caption(
-        f"Metrics based on issues from `streamlit/streamlit` since {since_input.strftime('%Y/%m/%d')}."
-    )
 
     # Prepare Issue Data
     # Reuse all_issues_df calculated previously if possible, but it's inside the other block.
@@ -1131,6 +1134,11 @@ elif selected_metrics == "Team Productivity Metrics":
 
         total_created = len(created_in_period)
         total_closed = len(closed_in_period)
+
+        st.caption(
+            f"Metrics based on issues from `streamlit/streamlit` since {since_input.strftime('%Y/%m/%d')}. "
+            f"Total issues created: **{total_created}**."
+        )
 
         # Calculate Time to Close for issues closed in the period
         closed_in_period = closed_in_period.copy()  # Avoid SettingWithCopyWarning
