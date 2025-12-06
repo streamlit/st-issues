@@ -783,6 +783,134 @@ if selected_metrics == "Contribution Metrics":
     else:
         st.info("No data found for team members.")
 
+    st.markdown("#### :material/person: Team Member Timeline")
+    st.caption("View individual timeline metrics for Streamlit team members.")
+
+    # Select a team member
+    selected_member = st.selectbox(
+        "Select Team Member",
+        options=STREAMLIT_TEAM_MEMBERS,
+        index=0,
+        format_func=lambda x: f"@{x}",
+    )
+
+    if selected_member and not merged_prs_df.empty:
+        # Filter PRs for the selected member
+        member_prs_df = merged_prs_df[merged_prs_df["author"] == selected_member].copy()
+
+        if not member_prs_df.empty:
+            # Prepare monthly data
+            member_prs_df["merge_month"] = (
+                member_prs_df["merge_date"].dt.to_period("M").dt.to_timestamp()
+            )
+
+            # Calculate feature and bugfix flags if not already present
+            if "is_feature" not in member_prs_df.columns:
+                member_prs_df["is_feature"] = member_prs_df["labels"].apply(
+                    lambda labels: 1
+                    if "change:feature" in labels and "impact:users" in labels
+                    else 0
+                )
+            if "is_bugfix" not in member_prs_df.columns:
+                member_prs_df["is_bugfix"] = member_prs_df["labels"].apply(
+                    lambda labels: 1
+                    if "change:bugfix" in labels and "impact:users" in labels
+                    else 0
+                )
+
+            # Monthly stats for the member
+            member_monthly_stats = (
+                member_prs_df.groupby("merge_month")
+                .agg(
+                    merged_prs=("pr_number", "count"),
+                    total_additions=("additions", "sum"),
+                    total_deletions=("deletions", "sum"),
+                    merged_features=("is_feature", "sum"),
+                    merged_bugfixes=("is_bugfix", "sum"),
+                )
+                .reset_index()
+                .rename(
+                    columns={
+                        "merge_month": "Date",
+                        "merged_prs": "Merged PRs",
+                        "total_additions": "Additions",
+                        "total_deletions": "Deletions",
+                        "merged_features": "Features",
+                        "merged_bugfixes": "Bugfixes",
+                    }
+                )
+            )
+
+            # Display summary metrics
+            total_member_prs = len(member_prs_df)
+            total_member_loc = member_prs_df["loc_changes"].sum()
+            total_member_features = member_prs_df["is_feature"].sum()
+            total_member_bugfixes = member_prs_df["is_bugfix"].sum()
+
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Merged PRs", total_member_prs, border=True)
+            col2.metric("Total LOC Changed", f"{total_member_loc:,}", border=True)
+            col3.metric("Features", int(total_member_features), border=True)
+            col4.metric("Bugfixes", int(total_member_bugfixes), border=True)
+
+            # Tabs for timeline charts
+            member_tab1, member_tab2, member_tab3 = st.tabs(
+                ["Merged PRs over Time", "LOC Changes over Time", "PR Types over Time"]
+            )
+
+            with member_tab1:
+                fig_member_prs = px.bar(
+                    member_monthly_stats,
+                    x="Date",
+                    y="Merged PRs",
+                    title=f"Monthly Merged PRs by @{selected_member}",
+                )
+                st.plotly_chart(fig_member_prs, use_container_width=True)
+
+            with member_tab2:
+                # Melt for LOC chart
+                member_loc_melted = member_monthly_stats.melt(
+                    id_vars="Date",
+                    value_vars=["Additions", "Deletions"],
+                    var_name="Type",
+                    value_name="Lines",
+                )
+
+                fig_member_loc = px.bar(
+                    member_loc_melted,
+                    x="Date",
+                    y="Lines",
+                    color="Type",
+                    title=f"Monthly LOC Changes by @{selected_member}",
+                    color_discrete_map={"Additions": "#28a745", "Deletions": "#dc3545"},
+                )
+                st.plotly_chart(fig_member_loc, use_container_width=True)
+
+            with member_tab3:
+                # Melt for Types chart
+                member_types_melted = member_monthly_stats.melt(
+                    id_vars="Date",
+                    value_vars=["Features", "Bugfixes"],
+                    var_name="Type",
+                    value_name="Count",
+                )
+
+                fig_member_types = px.bar(
+                    member_types_melted,
+                    x="Date",
+                    y="Count",
+                    color="Type",
+                    title=f"Monthly Features vs Bugfixes by @{selected_member}",
+                    barmode="group",
+                )
+                st.plotly_chart(fig_member_types, use_container_width=True)
+        else:
+            st.info(
+                f"No merged PRs found for @{selected_member} in the selected period."
+            )
+    elif merged_prs_df.empty:
+        st.info("No merged PRs found for the selected period.")
+
     st.markdown("#### :material/donut_small: Surviving Lines of Code")
 
     stats = get_git_fame_stats()
