@@ -841,21 +841,39 @@ if selected_metrics == "Contribution Metrics":
                 )
             )
 
+            # Calculate weekly stats for the member
+            member_prs_df["merge_week"] = (
+                member_prs_df["merge_date"].dt.to_period("W").dt.to_timestamp()
+            )
+            member_weekly_stats = (
+                member_prs_df.groupby("merge_week")
+                .agg(merged_prs=("pr_number", "count"))
+                .reset_index()
+                .rename(columns={"merge_week": "Week", "merged_prs": "Merged PRs"})
+            )
+
             # Display summary metrics
             total_member_prs = len(member_prs_df)
             total_member_loc = member_prs_df["loc_changes"].sum()
             total_member_features = member_prs_df["is_feature"].sum()
             total_member_bugfixes = member_prs_df["is_bugfix"].sum()
+            avg_weekly_prs = member_weekly_stats["Merged PRs"].mean()
 
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             col1.metric("Merged PRs", total_member_prs, border=True)
             col2.metric("Total LOC Changed", f"{total_member_loc:,}", border=True)
             col3.metric("Features", int(total_member_features), border=True)
             col4.metric("Bugfixes", int(total_member_bugfixes), border=True)
+            col5.metric("Avg Weekly PRs", f"{avg_weekly_prs:.1f}", border=True)
 
             # Tabs for timeline charts
-            member_tab1, member_tab2, member_tab3 = st.tabs(
-                ["Merged PRs over Time", "LOC Changes over Time", "PR Types over Time"]
+            member_tab1, member_tab2, member_tab3, member_tab4 = st.tabs(
+                [
+                    "Merged PRs over Time",
+                    "Weekly PRs Trend",
+                    "LOC Changes over Time",
+                    "PR Types over Time",
+                ]
             )
 
             with member_tab1:
@@ -868,6 +886,25 @@ if selected_metrics == "Contribution Metrics":
                 st.plotly_chart(fig_member_prs, use_container_width=True)
 
             with member_tab2:
+                # Line chart for weekly PRs trend
+                fig_weekly_prs = px.line(
+                    member_weekly_stats,
+                    x="Week",
+                    y="Merged PRs",
+                    title=f"Weekly Merged PRs by @{selected_member}",
+                    markers=True,
+                )
+                # Add a horizontal line for the average
+                fig_weekly_prs.add_hline(
+                    y=avg_weekly_prs,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text=f"Avg: {avg_weekly_prs:.1f}",
+                    annotation_position="top right",
+                )
+                st.plotly_chart(fig_weekly_prs, use_container_width=True)
+
+            with member_tab3:
                 # Melt for LOC chart
                 member_loc_melted = member_monthly_stats.melt(
                     id_vars="Date",
@@ -886,7 +923,7 @@ if selected_metrics == "Contribution Metrics":
                 )
                 st.plotly_chart(fig_member_loc, use_container_width=True)
 
-            with member_tab3:
+            with member_tab4:
                 # Melt for Types chart
                 member_types_melted = member_monthly_stats.melt(
                     id_vars="Date",
