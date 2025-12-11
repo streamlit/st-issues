@@ -14,7 +14,6 @@ from app.utils.github_utils import (
     validate_issue_number,
 )
 from app.utils.interrupt_data import (
-    get_bug_metrics,
     get_bundle_size_metrics,
     get_community_prs_ready_for_review,
     get_confirmed_bugs_without_repro_script,
@@ -169,16 +168,6 @@ with col2:
         delta_color="inverse",
         border=True,
         help="Size of the entry point chunks (initial load) after Gzip compression.",
-    )
-with col3:
-    open_bugs, closed_bugs_in_period = get_bug_metrics(since)
-    st.metric(
-        "Open Bugs",
-        open_bugs,
-        f"-{closed_bugs_in_period} closed",
-        delta_color="inverse",
-        border=True,
-        help="Total number of open bug issues. Delta shows bugs closed in the selected timeframe.",
     )
 
 with st.expander("**🔄 Helpful Processes**"):
