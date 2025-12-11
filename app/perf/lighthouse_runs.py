@@ -8,7 +8,10 @@ import streamlit as st
 
 from app.perf import lighthouse_interpreting_results, lighthouse_writing_a_test
 from app.perf.utils.artifacts import get_artifact_results
-from app.perf.utils.github import get_commit_hashes_for_branch_name, read_json_files
+from app.perf.utils.perf_github_artifacts import (
+    get_commit_hashes_for_branch_name,
+    read_json_files,
+)
 from app.perf.utils.tab_nav import segmented_tabs
 
 TITLE = "Streamlit Performance - Lighthouse"
@@ -44,12 +47,12 @@ if token is None:
 
 @st.cache_data
 def get_commits(branch_name: str, token: str, limit: int = 20):
-    return get_commit_hashes_for_branch_name(branch_name, token=token, limit=limit)
+    return get_commit_hashes_for_branch_name(branch_name, limit=limit)
 
 
 @st.cache_data
 def get_lighthouse_results(hash: str) -> Optional[str]:
-    return get_artifact_results(hash, token, "lighthouse")
+    return get_artifact_results(hash, "lighthouse")
 
 
 commit_hashes = get_commits("develop", token)

@@ -11,9 +11,7 @@ from app.perf import (
     playwright_writing_a_test,
 )
 from app.perf.utils.artifacts import get_artifact_results
-from app.perf.utils.github import (
-    get_commit_hashes_for_branch_name,
-)
+from app.perf.utils.perf_github_artifacts import get_commit_hashes_for_branch_name
 from app.perf.utils.help_text import get_help_text
 from app.perf.utils.tab_nav import segmented_tabs
 from app.perf.utils.test_diff_analyzer import (
@@ -59,13 +57,13 @@ def get_commits(
     branch_name: str, token: str, until_date: Optional[str] = None, limit: int = 20
 ):
     return get_commit_hashes_for_branch_name(
-        branch_name, token=token, limit=limit, until_date=until_date
+        branch_name, limit=limit, until_date=until_date
     )
 
 
 @st.cache_data
 def get_everything_by_hash(hash: str):
-    return get_artifact_results(hash, token, "playwright")
+    return get_artifact_results(hash, "playwright")
 
 
 selected_test_param = st.query_params.get("test")

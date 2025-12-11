@@ -1,4 +1,4 @@
-from app.perf.utils.github import (
+from app.perf.utils.perf_github_artifacts import (
     download_artifact_for_run,
     extract_run_id_from_url,
     get_artifact_dir_for_run,
@@ -8,7 +8,7 @@ from app.perf.utils.github import (
 )
 
 
-def get_artifact_results(hash: str, token: str, artifact_type: str):
+def get_artifact_results(hash: str, artifact_type: str):
     """
     Retrieve the artifact results for a given commit hash from GitHub.
 
@@ -22,7 +22,7 @@ def get_artifact_results(hash: str, token: str, artifact_type: str):
                Returns (None, None) if no artifact is found or the build is not completed.
                Returns ("", "") if the artifact run status is not completed.
     """
-    build_data = get_build_from_github(hash, token=token)
+    build_data = get_build_from_github(hash)
 
     if build_data is None:
         return None, None
@@ -43,7 +43,7 @@ def get_artifact_results(hash: str, token: str, artifact_type: str):
         return None, None
 
     run_directory = get_artifact_dir_for_run(run_id)
-    download_artifact_for_run(run_id, run_directory, token)
+    download_artifact_for_run(run_id, run_directory)
 
     artifact_directory = get_directories_by_type(run_id).get(artifact_type)
 

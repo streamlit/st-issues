@@ -2,10 +2,10 @@ from datetime import datetime
 
 import altair as alt
 import pandas as pd
-import requests
 import streamlit as st
 
-from app.perf.utils.github import get_headers, process_artifact
+from app.perf.utils.perf_github_artifacts import process_artifact
+from app.utils.github_utils import fetch_artifacts
 
 TITLE = "Streamlit Performance - Single Lighthouse Run"
 
@@ -41,15 +41,13 @@ if st.session_state.run_id is None or st.session_state.run_id == "":
 
 @st.cache_data
 def get_and_extract_performance_for_run(run_id):
-    artifacts_url = f"https://api.github.com/repos/streamlit/streamlit/actions/runs/{run_id}/artifacts"
-    response = requests.get(artifacts_url, headers=get_headers(token))
-    artifacts = response.json()
+    artifacts = {"artifacts": fetch_artifacts(int(run_id))}
 
     performance_scores = {}
 
     for artifact in artifacts["artifacts"]:
         if artifact["name"].startswith("performance_lighthouse"):
-            process_artifact(performance_scores, artifact, token)
+            process_artifact(performance_scores, artifact)
 
     return performance_scores
 

@@ -9,7 +9,7 @@ import streamlit as st
 
 from app.perf import pytest_interpreting_results, pytest_writing_a_test
 from app.perf.utils.artifacts import get_artifact_results
-from app.perf.utils.github import (
+from app.perf.utils.perf_github_artifacts import (
     get_commit_hashes_for_branch_name,
     remove_artifact_directory,
 )
@@ -49,12 +49,12 @@ if token is None:
 
 @st.cache_data
 def get_commits(branch_name: str, token: str, limit: int = 20):
-    return get_commit_hashes_for_branch_name(branch_name, token=token, limit=limit)
+    return get_commit_hashes_for_branch_name(branch_name, limit=limit)
 
 
 @st.cache_data
 def get_pytest_results(hash: str) -> Optional[str]:
-    return get_artifact_results(hash, token, "pytest")
+    return get_artifact_results(hash, "pytest")
 
 
 commit_hashes = get_commits("develop", token)
