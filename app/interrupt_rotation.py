@@ -362,7 +362,7 @@ else:
 st.divider()
 
 st.subheader(
-    "Community feature PRs needing product approval",
+    "Community feature PRs needing product approval labels",
     help="""
 Feature PRs from community (`change:feature` and `impact:users`) need to be labeled with:
 - `status:needs-product-approval`: Marks the PR to need a review from product before technical review.
