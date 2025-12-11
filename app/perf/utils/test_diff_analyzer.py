@@ -14,11 +14,11 @@
 
 import sys
 import warnings
-from typing import Dict, List, TypedDict
+from typing import Dict, Iterable, List, TypedDict
 
 from scipy import stats  # type: ignore
 
-from .perf_traces import load_files
+from .perf_traces import LoadFilesOutput, load_files, load_files_from_dicts
 from .test_run_utils import get_stable_test_name
 from .types import CalculatedPhases
 
@@ -85,6 +85,24 @@ def process_test_results_directory(
     """
 
     load_files_output = load_files(directory)
+    return process_test_results_load_files_output(
+        load_files_output, load_all_metrics=load_all_metrics
+    )
+
+
+def process_test_results_files(
+    files: Iterable[tuple[str, dict]], load_all_metrics: bool = False
+) -> ProcessTestDirectoryOutput:
+    """In-memory variant of `process_test_results_directory()`."""
+    load_files_output = load_files_from_dicts(files)
+    return process_test_results_load_files_output(
+        load_files_output, load_all_metrics=load_all_metrics
+    )
+
+
+def process_test_results_load_files_output(
+    load_files_output: LoadFilesOutput, *, load_all_metrics: bool = False
+) -> ProcessTestDirectoryOutput:
     filenames = load_files_output["filenames"]
     all_phases = load_files_output["all_phases"]
     all_long_animation_frames = load_files_output["all_long_animation_frames"]

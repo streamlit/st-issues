@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from datetime import date
-from typing import Any, Dict, Final, List, Literal, Optional
+import json
 import urllib.parse
+from datetime import date
+from io import BytesIO
+from typing import Any, Dict, Final, Iterator, List, Literal, Optional, Tuple
+from zipfile import ZipFile
 
 import requests
 import streamlit as st
@@ -481,6 +484,49 @@ def download_artifact(artifact_url: str) -> Optional[bytes]:
     except Exception as e:
         st.error(f"Error downloading artifact: {e}")
         return None
+
+
+def zip_namelist(zip_bytes: bytes) -> List[str]:
+    """Return the list of member names from a zip blob (in-memory)."""
+    with ZipFile(BytesIO(zip_bytes)) as z:
+        return z.namelist()
+
+
+def iter_json_from_zip_bytes(
+    zip_bytes: bytes, *, prefix: str | None = None, root_only: bool = False
+) -> Iterator[Tuple[str, Any]]:
+    """
+    Iterate JSON files within a zip blob (in-memory).
+
+    Args:
+        zip_bytes: Raw zip bytes.
+        prefix: If provided, only consider members starting with this prefix.
+        root_only: If True, only consider members at the zip root (no '/' in name).
+
+    Yields:
+        (member_name, parsed_json)
+    """
+    with ZipFile(BytesIO(zip_bytes)) as z:
+        for name in z.namelist():
+            if name.endswith("/"):
+                continue
+            if prefix is not None and not name.startswith(prefix):
+                continue
+            if root_only and "/" in name:
+                continue
+            if not name.endswith(".json"):
+                continue
+            with z.open(name) as f:
+                yield name, json.load(f)
+
+
+def first_json_from_zip_bytes(
+    zip_bytes: bytes, *, prefix: str | None = None
+) -> Optional[Tuple[str, Any]]:
+    """Return the first JSON member from a zip blob, optionally under a prefix."""
+    for name, payload in iter_json_from_zip_bytes(zip_bytes, prefix=prefix):
+        return name, payload
+    return None
 
 
 def fetch_pr_info(pr_number: str) -> Optional[Dict[str, Any]]:

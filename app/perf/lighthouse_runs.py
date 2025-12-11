@@ -9,9 +9,8 @@ import streamlit as st
 from app.perf import lighthouse_interpreting_results, lighthouse_writing_a_test
 from app.perf.utils.artifacts import get_artifact_results
 from app.perf.utils.perf_github_artifacts import (
+    append_to_performance_scores,
     get_commit_hashes_for_branch_name,
-    prune_artifacts_directory,
-    read_json_files,
 )
 from app.perf.utils.tab_nav import segmented_tabs
 
@@ -52,7 +51,7 @@ def get_commits(branch_name: str, limit: int = 20):
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_lighthouse_results(hash: str) -> Optional[str]:
+def get_lighthouse_results(hash: str):
     return get_artifact_results(hash, "lighthouse")
 
 
@@ -60,11 +59,7 @@ commit_hashes = get_commits("develop")
 
 directories: List[str] = []
 timestamps: List[str] = []
-
-# Prune right before we fan out to download N artifacts.
-pruned_count = prune_artifacts_directory(max_age_days=7)
-if pruned_count:
-    print(f"Pruned {pruned_count} artifact directories older than 7 days.")
+scores_by_run: list[dict[str, float]] = []
 
 # Download all the artifacts for the performance runs in parallel
 with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -75,28 +70,30 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
     for future in concurrent.futures.as_completed(futures):
         result = future.result()
 
-        directory, timestamp = result
+        scores, timestamp = result
 
-        if not directory or not timestamp:
+        if not scores or not timestamp:
             continue
 
-        directories.append(directory)
+        scores_by_run.append(scores)
         timestamps.append(timestamp)
 
 # Guard: no data found
-if not directories:
+if not scores_by_run:
     st.info("No Lighthouse artifacts found for the selected commits.")
     st.stop()
 
-# Sort directories and timestamps based on timestamps
-sorted_directories_timestamps = sorted(zip(directories, timestamps), key=lambda x: x[1])
-directories, timestamps = zip(*sorted_directories_timestamps)
+# Sort scores and timestamps based on timestamps
+sorted_scores_timestamps = sorted(
+    zip(scores_by_run, timestamps), key=lambda x: x[1]
+)
+scores_by_run, timestamps = zip(*sorted_scores_timestamps)
 
 performance_scores = {}
 
-for idx, directory in enumerate(directories):
-    # Process the artifact directory to extract performance scores
-    read_json_files(performance_scores, timestamps[idx], directory)
+for idx, scores in enumerate(scores_by_run):
+    for app_name, score in scores.items():
+        append_to_performance_scores(performance_scores, timestamps[idx], app_name, score)
 
 
 # Convert performance_scores to a DataFrame

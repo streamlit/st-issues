@@ -41,7 +41,7 @@ def render_metrics_explorer() -> None:
     }
 
 
-    @st.cache_data
+    @st.cache_data(ttl=60 * 60 * 12)
     def get_json_data(the_file):
         return json.load(the_file)
 
@@ -49,7 +49,7 @@ def render_metrics_explorer() -> None:
     data = get_json_data(json_file)
 
 
-    @st.cache_data
+    @st.cache_data(ttl=60 * 60 * 12)
     def get_gantt_data(the_data):
         timestamp_parsed = datetime.datetime.strptime(
             json_file.name.split("_")[0], "%Y%m%d%H%M%S"

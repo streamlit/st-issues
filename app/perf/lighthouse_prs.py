@@ -16,7 +16,7 @@ if token is None:
     st.stop()
 
 
-@st.cache_data
+@st.cache_data(ttl=60 * 60 * 12)
 def get_all_prs():
     prs = get_all_github_prs(state="open")
     return [
@@ -29,7 +29,7 @@ def get_all_prs():
 all_prs = get_all_prs()
 
 
-@st.cache_data
+@st.cache_data(ttl=60 * 60 * 12)
 def cached_get_workflow_run_id(pr_ref):
     return get_workflow_run_id(pr_ref, "Performance - Lighthouse")
 

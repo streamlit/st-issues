@@ -14,12 +14,13 @@
 
 import json
 import os
-from typing import Dict, List, Optional, TypedDict
+from typing import Dict, Iterable, List, Optional, Tuple, TypedDict
 
 from .types import (
     CalculatedPhases,
     CapturedTraces,
     LongAnimationFrame,
+    Metric,
     Profile,
 )
 
@@ -220,7 +221,55 @@ class LoadFilesOutput(TypedDict):
     filenames: List[str]
     all_phases: List[Dict[str, CalculatedPhases]]
     all_long_animation_frames: List[float]
+    all_metrics: List[List[Metric]]
     first_mount_time: Optional[float]
+
+
+def load_files_from_dicts(
+    files: Iterable[Tuple[str, Dict]],
+) -> LoadFilesOutput:
+    """
+    In-memory variant of `load_files()`.
+
+    This accepts already-parsed JSON dicts (e.g. from an artifact zip) and returns
+    the same output shape as `load_files()`, without any filesystem access.
+    """
+    filenames: List[str] = []
+    all_phases: List[Dict[str, CalculatedPhases]] = []
+    all_long_animation_frames: List[float] = []
+    first_mount_time: Optional[float] = None
+    all_metrics: List[List[Metric]] = []
+
+    for filename, file_content in files:
+        phases = calculate_phases_for_all_profiles(file_content)
+
+        # Find first mount time before calculating animation frames
+        profiles = file_content["capturedTraces"].get("profiles", {})
+        for profile_data in profiles.values():
+            for entry in profile_data.get("entries", []):
+                if entry["phase"] == "mount":
+                    entry_time = entry.get("startTime", None)
+                    if entry_time is not None:
+                        if first_mount_time is None or entry_time < first_mount_time:
+                            first_mount_time = entry_time
+
+        # Now sum animation frames with the mount time filter
+        long_animation_frames_sum = sum_long_animation_frames(
+            file_content, first_mount_time
+        )
+
+        filenames.append(filename)
+        all_phases.append(phases)
+        all_metrics.append(file_content.get("metrics", []))
+        all_long_animation_frames.append(long_animation_frames_sum)
+
+    return {
+        "filenames": filenames,
+        "all_phases": all_phases,
+        "all_long_animation_frames": all_long_animation_frames,
+        "first_mount_time": first_mount_time,
+        "all_metrics": all_metrics,
+    }
 
 
 def load_files(

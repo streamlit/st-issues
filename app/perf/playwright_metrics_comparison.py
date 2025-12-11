@@ -15,7 +15,7 @@ st.set_page_config(page_title=TITLE)
 st.header(TITLE)
 
 
-@st.cache_data
+@st.cache_data(ttl=60 * 60 * 12)
 def get_metrics_data(all_phases, file_1_calculations, file_2_calculations):
     # Create a DataFrame for the metrics
     metrics_data = {

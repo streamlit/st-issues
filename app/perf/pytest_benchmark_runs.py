@@ -1,6 +1,4 @@
 import concurrent.futures
-import json
-from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
@@ -9,11 +7,7 @@ import streamlit as st
 
 from app.perf import pytest_interpreting_results, pytest_writing_a_test
 from app.perf.utils.artifacts import get_artifact_results
-from app.perf.utils.perf_github_artifacts import (
-    get_commit_hashes_for_branch_name,
-    prune_artifacts_directory,
-    remove_artifact_directory,
-)
+from app.perf.utils.perf_github_artifacts import get_commit_hashes_for_branch_name
 from app.perf.utils.pytest_types import OutputJson
 from app.perf.utils.tab_nav import segmented_tabs
 
@@ -54,7 +48,7 @@ def get_commits(branch_name: str, limit: int = 50):
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_pytest_results(hash: str) -> Optional[str]:
+def get_pytest_results(hash: str):
     return get_artifact_results(hash, "pytest")
 
 
@@ -63,11 +57,7 @@ commit_hashes = get_commits("develop")
 
 directories: List[str] = []
 timestamps: List[str] = []
-
-# Prune right before we fan out to download N artifacts.
-pruned_count = prune_artifacts_directory(max_age_days=7)
-if pruned_count:
-    print(f"Pruned {pruned_count} artifact directories older than 7 days.")
+results_by_run: list[OutputJson] = []
 
 # Download all the artifacts for the performance runs in parallel
 with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -75,64 +65,51 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
     for future in concurrent.futures.as_completed(futures):
         result = future.result()
 
-        directory, timestamp = result
+        results, timestamp = result
 
-        if not directory or not timestamp:
+        if not results or not timestamp:
             continue
 
-        directories.append(directory)
+        results_by_run.append(results)
         timestamps.append(timestamp)
 
 # Guard: no data found
-if not directories:
+if not results_by_run:
     st.info("No Pytest benchmark artifacts found for the selected commits.")
     st.stop()
 
-# Sort directories and timestamps based on timestamps
-sorted_directories_timestamps = sorted(zip(directories, timestamps), key=lambda x: x[1])
-directories, timestamps = zip(*sorted_directories_timestamps)
+# Sort results and timestamps based on timestamps
+sorted_results_timestamps = sorted(
+    zip(results_by_run, timestamps), key=lambda x: x[1]
+)
+results_by_run, timestamps = zip(*sorted_results_timestamps)
 
 
 all_tests = set()
 processed_results = {}
 benchmark_data = []
 
-for directory in directories:
-    # Pytest-benchmark stores results in a file that is named
-    # <ID>_<hash>_<timestamp>.json. Since we don't have control over the name of
-    # it, but we know there is only 1 file in the directory, we read the first
-    # json file in the directory
-    json_file = next(
-        (f for f in Path(directory).iterdir() if f.suffix == ".json"), None
-    )
+for results in results_by_run:
+    for test in results["benchmarks"]:
+        all_tests.add(test["name"])
 
-    if json_file is None:
-        continue
+        if test["name"] not in processed_results:
+            processed_results[test["name"]] = test["stats"]
 
-    with open(json_file, encoding="utf-8") as f:
-        results: OutputJson = json.load(f)
-
-        for test in results["benchmarks"]:
-            all_tests.add(test["name"])
-
-            if test["name"] not in processed_results:
-                processed_results[test["name"]] = test["stats"]
-
-            benchmark_data.append(
-                {
-                    "test_name": test["name"],
-                    "directory": directory,
-                    "min": test["stats"]["min"],
-                    "max": test["stats"]["max"],
-                    "mean": test["stats"]["mean"],
-                    "stddev": test["stats"]["stddev"],
-                    "median": test["stats"]["median"],
-                    "iqr": test["stats"]["iqr"],
-                    "q1": test["stats"]["q1"],
-                    "q3": test["stats"]["q3"],
-                    "iterations": test["stats"]["iterations"],
-                }
-            )
+        benchmark_data.append(
+            {
+                "test_name": test["name"],
+                "min": test["stats"]["min"],
+                "max": test["stats"]["max"],
+                "mean": test["stats"]["mean"],
+                "stddev": test["stats"]["stddev"],
+                "median": test["stats"]["median"],
+                "iqr": test["stats"]["iqr"],
+                "q1": test["stats"]["q1"],
+                "q3": test["stats"]["q3"],
+                "iterations": test["stats"]["iterations"],
+            }
+        )
 
 df = pd.DataFrame(benchmark_data)
 
@@ -166,7 +143,6 @@ def force_refresh():
 
 
 def clear_artifacts():
-    remove_artifact_directory()
     get_commits.clear()
     get_pytest_results.clear()
 

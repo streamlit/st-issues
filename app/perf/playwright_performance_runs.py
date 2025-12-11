@@ -14,12 +14,10 @@ from app.perf.utils.artifacts import get_artifact_results
 from app.perf.utils.help_text import get_help_text
 from app.perf.utils.perf_github_artifacts import (
     get_commit_hashes_for_branch_name,
-    prune_artifacts_directory,
 )
 from app.perf.utils.tab_nav import segmented_tabs
 from app.perf.utils.test_diff_analyzer import (
     find_and_remove_outliers,
-    process_test_results_directory,
 )
 
 TITLE = "Streamlit Performance - Playwright"
@@ -65,8 +63,8 @@ def get_commits(
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_everything_by_hash(hash: str):
-    return get_artifact_results(hash, "playwright")
+def get_everything_by_hash(hash: str, load_all_metrics: bool):
+    return get_artifact_results(hash, "playwright", load_all_metrics=load_all_metrics)
 
 
 selected_test_param = st.query_params.get("test")
@@ -109,19 +107,14 @@ commit_hashes = get_commits(
     "develop", until_date=selected_date.isoformat() if selected_date else None
 )
 
-directories: list[str] = []
+run_results: list[dict] = []
 timestamps: list[str] = []
-
-# Prune right before we fan out to download N artifacts.
-pruned_count = prune_artifacts_directory(max_age_days=7)
-if pruned_count:
-    print(f"Pruned {pruned_count} artifact directories older than 7 days.")
 
 # Download all the artifacts for the Playwright performance runs in parallel
 with concurrent.futures.ThreadPoolExecutor() as executor:
     # Create futures with their corresponding indices and hashes
     future_mapping = {
-        executor.submit(get_everything_by_hash, hash): (i, hash)
+        executor.submit(get_everything_by_hash, hash, load_all_metrics): (i, hash)
         for i, hash in enumerate(commit_hashes)
     }
 
@@ -131,35 +124,33 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
     # Process futures as they complete
     for future in concurrent.futures.as_completed(future_mapping):
         idx, hash = future_mapping[future]
-        directory, timestamp = future.result()
+        results, timestamp = future.result()
 
         if (
-            directory == ""
+            results == ""
             and timestamp == ""
-            or directory is None
+            or results is None
             or timestamp is None
         ):
             continue
 
-        ordered_artifacts.append((idx, directory, timestamp, hash))
+        ordered_artifacts.append((idx, results, timestamp, hash))
 
 # Sort first by timestamp and maintain original order as secondary sort key
 ordered_artifacts.sort(key=lambda x: (x[2], x[0]))
 # Unpack sorted artifacts, discarding the index used for ordering
-_, directories, timestamps, commit_hashes = (
+_, run_results, timestamps, commit_hashes = (
     zip(*ordered_artifacts) if ordered_artifacts else ([], [], [], [])
 )
 
 all_tests = set()
 all_metric_names = set()
 
-processed_results = {}
+processed_results: dict[str, dict] = {}
 
-for directory in directories:
-    res = process_test_results_directory(directory, load_all_metrics)
+for commit_hash, res in zip(commit_hashes, run_results):
     res = find_and_remove_outliers(res)
-
-    processed_results[directory] = res
+    processed_results[commit_hash] = res
 
     for test_name in res.keys():
         all_tests.add(test_name)
@@ -227,7 +218,7 @@ grid = st.container(horizontal=True, gap="medium")
 for idx, metric_name in enumerate(filtered_test_names):
     data = []
     total_points = len(processed_results)
-    for directory_idx, (directory, results) in enumerate(processed_results.items()):
+    for directory_idx, (_, results) in enumerate(processed_results.items()):
         for test_name, tests in results.items():
             if metric_name in [f"{test_name}.{t}" for t in tests.keys()]:
                 test_result = tests[metric_name.split(".")[1]]
