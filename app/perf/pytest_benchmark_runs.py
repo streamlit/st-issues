@@ -49,7 +49,7 @@ if token is None:
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_commits(branch_name: str, limit: int = 20):
+def get_commits(branch_name: str, limit: int = 50):
     return get_commit_hashes_for_branch_name(branch_name, limit=limit)
 
 
