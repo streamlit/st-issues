@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import time
 import zipfile
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -16,6 +17,61 @@ from app.utils.github_utils import fetch_artifacts, get_headers
 this_file_directory = os.path.dirname(os.path.realpath(__file__))
 artifact_directory = os.path.abspath(os.path.join(this_file_directory, "../../artifacts"))
 
+_DEFAULT_ARTIFACT_PRUNE_DAYS = 7
+
+
+def _safe_extract_zip(zip_ref: zipfile.ZipFile, extract_to: str) -> None:
+    """
+    Extract a zip file safely to prevent Zip Slip (path traversal).
+    """
+    extract_to_real = os.path.realpath(extract_to)
+    for member in zip_ref.infolist():
+        member_name = member.filename
+        # Zip files can contain absolute paths or ".." components.
+        if os.path.isabs(member_name):
+            raise ValueError(f"Unsafe zip member path (absolute): {member_name}")
+
+        dest_path = os.path.realpath(os.path.join(extract_to_real, member_name))
+        if not (dest_path == extract_to_real or dest_path.startswith(extract_to_real + os.sep)):
+            raise ValueError(f"Unsafe zip member path (traversal): {member_name}")
+
+    zip_ref.extractall(extract_to)
+
+
+def prune_artifacts_directory(*, max_age_days: int = _DEFAULT_ARTIFACT_PRUNE_DAYS) -> int:
+    """
+    Remove artifact subdirectories older than `max_age_days`.
+
+    This directory is treated as a cache. Pruning prevents unbounded growth.
+
+    Returns the number of directories removed.
+    """
+    if max_age_days <= 0:
+        return 0
+
+    if not os.path.exists(artifact_directory):
+        return 0
+
+    cutoff = time.time() - (max_age_days * 24 * 60 * 60)
+    removed = 0
+
+    # Only prune direct subdirectories to avoid surprises.
+    for name in os.listdir(artifact_directory):
+        path = os.path.join(artifact_directory, name)
+        if not os.path.isdir(path):
+            continue
+
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            continue
+
+        if mtime < cutoff:
+            shutil.rmtree(path, ignore_errors=True)
+            removed += 1
+
+    return removed
+
 
 def unzip_file(zip_path: str) -> str:
     """
@@ -25,7 +81,7 @@ def unzip_file(zip_path: str) -> str:
     extract_to = os.path.join(artifact_directory, file_name)
     os.makedirs(extract_to, exist_ok=True)
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        zip_ref.extractall(extract_to)
+        _safe_extract_zip(zip_ref, extract_to)
     return extract_to
 
 
@@ -54,7 +110,7 @@ def read_json_files(
             if not file.endswith(".json"):
                 continue
             json_path = os.path.join(root, file)
-            with open(json_path, "r") as json_file:
+            with open(json_path, "r", encoding="utf-8") as json_file:
                 data = json.load(json_file)
                 app_name = json_path.split("_-_")[1]
                 device_type = json_path.split("_-_")[2]
@@ -83,11 +139,25 @@ def process_artifact(
 
     os.makedirs(artifact_directory, exist_ok=True)
     zip_path = os.path.join(artifact_directory, f"{artifact_name}.zip")
-    with open(zip_path, "wb") as f:
-        f.write(content)
+    extracted_dir: str | None = None
+    try:
+        with open(zip_path, "wb") as f:
+            f.write(content)
 
-    extracted_dir = unzip_file(zip_path)
-    read_json_files(performance_scores, artifact["created_at"], extracted_dir)
+        extracted_dir = unzip_file(zip_path)
+        read_json_files(performance_scores, artifact["created_at"], extracted_dir)
+    finally:
+        # Best-effort cleanup to avoid unbounded disk usage.
+        try:
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+        except OSError:
+            pass
+
+        # This helper is used for ad-hoc single-run processing; avoid leaving extracted dirs around.
+        if extracted_dir and os.path.exists(extracted_dir):
+            shutil.rmtree(extracted_dir, ignore_errors=True)
+
     return performance_scores
 
 

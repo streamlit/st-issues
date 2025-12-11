@@ -14,7 +14,6 @@ def get_artifact_results(hash: str, artifact_type: str):
 
     Args:
         hash (str): The commit hash.
-        token (str): The GitHub token for authentication.
         artifact_type (str): The type of artifact to retrieve.
 
     Returns:

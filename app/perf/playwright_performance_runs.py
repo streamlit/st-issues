@@ -11,8 +11,11 @@ from app.perf import (
     playwright_writing_a_test,
 )
 from app.perf.utils.artifacts import get_artifact_results
-from app.perf.utils.perf_github_artifacts import get_commit_hashes_for_branch_name
 from app.perf.utils.help_text import get_help_text
+from app.perf.utils.perf_github_artifacts import (
+    get_commit_hashes_for_branch_name,
+    prune_artifacts_directory,
+)
 from app.perf.utils.tab_nav import segmented_tabs
 from app.perf.utils.test_diff_analyzer import (
     find_and_remove_outliers,
@@ -52,16 +55,16 @@ if token is None:
     st.stop()
 
 
-@st.cache_data
+@st.cache_data(ttl=60 * 60 * 12)
 def get_commits(
-    branch_name: str, token: str, until_date: Optional[str] = None, limit: int = 20
+    branch_name: str, until_date: Optional[str] = None, limit: int = 20
 ):
     return get_commit_hashes_for_branch_name(
         branch_name, limit=limit, until_date=until_date
     )
 
 
-@st.cache_data
+@st.cache_data(ttl=60 * 60 * 12)
 def get_everything_by_hash(hash: str):
     return get_artifact_results(hash, "playwright")
 
@@ -103,11 +106,16 @@ with st.container(width="content"):
 
 # Get the commits and process data first
 commit_hashes = get_commits(
-    "develop", token, until_date=selected_date.isoformat() if selected_date else None
+    "develop", until_date=selected_date.isoformat() if selected_date else None
 )
 
 directories: list[str] = []
 timestamps: list[str] = []
+
+# Prune right before we fan out to download N artifacts.
+pruned_count = prune_artifacts_directory(max_age_days=7)
+if pruned_count:
+    print(f"Pruned {pruned_count} artifact directories older than 7 days.")
 
 # Download all the artifacts for the Playwright performance runs in parallel
 with concurrent.futures.ThreadPoolExecutor() as executor:

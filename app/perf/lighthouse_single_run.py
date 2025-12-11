@@ -39,7 +39,7 @@ if st.session_state.run_id is None or st.session_state.run_id == "":
     st.stop()
 
 
-@st.cache_data
+@st.cache_data(ttl=60 * 60 * 12)
 def get_and_extract_performance_for_run(run_id):
     artifacts = {"artifacts": fetch_artifacts(int(run_id))}
 
@@ -53,6 +53,10 @@ def get_and_extract_performance_for_run(run_id):
 
 
 performance_scores = get_and_extract_performance_for_run(st.session_state.run_id)
+
+if not performance_scores:
+    st.info("No Lighthouse artifacts found for this run ID.")
+    st.stop()
 
 
 # Convert performance_scores to a DataFrame

@@ -11,10 +11,11 @@ from app.perf import pytest_interpreting_results, pytest_writing_a_test
 from app.perf.utils.artifacts import get_artifact_results
 from app.perf.utils.perf_github_artifacts import (
     get_commit_hashes_for_branch_name,
+    prune_artifacts_directory,
     remove_artifact_directory,
 )
-from app.perf.utils.tab_nav import segmented_tabs
 from app.perf.utils.pytest_types import OutputJson
+from app.perf.utils.tab_nav import segmented_tabs
 
 TITLE = "Streamlit Performance - Pytest"
 
@@ -47,21 +48,26 @@ if token is None:
     st.stop()
 
 
-@st.cache_data
-def get_commits(branch_name: str, token: str, limit: int = 20):
+@st.cache_data(ttl=60 * 60 * 12)
+def get_commits(branch_name: str, limit: int = 20):
     return get_commit_hashes_for_branch_name(branch_name, limit=limit)
 
 
-@st.cache_data
+@st.cache_data(ttl=60 * 60 * 12)
 def get_pytest_results(hash: str) -> Optional[str]:
     return get_artifact_results(hash, "pytest")
 
 
-commit_hashes = get_commits("develop", token)
+commit_hashes = get_commits("develop")
 
 
 directories: List[str] = []
-timestamps = []
+timestamps: List[str] = []
+
+# Prune right before we fan out to download N artifacts.
+pruned_count = prune_artifacts_directory(max_age_days=7)
+if pruned_count:
+    print(f"Pruned {pruned_count} artifact directories older than 7 days.")
 
 # Download all the artifacts for the performance runs in parallel
 with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -69,16 +75,18 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
     for future in concurrent.futures.as_completed(futures):
         result = future.result()
 
-        if result is None:
-            continue
-
         directory, timestamp = result
 
-        if directory is None:
+        if not directory or not timestamp:
             continue
 
         directories.append(directory)
         timestamps.append(timestamp)
+
+# Guard: no data found
+if not directories:
+    st.info("No Pytest benchmark artifacts found for the selected commits.")
+    st.stop()
 
 # Sort directories and timestamps based on timestamps
 sorted_directories_timestamps = sorted(zip(directories, timestamps), key=lambda x: x[1])
@@ -98,7 +106,10 @@ for directory in directories:
         (f for f in Path(directory).iterdir() if f.suffix == ".json"), None
     )
 
-    with open(json_file) as f:
+    if json_file is None:
+        continue
+
+    with open(json_file, encoding="utf-8") as f:
         results: OutputJson = json.load(f)
 
         for test in results["benchmarks"]:
@@ -124,6 +135,10 @@ for directory in directories:
             )
 
 df = pd.DataFrame(benchmark_data)
+
+if df.empty:
+    st.info("No benchmark data found in the downloaded artifacts.")
+    st.stop()
 
 grid = st.container(horizontal=True, gap="medium")
 
