@@ -217,6 +217,33 @@ def get_bundle_size_metrics(since_date: date) -> Tuple[int, int, int, int]:
     )
 
 
+def get_bug_metrics(since_date: date) -> Tuple[int, int]:
+    """Get the total number of open bugs and closed bugs in the period.
+
+    Returns:
+        Tuple of (open_bug_count, closed_bugs_in_period)
+    """
+    all_issues = get_all_github_issues(state="all")
+    open_bugs = 0
+    closed_bugs_in_period = 0
+
+    for i in all_issues:
+        if "pull_request" in i:
+            continue
+        labels = {label["name"] for label in i["labels"]}
+        if "type:bug" not in labels:
+            continue
+
+        if i["state"] == "open":
+            open_bugs += 1
+        elif i.get("closed_at"):
+            closed_at = datetime.fromisoformat(i["closed_at"].replace("Z", "+00:00"))
+            if closed_at.date() >= since_date:
+                closed_bugs_in_period += 1
+
+    return open_bugs, closed_bugs_in_period
+
+
 def get_reproducible_example_exists(issue_number: int) -> bool:
     """Check if a reproducible example exists for an issue."""
     issue_folder_name = f"gh-{issue_number}"
