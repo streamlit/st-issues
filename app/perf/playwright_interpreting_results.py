@@ -2,11 +2,7 @@ import streamlit as st
 
 from app.perf.utils.docs import METRIC_DEFINITIONS
 
-TITLE = "Streamlit Performance - Interpreting Playwright Performance Results"
-
-st.set_page_config(page_title=TITLE)
-
-st.header(TITLE)
+TITLE = "Interpreting Playwright Performance Results"
 
 DOCS = f"""
 While the infrastructure for writing these tests aims to be as simple as
@@ -41,4 +37,17 @@ you a more accurate picture of the performance of your test not just for a
 single point in time, but to see this trend over time.
 """
 
-st.markdown(DOCS)
+
+def render_interpreting_results() -> None:
+    with st.container(width="content"):
+        st.markdown(DOCS)
+
+
+def _standalone() -> None:
+    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
+    st.header(f"Streamlit Performance - {TITLE}")
+    render_interpreting_results()
+
+
+if __name__ == "__main__":
+    _standalone()

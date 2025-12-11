@@ -1,10 +1,6 @@
 import streamlit as st
 
-TITLE = "Lighthouse - Writing a Lighthouse Test"
-
-st.set_page_config(page_title=TITLE)
-
-st.header(TITLE)
+TITLE = "Writing a Lighthouse Test"
 
 DOCS = """
 ## Existing Tests
@@ -28,4 +24,17 @@ changes that could impact the way the Streamlit app is perceived to be rendered
 by users.
 """
 
-st.markdown(DOCS)
+
+def render_writing_a_test() -> None:
+    with st.container(width="content"):
+        st.markdown(DOCS)
+
+
+def _standalone() -> None:
+    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
+    st.header(f"Streamlit Performance - {TITLE}")
+    render_writing_a_test()
+
+
+if __name__ == "__main__":
+    _standalone()

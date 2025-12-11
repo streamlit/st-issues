@@ -1,10 +1,6 @@
 import streamlit as st
 
-TITLE = "Streamlit Performance - Writing a Playwright Performance Test"
-
-st.set_page_config(page_title=TITLE)
-
-st.header(TITLE)
+TITLE = "Writing a Playwright Performance Test"
 
 DOCS = """
 
@@ -17,7 +13,7 @@ DOCS = """
   underlying React internals are performing.
 
 ❌ If you want to measure how performant some backend-specific code path is in
-  isolation, utilize the [Pytest Benchmarking](pytest_writing_a_test) tooling instead.
+  isolation, utilize the Pytest tooling instead.
 
 ## How to write a Playwright Performance Test
 
@@ -49,4 +45,17 @@ DOCS = """
           can help you identify bottlenecks quickly.
 """
 
-st.markdown(DOCS)
+
+def render_writing_a_test() -> None:
+    with st.container(width="content"):
+        st.markdown(DOCS)
+
+
+def _standalone() -> None:
+    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
+    st.header(f"Streamlit Performance - {TITLE}")
+    render_writing_a_test()
+
+
+if __name__ == "__main__":
+    _standalone()

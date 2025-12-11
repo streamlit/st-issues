@@ -6,14 +6,34 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+from app.perf import lighthouse_interpreting_results, lighthouse_writing_a_test
 from app.perf.utils.artifacts import get_artifact_results
 from app.perf.utils.github import get_commit_hashes_for_branch_name, read_json_files
+from app.perf.utils.tab_nav import segmented_tabs
 
-TITLE = "Streamlit Performance - Lighthouse Runs"
+TITLE = "Streamlit Performance - Lighthouse"
 
 st.set_page_config(page_title=TITLE)
 
-st.header(TITLE)
+title_row = st.container(
+    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+)
+with title_row:
+    st.title("💡 Performance - Lighthouse")
+
+tab = segmented_tabs(
+    options=["Runs", "Interpret metrics", "Write a test"],
+    key="lighthouse_tab",
+    query_param="tab",
+    default="Runs",
+)
+
+if tab != "Runs":
+    if tab == "Interpret metrics":
+        lighthouse_interpreting_results.render_interpreting_results()
+    elif tab == "Write a test":
+        lighthouse_writing_a_test.render_writing_a_test()
+    st.stop()
 
 token = st.secrets["github"]["token"]
 

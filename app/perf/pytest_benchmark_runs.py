@@ -7,18 +7,38 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from app.perf import pytest_interpreting_results, pytest_writing_a_test
 from app.perf.utils.artifacts import get_artifact_results
 from app.perf.utils.github import (
     get_commit_hashes_for_branch_name,
     remove_artifact_directory,
 )
+from app.perf.utils.tab_nav import segmented_tabs
 from app.perf.utils.pytest_types import OutputJson
 
-TITLE = "Streamlit Performance - Pytest Benchmark Runs"
+TITLE = "Streamlit Performance - Pytest"
 
 st.set_page_config(page_title=TITLE, layout="wide")
 
-st.header(TITLE)
+title_row = st.container(
+    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+)
+with title_row:
+    st.title("🧪 Performance - Pytest")
+
+tab = segmented_tabs(
+    options=["Runs", "Interpret metrics", "Write a test"],
+    key="pytest_tab",
+    query_param="tab",
+    default="Runs",
+)
+
+if tab != "Runs":
+    if tab == "Interpret metrics":
+        pytest_interpreting_results.render_interpreting_results()
+    elif tab == "Write a test":
+        pytest_writing_a_test.render_writing_a_test()
+    st.stop()
 
 token = st.secrets["github"]["token"]
 

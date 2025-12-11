@@ -5,21 +5,47 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from app.perf import (
+    playwright_interpreting_results,
+    playwright_metrics_explorer,
+    playwright_writing_a_test,
+)
 from app.perf.utils.artifacts import get_artifact_results
 from app.perf.utils.github import (
     get_commit_hashes_for_branch_name,
 )
 from app.perf.utils.help_text import get_help_text
+from app.perf.utils.tab_nav import segmented_tabs
 from app.perf.utils.test_diff_analyzer import (
     find_and_remove_outliers,
     process_test_results_directory,
 )
 
-TITLE = "Streamlit Performance - Playwright Performance Runs"
+TITLE = "Streamlit Performance - Playwright"
 
 st.set_page_config(page_title=TITLE, layout="wide")
 
-st.header(TITLE)
+title_row = st.container(
+    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
+)
+with title_row:
+    st.title("🎭 Performance - Playwright")
+
+tab = segmented_tabs(
+    options=["Runs", "Interpret metrics", "Write a test", "Explorer"],
+    key="playwright_tab",
+    query_param="tab",
+    default="Runs",
+)
+
+if tab != "Runs":
+    if tab == "Interpret metrics":
+        playwright_interpreting_results.render_interpreting_results()
+    elif tab == "Write a test":
+        playwright_writing_a_test.render_writing_a_test()
+    elif tab == "Explorer":
+        playwright_metrics_explorer.render_metrics_explorer()
+    st.stop()
 
 token = st.secrets["github"]["token"]
 

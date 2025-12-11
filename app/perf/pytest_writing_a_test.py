@@ -1,10 +1,6 @@
 import streamlit as st
 
-TITLE = "Streamlit Performance - Writing a Pytest Benchmark Test"
-
-st.set_page_config(page_title=TITLE)
-
-st.header(TITLE)
+TITLE = "Writing a Pytest Benchmark Test"
 
 DOCS = """
 ## When to Use a Pytest Benchmark Test
@@ -21,8 +17,7 @@ development.
 best suited due to the variability in I/O performance.
 
 ❌ If you want to measure the user experience performance of a Streamlit app in
-the browser, utilize [Playwright Performance Testing](playwright_writing_a_test)
-instead.
+the browser, utilize the Playwright tooling instead.
 
 ## How to write a Pytest Benchmark test in the Streamlit codebase
 
@@ -57,4 +52,17 @@ examples.
 
 """
 
-st.markdown(DOCS)
+
+def render_writing_a_test() -> None:
+    with st.container(width="content"):
+        st.markdown(DOCS)
+
+
+def _standalone() -> None:
+    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
+    st.header(f"Streamlit Performance - {TITLE}")
+    render_writing_a_test()
+
+
+if __name__ == "__main__":
+    _standalone()

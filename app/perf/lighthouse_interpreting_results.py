@@ -1,10 +1,6 @@
 import streamlit as st
 
-TITLE = "Streamlit Performance - Interpreting Lighthouse Results"
-
-st.set_page_config(page_title=TITLE)
-
-st.header(TITLE)
+TITLE = "Interpreting Lighthouse Results"
 
 DOCS_1 = """
 ## What is Lighthouse?
@@ -65,9 +61,21 @@ be a signal to dig in and understand what is going on.
 """
 
 
-st.markdown(DOCS_1)
+def render_interpreting_results() -> None:
+    with st.container(width="content"):
+        st.markdown(DOCS_1)
 
-with st.expander("What do the Lighthouse Scores Mean?"):
-    st.markdown(DOCS_2)
+        with st.expander("What do the Lighthouse Scores Mean?"):
+            st.markdown(DOCS_2)
 
-st.markdown(DOCS_3)
+        st.markdown(DOCS_3)
+
+
+def _standalone() -> None:
+    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
+    st.header(f"Streamlit Performance - {TITLE}")
+    render_interpreting_results()
+
+
+if __name__ == "__main__":
+    _standalone()
