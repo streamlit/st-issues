@@ -26,6 +26,7 @@ polars = "*"
 jinja2 = "*"
 streamlit-pdf = "*"
 git-fame = "*"
+scipy = "*"
 
 [dev-packages]
 black = "*"

@@ -43,6 +43,24 @@ page = st.navigation(
         ),
         st.Page("./app/github_stats.py", title="GitHub Stats", icon="📊"),
         st.Page("./app/bug_explorer.py", title="Bug Prioritization", icon="🐛"),
+        st.Page(
+            "./app/perf/playwright_performance_runs.py",
+            title="Performance - Playwright",
+            icon="🎭",
+            url_path="playwright",
+        ),
+        st.Page(
+            "./app/perf/pytest_benchmark_runs.py",
+            title="Performance - Pytest",
+            icon="🧪",
+            url_path="pytest",
+        ),
+        st.Page(
+            "./app/perf/lighthouse_runs.py",
+            title="Performance - Lighthouse",
+            icon="💡",
+            url_path="lighthouse",
+        ),
     ]
 )
 page.run()
