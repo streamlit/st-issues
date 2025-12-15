@@ -91,6 +91,7 @@ EXPECTED_FLAKY_TESTS: Final[list[str]] = [
     "st_dataframe_interactions_test.py::test_csv_download_button_in_iframe",
     "st_video_test.py::test_video_end_time_loop",
     "st_layouts_container_various_elements_test.py::test_layouts_container_expanders",
+    "forward_msg_cache_test.py::test_check_total_websocket_message_number_and_size",
 ]
 
 
