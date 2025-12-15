@@ -15,7 +15,6 @@ from app.utils.github_utils import (
 )
 from app.utils.interrupt_data import (
     get_bundle_size_metrics,
-    get_community_prs_ready_for_review,
     get_confirmed_bugs_without_repro_script,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
@@ -388,40 +387,6 @@ else:
 st.divider()
 
 st.subheader(
-    "Community PRs ready for review",
-    help="""
-Lists community PRs that are ready for technical review. These PRs meet all the criteria:
-- Not in draft state
-- No "[WIP]" in the title
-- Has both `change:*` and `impact:*` labels
-- No blocking labels (`do-not-merge`, `status:needs-product-approval`, `status:awaiting-user-response`)
-
-These PRs are ready for code review and can be prioritized for technical feedback.
-
-Before reviewing, its recommended to approve and run the CI (check that the code doesn't contain obvious
-security issues) and assign Copilot for an automated review.
-""",
-)
-community_prs_ready_df = get_community_prs_ready_for_review()
-if community_prs_ready_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        community_prs_ready_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Updated": st.column_config.DatetimeColumn("Updated", format="distance"),
-            "Assignees": st.column_config.ListColumn("Assignees"),
-            "Labels": st.column_config.ListColumn("Labels"),
-        },
-    )
-st.divider()
-
-st.subheader(
     "Open Dependabot PRs",
     help="""
 Lists all open dependency update PRs from Dependabot. Please try to review and merge these PRs
@@ -501,6 +466,40 @@ else:
                 "Last Workflow Run", display_text="Open"
             ),
             "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
+        },
+    )
+st.divider()
+
+st.subheader(
+    "Community PRs ready for review",
+    help="""
+Lists community PRs that are ready for technical review. These PRs meet all the criteria:
+- Not in draft state
+- No "[WIP]" in the title
+- Has both `change:*` and `impact:*` labels
+- No blocking labels (`do-not-merge`, `status:needs-product-approval`, `status:awaiting-user-response`)
+
+These PRs are ready for code review and can be prioritized for technical feedback.
+
+Before reviewing, its recommended to approve and run the CI (check that the code doesn't contain obvious
+security issues) and assign Copilot for an automated review.
+""",
+)
+community_prs_ready_df = get_community_prs_ready_for_review()
+if community_prs_ready_df.empty:
+    st.success("Congrats, everything is done here!", icon="🎉")
+else:
+    st.dataframe(
+        community_prs_ready_df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Title": st.column_config.TextColumn("Title", width="large"),
+            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Updated": st.column_config.DatetimeColumn("Updated", format="distance"),
+            "Assignees": st.column_config.ListColumn("Assignees"),
+            "Labels": st.column_config.ListColumn("Labels"),
         },
     )
 st.divider()
