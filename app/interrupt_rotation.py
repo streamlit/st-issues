@@ -15,6 +15,7 @@ from app.utils.github_utils import (
 )
 from app.utils.interrupt_data import (
     get_bundle_size_metrics,
+    get_community_prs_ready_for_review,
     get_confirmed_bugs_without_repro_script,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
