@@ -72,9 +72,9 @@ for newlines, subheader in ((0, "Nothing"), (2, "Text plus 2 newlines"), (1, "Te
         status_icon = "🐛" if is_buggy else "✅"
         
         with st.expander(f"{status_icon} Example {example} - Start={start}, Newlines={newlines}", expanded=is_buggy):
-            # Show what markdown is being used
-            st.markdown("**Markdown passed to `st.markdown()`:**")
-            st.code(markdown, language="markdown")
+            # Show the actual Python string being passed to st.markdown()
+            st.markdown("**String passed to `st.markdown()`:**")
+            st.code(repr(markdown), language="python")
             
             st.markdown("**How it renders:**")
             if is_buggy:
@@ -95,8 +95,8 @@ st.subheader("Example 8: Starting with 0, preceded by 1 newline (BROKEN)")
 
 bug_example_0 = "Something before:\n0. foo\n1. bar"
 
-st.markdown("**Markdown:**")
-st.code(bug_example_0, language="markdown")
+st.markdown("**String passed to `st.markdown()`:**")
+st.code(repr(bug_example_0), language="python")
 st.error("❌ **BUG:** The list doesn't render as an ordered list.")
 st.markdown("**Renders as:**")
 st.container(border=True).markdown(bug_example_0)
@@ -107,8 +107,8 @@ st.subheader("Example 9: Starting with 10, preceded by 1 newline (BROKEN)")
 
 bug_example_10 = "Something before:\n10. foo\n11. bar"
 
-st.markdown("**Markdown:**")
-st.code(bug_example_10, language="markdown")
+st.markdown("**String passed to `st.markdown()`:**")
+st.code(repr(bug_example_10), language="python")
 st.error("❌ **BUG:** The list doesn't render as an ordered list.")
 st.markdown("**Renders as:**")
 st.container(border=True).markdown(bug_example_10)
@@ -120,8 +120,8 @@ st.header("🔍 Bug vs Workaround Comparison")
 
 st.subheader("Broken: List starting with 10, single newline")
 broken_md = "Text before:\n10. First item\n11. Second item"
-st.markdown("**Markdown:**")
-st.code(broken_md, language="markdown")
+st.markdown("**String passed to `st.markdown()`:**")
+st.code(repr(broken_md), language="python")
 st.error("❌ Renders as plain text, not as an ordered list")
 st.markdown("**Renders as:**")
 st.container(border=True).markdown(broken_md)
@@ -130,9 +130,9 @@ st.divider()
 
 st.subheader("Workaround 1: Add an extra newline")
 working_md_1 = "Text before:\n\n10. First item\n11. Second item"
-st.markdown("**Markdown:**")
-st.code(working_md_1, language="markdown")
-st.success("✅ Renders correctly with 2 newlines")
+st.markdown("**String passed to `st.markdown()`:**")
+st.code(repr(working_md_1), language="python")
+st.success("✅ Renders correctly with 2 newlines (notice the `\\n\\n`)")
 st.markdown("**Renders as:**")
 st.container(border=True).markdown(working_md_1)
 
@@ -140,8 +140,8 @@ st.divider()
 
 st.subheader("Workaround 2: Start with 1 instead")
 working_md_2 = "Text before:\n1. First item\n2. Second item"
-st.markdown("**Markdown:**")
-st.code(working_md_2, language="markdown")
+st.markdown("**String passed to `st.markdown()`:**")
+st.code(repr(working_md_2), language="python")
 st.success("✅ Renders correctly when starting with 1")
 st.markdown("**Renders as:**")
 st.container(border=True).markdown(working_md_2)
