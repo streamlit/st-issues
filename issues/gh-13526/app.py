@@ -60,6 +60,51 @@ but **examples 8-9 demonstrate the bug** (red thumbs down).
 - Prefix conditions: No prefix, 2 newlines before list, 1 newline before list
 """)
 
+st.divider()
+
+st.subheader("📝 Streamlit Code Used to Generate Examples")
+
+st.write("""
+Here's the code that generates all 9 examples below. Notice how the only differences
+are the number of `newlines` (0, 2, or 1) and the `start` number (1, 0, or 10).
+""")
+
+st.code("""
+import streamlit as st
+
+example = 1
+for newlines, subheader in ((0, "Nothing"), (2, "Text plus 2 newlines"), (1, "Text plus 1 newline")):
+    st.subheader(f"{subheader} before the ordered list")
+    
+    for start in (1, 0, 10):
+        # Generate markdown list starting with the specified number
+        markdown = "\\n".join(f"{i}. {s}" for i, s in enumerate(("foo", "bar"), start=start))
+        
+        # Add prefix text with specified number of newlines
+        if newlines:
+            markdown = "Something before:" + "\\n" * newlines + markdown
+        
+        with st.expander(f"Example {example}", expanded=True):
+            left, right = st.columns(2)
+            
+            with left:
+                st.markdown("Markdown")
+                st.code(markdown, language="markdown")
+            
+            with right:
+                st.markdown("Result")
+                st.container(border=True).markdown(markdown)
+        
+        example += 1
+""", language="python")
+
+st.info("""
+💡 **Key point:** When `newlines == 1` and `start != 1`, the ordered list fails to render.
+This is examples 8 and 9 below.
+""")
+
+st.divider()
+
 example = 1
 for newlines, subheader in ((0, "Nothing"), (2, "Text plus 2 newlines"), (1, "Text plus 1 newline")):
     st.subheader(f"{subheader} before the ordered list")
