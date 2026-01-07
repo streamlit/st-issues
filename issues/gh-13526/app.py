@@ -55,55 +55,8 @@ st.write("""
 The following examples show 9 different scenarios. Examples 1-7 work correctly,
 but **examples 8-9 demonstrate the bug** (red thumbs down).
 
-**Test conditions:**
-- Starting numbers: 1, 0, 10
-- Prefix conditions: No prefix, 2 newlines before list, 1 newline before list
+Each example shows the exact markdown string passed to `st.markdown()`.
 """)
-
-st.divider()
-
-st.subheader("📝 Streamlit Code Used to Generate Examples")
-
-st.write("""
-Here's the code that generates all 9 examples below. Notice how the only differences
-are the number of `newlines` (0, 2, or 1) and the `start` number (1, 0, or 10).
-""")
-
-st.code("""
-import streamlit as st
-
-example = 1
-for newlines, subheader in ((0, "Nothing"), (2, "Text plus 2 newlines"), (1, "Text plus 1 newline")):
-    st.subheader(f"{subheader} before the ordered list")
-    
-    for start in (1, 0, 10):
-        # Generate markdown list starting with the specified number
-        markdown = "\\n".join(f"{i}. {s}" for i, s in enumerate(("foo", "bar"), start=start))
-        
-        # Add prefix text with specified number of newlines
-        if newlines:
-            markdown = "Something before:" + "\\n" * newlines + markdown
-        
-        with st.expander(f"Example {example}", expanded=True):
-            left, right = st.columns(2)
-            
-            with left:
-                st.markdown("Markdown")
-                st.code(markdown, language="markdown")
-            
-            with right:
-                st.markdown("Result")
-                st.container(border=True).markdown(markdown)
-        
-        example += 1
-""", language="python")
-
-st.info("""
-💡 **Key point:** When `newlines == 1` and `start != 1`, the ordered list fails to render.
-This is examples 8 and 9 below.
-""")
-
-st.divider()
 
 example = 1
 for newlines, subheader in ((0, "Nothing"), (2, "Text plus 2 newlines"), (1, "Text plus 1 newline")):
@@ -117,23 +70,19 @@ for newlines, subheader in ((0, "Nothing"), (2, "Text plus 2 newlines"), (1, "Te
         # Determine if this example should work or is buggy
         is_buggy = newlines == 1 and start != 1
         status_icon = "🐛" if is_buggy else "✅"
-        status_color = "red" if is_buggy else "green"
         
         with st.expander(f"{status_icon} Example {example} - Start={start}, Newlines={newlines}", expanded=is_buggy):
-            left, right = st.columns(2)
+            # Show what markdown is being used
+            st.markdown("**Markdown passed to `st.markdown()`:**")
+            st.code(markdown, language="markdown")
             
-            with left:
-                st.markdown("**Markdown Code:**")
-                st.code(markdown, language="markdown")
+            st.markdown("**How it renders:**")
+            if is_buggy:
+                st.error("❌ BUG: List doesn't render as ordered list")
+            else:
+                st.success("✅ Renders correctly")
             
-            with right:
-                st.markdown("**Rendered Result:**")
-                if is_buggy:
-                    st.error("❌ BUG: List doesn't render as ordered list")
-                else:
-                    st.success("✅ Renders correctly")
-                
-                st.container(border=True).markdown(markdown)
+            st.container(border=True).markdown(markdown)
         
         example += 1
 
@@ -146,9 +95,10 @@ st.subheader("Example 8: Starting with 0, preceded by 1 newline (BROKEN)")
 
 bug_example_0 = "Something before:\n0. foo\n1. bar"
 
+st.markdown("**Markdown:**")
 st.code(bug_example_0, language="markdown")
-st.error("❌ **BUG:** The list doesn't render as an ordered list. Instead, it shows as plain text with numbers.")
-st.markdown("**Actual rendering:**")
+st.error("❌ **BUG:** The list doesn't render as an ordered list.")
+st.markdown("**Renders as:**")
 st.container(border=True).markdown(bug_example_0)
 
 st.divider()
@@ -157,9 +107,10 @@ st.subheader("Example 9: Starting with 10, preceded by 1 newline (BROKEN)")
 
 bug_example_10 = "Something before:\n10. foo\n11. bar"
 
+st.markdown("**Markdown:**")
 st.code(bug_example_10, language="markdown")
-st.error("❌ **BUG:** The list doesn't render as an ordered list. Instead, it shows as plain text with numbers.")
-st.markdown("**Actual rendering:**")
+st.error("❌ **BUG:** The list doesn't render as an ordered list.")
+st.markdown("**Renders as:**")
 st.container(border=True).markdown(bug_example_10)
 
 st.divider()
@@ -168,31 +119,31 @@ st.divider()
 st.header("🔍 Bug vs Workaround Comparison")
 
 st.subheader("Broken: List starting with 10, single newline")
-st.write("**Markdown code:**")
-st.code("Text before:\n10. First item\n11. Second item", language="markdown")
-st.write("**Result:**")
-st.error("❌ Renders as plain text, not as an ordered list")
 broken_md = "Text before:\n10. First item\n11. Second item"
+st.markdown("**Markdown:**")
+st.code(broken_md, language="markdown")
+st.error("❌ Renders as plain text, not as an ordered list")
+st.markdown("**Renders as:**")
 st.container(border=True).markdown(broken_md)
 
 st.divider()
 
 st.subheader("Workaround 1: Add an extra newline")
-st.write("**Markdown code:**")
-st.code("Text before:\n\n10. First item\n11. Second item", language="markdown")
-st.write("**Result:**")
-st.success("✅ Renders correctly with 2 newlines")
 working_md_1 = "Text before:\n\n10. First item\n11. Second item"
+st.markdown("**Markdown:**")
+st.code(working_md_1, language="markdown")
+st.success("✅ Renders correctly with 2 newlines")
+st.markdown("**Renders as:**")
 st.container(border=True).markdown(working_md_1)
 
 st.divider()
 
 st.subheader("Workaround 2: Start with 1 instead")
-st.write("**Markdown code:**")
-st.code("Text before:\n1. First item\n2. Second item", language="markdown")
-st.write("**Result:**")
-st.success("✅ Renders correctly when starting with 1")
 working_md_2 = "Text before:\n1. First item\n2. Second item"
+st.markdown("**Markdown:**")
+st.code(working_md_2, language="markdown")
+st.success("✅ Renders correctly when starting with 1")
+st.markdown("**Renders as:**")
 st.container(border=True).markdown(working_md_2)
 
 st.divider()
