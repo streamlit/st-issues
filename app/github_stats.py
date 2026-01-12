@@ -1247,7 +1247,8 @@ elif selected_metrics == "Team Productivity Metrics":
         with tab6:
             st.caption(
                 "Average merged PRs per active Streamlit core team member per month. "
-                "Only team members with at least 3 merged PRs in a month are considered active."
+                "Only team members with at least 3 merged PRs in a month are considered active. "
+                "Click on a bar to see the contributors for that month."
             )
 
             # Filter for team members only
@@ -1290,7 +1291,53 @@ elif selected_metrics == "Team Productivity Metrics":
                         },
                         hover_data={"active_contributors": True},
                     )
-                    st.plotly_chart(fig_team, use_container_width=True)
+                    chart_selection = st.plotly_chart(
+                        fig_team,
+                        use_container_width=True,
+                        on_select="rerun",
+                        key="core_team_prs_chart",
+                    )
+
+                    # Show contributors when a bar is selected
+                    if (
+                        chart_selection
+                        and chart_selection.selection
+                        and chart_selection.selection.point_indices
+                    ):
+                        selected_idx = chart_selection.selection.point_indices[0]
+                        selected_month = avg_prs_per_month.iloc[selected_idx][
+                            "merge_month"
+                        ]
+
+                        # Get contributors for the selected month
+                        month_contributors = active_team_monthly[
+                            active_team_monthly["merge_month"] == selected_month
+                        ].sort_values("pr_count", ascending=False)
+
+                        st.markdown(
+                            f"##### Active Contributors for {selected_month.strftime('%B %Y')}"
+                        )
+
+                        # Create a dataframe with contributor details
+                        contributors_df = pd.DataFrame(
+                            {
+                                "Contributor": month_contributors["author"].apply(
+                                    lambda x: f"https://github.com/{x}"
+                                ),
+                                "Merged PRs": month_contributors["pr_count"],
+                            }
+                        )
+
+                        st.dataframe(
+                            contributors_df,
+                            column_config={
+                                "Contributor": st.column_config.LinkColumn(
+                                    display_text="github.com/([^/]+)"
+                                ),
+                                "Merged PRs": st.column_config.NumberColumn(),
+                            },
+                            hide_index=True,
+                        )
                 else:
                     st.info(
                         "No active core contributors found with >= 3 PRs in any month."
