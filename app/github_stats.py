@@ -1126,7 +1126,7 @@ elif selected_metrics == "Team Productivity Metrics":
             )
         )
 
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
             [
                 "Merged PRs over Time",
                 "Time Trends",
@@ -1135,6 +1135,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 "Active Contributors",
                 "Core Team PRs",
                 "Comments",
+                "Issue Reactions",
             ]
         )
 
@@ -1164,6 +1165,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 "Show average per active core contributor",
                 value=False,
                 key="loc_avg_toggle",
+                help="An active core contributor is a Streamlit team member who has merged at least 3 PRs in a given month.",
             )
 
             if show_avg_loc:
@@ -1439,6 +1441,175 @@ elif selected_metrics == "Team Productivity Metrics":
             st.caption(
                 "Note: These metrics include comments from bots and automated systems."
             )
+
+        with tab8:
+            show_avg_reactions = st.toggle(
+                "Show average per active core contributor",
+                value=False,
+                key="reactions_avg_toggle",
+                help="An active core contributor is a Streamlit team member who has merged at least 3 PRs in a given month.",
+            )
+
+            # Get issue data for reactions
+            issues_for_reactions = [
+                issue
+                for issue in get_all_github_issues()
+                if "pull_request" not in issue
+            ]
+            reactions_issues_df = pd.DataFrame(issues_for_reactions)
+
+            if not reactions_issues_df.empty:
+                reactions_issues_df["closed_at"] = pd.to_datetime(
+                    reactions_issues_df["closed_at"]
+                )
+                reactions_issues_df["total_reactions"] = reactions_issues_df[
+                    "reactions"
+                ].apply(lambda x: x["total_count"])
+
+                # Filter to closed issues within the date range
+                closed_reactions_df = reactions_issues_df[
+                    (reactions_issues_df["closed_at"].notna())
+                    & (reactions_issues_df["closed_at"].dt.date >= since_input)
+                ].copy()
+
+                if not closed_reactions_df.empty:
+                    # Group by month
+                    closed_reactions_df["close_month"] = (
+                        closed_reactions_df["closed_at"]
+                        .dt.to_period("M")
+                        .dt.to_timestamp()
+                    )
+
+                    monthly_reactions = (
+                        closed_reactions_df.groupby("close_month")["total_reactions"]
+                        .sum()
+                        .reset_index()
+                        .rename(
+                            columns={
+                                "close_month": "Month",
+                                "total_reactions": "Total Reactions",
+                            }
+                        )
+                    )
+
+                    if show_avg_reactions:
+                        # Filter for team members only from merged PRs
+                        team_prs_for_reactions = merged_prs_df[
+                            merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)
+                        ].copy()
+
+                        # Get active contributors per month (>= 3 PRs)
+                        team_monthly_pr_counts_reactions = (
+                            team_prs_for_reactions.groupby(["merge_month", "author"])
+                            .size()
+                            .reset_index(name="pr_count")
+                        )
+                        active_contributors_reactions = (
+                            team_monthly_pr_counts_reactions[
+                                team_monthly_pr_counts_reactions["pr_count"] >= 3
+                            ]
+                            .groupby("merge_month")["author"]
+                            .nunique()
+                            .reset_index(name="active_count")
+                        )
+
+                        # Merge with monthly reactions
+                        monthly_reactions = monthly_reactions.merge(
+                            active_contributors_reactions,
+                            left_on="Month",
+                            right_on="merge_month",
+                            how="left",
+                        )
+                        monthly_reactions["active_count"] = monthly_reactions[
+                            "active_count"
+                        ].fillna(1)
+
+                        # Calculate average per active contributor
+                        monthly_reactions["Total Reactions"] = (
+                            monthly_reactions["Total Reactions"]
+                            / monthly_reactions["active_count"]
+                        )
+                        chart_title = "Avg Monthly Reactions on Closed Issues per Active Core Contributor"
+                        y_label = "Avg Reactions per Contributor"
+                    else:
+                        chart_title = "Monthly Total Reactions on Closed Issues"
+                        y_label = "Total Reactions"
+
+                    fig_reactions = px.bar(
+                        monthly_reactions,
+                        x="Month",
+                        y="Total Reactions",
+                        title=chart_title,
+                        labels={"Total Reactions": y_label},
+                    )
+                    reactions_chart_selection = st.plotly_chart(
+                        fig_reactions,
+                        use_container_width=True,
+                        on_select="rerun",
+                        key="issue_reactions_chart",
+                    )
+
+                    st.caption(
+                        "Click on a bar to view the issues closed in that month."
+                    )
+
+                    # Show issues when a bar is selected
+                    if (
+                        reactions_chart_selection
+                        and reactions_chart_selection.selection
+                        and reactions_chart_selection.selection.point_indices
+                    ):
+                        selected_reactions_idx = (
+                            reactions_chart_selection.selection.point_indices[0]
+                        )
+                        selected_reactions_month = monthly_reactions.iloc[
+                            selected_reactions_idx
+                        ]["Month"]
+
+                        # Filter issues for the selected month
+                        month_issues = closed_reactions_df[
+                            closed_reactions_df["close_month"]
+                            == selected_reactions_month
+                        ].sort_values("total_reactions", ascending=False)
+
+                        if not month_issues.empty:
+                            st.markdown(
+                                f"##### Issues closed in {selected_reactions_month.strftime('%B %Y')}"
+                            )
+
+                            issues_detail_df = pd.DataFrame(
+                                {
+                                    "Title": month_issues["title"],
+                                    "Reactions": month_issues["total_reactions"],
+                                    "Type": month_issues["labels"].apply(
+                                        get_issue_type
+                                    ),
+                                    "Closed on": month_issues["closed_at"].dt.date,
+                                    "Link": month_issues["html_url"],
+                                }
+                            )
+
+                            st.dataframe(
+                                issues_detail_df,
+                                column_config={
+                                    "Title": st.column_config.TextColumn(width="large"),
+                                    "Link": st.column_config.LinkColumn(
+                                        display_text="Open Issue"
+                                    ),
+                                    "Type": st.column_config.ListColumn(),
+                                    "Closed on": st.column_config.DateColumn(
+                                        format="MMM DD, YYYY"
+                                    ),
+                                    "Reactions": st.column_config.NumberColumn(
+                                        format="%d 🫶"
+                                    ),
+                                },
+                                hide_index=True,
+                            )
+                else:
+                    st.info("No closed issues found for the selected period.")
+            else:
+                st.info("No issues found.")
 
     else:
         st.info("No merged PRs found for the selected period.")
