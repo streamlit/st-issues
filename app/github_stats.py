@@ -1246,8 +1246,8 @@ elif selected_metrics == "Team Productivity Metrics":
 
         with tab6:
             st.caption(
-                "Merged PRs per active Streamlit core team member per month. "
-                "Only team members with at least 3 merged PRs in a month are shown."
+                "Average merged PRs per active Streamlit core team member per month. "
+                "Only team members with at least 3 merged PRs in a month are considered active."
             )
 
             # Filter for team members only
@@ -1269,18 +1269,26 @@ elif selected_metrics == "Team Productivity Metrics":
                 ]
 
                 if not active_team_monthly.empty:
+                    # Calculate average PRs per active contributor per month
+                    avg_prs_per_month = (
+                        active_team_monthly.groupby("merge_month")
+                        .agg(
+                            avg_prs=("pr_count", "mean"),
+                            active_contributors=("author", "count"),
+                        )
+                        .reset_index()
+                    )
+
                     fig_team = px.bar(
-                        active_team_monthly,
+                        avg_prs_per_month,
                         x="merge_month",
-                        y="pr_count",
-                        color="author",
-                        title="Monthly Merged PRs by Active Core Contributors",
+                        y="avg_prs",
+                        title="Average Merged PRs per Active Core Contributor",
                         labels={
                             "merge_month": "Month",
-                            "pr_count": "Merged PRs",
-                            "author": "Contributor",
+                            "avg_prs": "Avg PRs per Contributor",
                         },
-                        barmode="stack",
+                        hover_data={"active_contributors": True},
                     )
                     st.plotly_chart(fig_team, use_container_width=True)
                 else:
