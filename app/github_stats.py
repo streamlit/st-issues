@@ -1160,20 +1160,84 @@ elif selected_metrics == "Team Productivity Metrics":
             st.plotly_chart(fig_time, width="stretch")
 
         with tab3:
-            # Melt for LOC chart
-            loc_melted = monthly_pr_stats.melt(
-                id_vars="Date",
-                value_vars=["Additions", "Deletions"],
-                var_name="Type",
-                value_name="Lines",
+            show_avg_loc = st.toggle(
+                "Show average per active core contributor",
+                value=False,
+                key="loc_avg_toggle",
             )
+
+            if show_avg_loc:
+                # Filter for team members only
+                team_loc_df = merged_prs_df[
+                    merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)
+                ].copy()
+
+                # Get active contributors per month (>= 3 PRs)
+                team_monthly_pr_counts = (
+                    team_loc_df.groupby(["merge_month", "author"])
+                    .size()
+                    .reset_index(name="pr_count")
+                )
+                active_contributors_per_month = (
+                    team_monthly_pr_counts[team_monthly_pr_counts["pr_count"] >= 3]
+                    .groupby("merge_month")["author"]
+                    .nunique()
+                    .reset_index(name="active_count")
+                )
+
+                # Calculate total LOC per month for team members
+                team_monthly_loc = (
+                    team_loc_df.groupby("merge_month")
+                    .agg(
+                        Additions=("additions", "sum"),
+                        Deletions=("deletions", "sum"),
+                    )
+                    .reset_index()
+                    .rename(columns={"merge_month": "Date"})
+                )
+
+                # Merge with active contributor counts
+                team_monthly_loc = team_monthly_loc.merge(
+                    active_contributors_per_month,
+                    left_on="Date",
+                    right_on="merge_month",
+                    how="left",
+                )
+                team_monthly_loc["active_count"] = team_monthly_loc[
+                    "active_count"
+                ].fillna(1)
+
+                # Calculate average per active contributor
+                team_monthly_loc["Additions"] = (
+                    team_monthly_loc["Additions"] / team_monthly_loc["active_count"]
+                )
+                team_monthly_loc["Deletions"] = (
+                    team_monthly_loc["Deletions"] / team_monthly_loc["active_count"]
+                )
+
+                loc_melted = team_monthly_loc.melt(
+                    id_vars="Date",
+                    value_vars=["Additions", "Deletions"],
+                    var_name="Type",
+                    value_name="Lines",
+                )
+                chart_title = "Avg Monthly LOC Changes per Active Core Contributor"
+            else:
+                # Melt for LOC chart
+                loc_melted = monthly_pr_stats.melt(
+                    id_vars="Date",
+                    value_vars=["Additions", "Deletions"],
+                    var_name="Type",
+                    value_name="Lines",
+                )
+                chart_title = "Monthly LOC Changes"
 
             fig_loc = px.bar(
                 loc_melted,
                 x="Date",
                 y="Lines",
                 color="Type",
-                title="Monthly LOC Changes",
+                title=chart_title,
                 color_discrete_map={"Additions": "#28a745", "Deletions": "#dc3545"},
             )
             st.plotly_chart(fig_loc, width="stretch")
