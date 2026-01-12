@@ -1126,13 +1126,14 @@ elif selected_metrics == "Team Productivity Metrics":
             )
         )
 
-        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
             [
                 "Merged PRs over Time",
                 "Time Trends",
                 "LOC Changes",
                 "PR Types",
                 "Active Contributors",
+                "Core Team PRs",
                 "Comments",
             ]
         )
@@ -1244,6 +1245,52 @@ elif selected_metrics == "Team Productivity Metrics":
                 st.info("No active contributors found for the selected period.")
 
         with tab6:
+            st.caption(
+                "Merged PRs per active Streamlit core team member per month. "
+                "Only team members with at least 3 merged PRs in a month are shown."
+            )
+
+            # Filter for team members only
+            team_prs_df = merged_prs_df[
+                merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)
+            ].copy()
+
+            if not team_prs_df.empty:
+                # Group by month and author
+                team_monthly_prs = (
+                    team_prs_df.groupby(["merge_month", "author"])
+                    .size()
+                    .reset_index(name="pr_count")
+                )
+
+                # Filter for authors with >= 3 PRs in a month
+                active_team_monthly = team_monthly_prs[
+                    team_monthly_prs["pr_count"] >= 3
+                ]
+
+                if not active_team_monthly.empty:
+                    fig_team = px.bar(
+                        active_team_monthly,
+                        x="merge_month",
+                        y="pr_count",
+                        color="author",
+                        title="Monthly Merged PRs by Active Core Contributors",
+                        labels={
+                            "merge_month": "Month",
+                            "pr_count": "Merged PRs",
+                            "author": "Contributor",
+                        },
+                        barmode="stack",
+                    )
+                    st.plotly_chart(fig_team, use_container_width=True)
+                else:
+                    st.info(
+                        "No active core contributors found with >= 3 PRs in any month."
+                    )
+            else:
+                st.info("No team member PRs found for the selected period.")
+
+        with tab7:
             show_median = st.checkbox("Show Median per PR", value=False)
 
             if show_median:
