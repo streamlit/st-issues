@@ -322,7 +322,7 @@ def get_all_github_issues(
                             break
             else:
                 st.error(
-                    f"Failed to retrieve data: {response.status_code}: {response.text}"
+                    f"Failed to retrieve data from {url}: {response.status_code}: {response.text}"
                 )
                 break
         except Exception as ex:
@@ -368,7 +368,7 @@ def get_all_github_prs(
                             break
             else:
                 st.error(
-                    f"Failed to retrieve data: {response.status_code}: {response.text}"
+                    f"Failed to retrieve data from {url}: {response.status_code}: {response.text}"
                 )
                 break
         except Exception as ex:
