@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-streamlit = {version = ">=1.53.0",extras = ["snowflake"]}
+streamlit = {version = ">=1.53.0",extras = ["starlette"]}
 pandas = "*"
 numpy = "*"
 bokeh = "==2.4.3"
