@@ -194,6 +194,7 @@ if selected_metrics == "Contribution Metrics":
         total_prs = len(merged_prs_df)
         total_features = merged_prs_df["is_feature"].sum()
         total_bugfixes = merged_prs_df["is_bugfix"].sum()
+        total_loc = merged_prs_df["loc_changes"].sum()
 
         author_stats["pct_total_prs"] = author_stats["prs_merged"] / total_prs * 100
         author_stats["pct_total_features"] = (
@@ -205,6 +206,9 @@ if selected_metrics == "Contribution Metrics":
             author_stats["merged_bugfixes"] / total_bugfixes * 100
             if total_bugfixes > 0
             else 0
+        )
+        author_stats["pct_total_loc"] = (
+            author_stats["total_loc_changes"] / total_loc * 100 if total_loc > 0 else 0
         )
 
         # Add links
@@ -234,6 +238,9 @@ if selected_metrics == "Contribution Metrics":
                     "% of Bugfixes", format="%.1f%%"
                 ),
                 "total_loc_changes": st.column_config.NumberColumn("LOC Changed"),
+                "pct_total_loc": st.column_config.NumberColumn(
+                    "% of LOC Changed", format="%.1f%%"
+                ),
                 "total_additions": st.column_config.NumberColumn("LOC Additions"),
                 "total_deletions": st.column_config.NumberColumn("LOC Deletions"),
                 "Show PRs": st.column_config.LinkColumn(
@@ -250,6 +257,7 @@ if selected_metrics == "Contribution Metrics":
                 "merged_bugfixes",
                 "pct_total_bugfixes",
                 "total_loc_changes",
+                "pct_total_loc",
                 "total_additions",
                 "total_deletions",
                 "Show PRs",
