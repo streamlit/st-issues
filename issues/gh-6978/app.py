@@ -6,7 +6,7 @@ import streamlit as st
 st.subheader("Using st.slider")
 
 if st.session_state.get('fig') is None:
-    st.session_state['freq'] = np.arange(0.0, 5.1, 0.1).round(2)    
+    st.session_state['freq'] = np.arange(0.0, 5.1, 0.1).round(2)
     f = st.session_state['freq'][2]
     st.session_state['fig'] = go.Figure()
     st.session_state['fig'].add_trace(
@@ -14,7 +14,7 @@ if st.session_state.get('fig') is None:
             name=str(f),
             x=np.arange(0, 10.01, 0.01),
             y=np.sin(f* np.arange(0, 10.01, 0.01))))
-    
+
 def sldier_callback():
     f = st.session_state['slider_freq']
     x = st.session_state['fig'].data[0].x
@@ -23,7 +23,7 @@ def sldier_callback():
 
 
 f = st.select_slider(
-    label='Frequency', 
+    label='Frequency',
     options=st.session_state['freq'],
     value=2,
     on_change=sldier_callback,
@@ -54,9 +54,9 @@ steps = []
 for i in range(len(fig.data)):
     step = dict(
         method="update",
-        args=[              
+        args=[
             {"visible": [False] * len(fig.data)},
-            {"title": "Slider switched to step: " + str(i)}],  
+            {"title": "Slider switched to step: " + str(i)}],
     )
     step["args"][0]["visible"][i] = True
     steps.append(step)

@@ -26,7 +26,7 @@ def cached_func_level0():
     return x
 
 
-# In this testing tabs I only print a value and execute the 
+# In this testing tabs I only print a value and execute the
 # "root" cached function, which calls other cached funcs
 admin_tabs = st.tabs(["test1", "test2"])
 

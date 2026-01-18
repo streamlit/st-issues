@@ -13,11 +13,11 @@ with cols[0]:
     st.dataframe(df, hide_index=True)
     st.table(df)
     st.html(df.to_html())
-    
+
 with cols[1]:
     def bg_color(row):
         return ["background-color: yellow"] * len(row)
-    
+
     st.write("styled df")
     styled_df = df.style.apply(bg_color, axis=1)
     st.dataframe(styled_df, hide_index=True)

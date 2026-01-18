@@ -33,18 +33,18 @@ chart = (
         single_selection,
         selection
     )
-        
-    
+
+
 )
 
 return_event = st.checkbox('Use selection')
 if return_event:
     event_data = st.altair_chart(
-        chart, on_select="rerun", selection_mode = 'single', 
+        chart, on_select="rerun", selection_mode = 'single',
         use_container_width=True)
     st.write(event_data)
 else:
     st.altair_chart(
-        chart, 
+        chart,
         use_container_width=True
     )

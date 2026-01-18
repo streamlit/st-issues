@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 
 df2 = pd.DataFrame([
-    {"ID": 1, "NAME": "Guillaume"}, 
-    {"ID": 2, "NAME": "Tim"}, 
+    {"ID": 1, "NAME": "Guillaume"},
+    {"ID": 2, "NAME": "Tim"},
     {"ID": 3, "NAME": "me"},
     {"ID": 4, "NAME": "aname2"},
     {"ID": 5, "NAME": "aname"}

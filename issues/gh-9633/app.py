@@ -17,7 +17,7 @@ class DataFetcher:
         start_time = time.time()
         data = self._get_data(param)
         end_time = time.time()
-        
+
         st.write(data)
         st.write(f"Fetch time: {end_time - start_time:.2f} seconds")
 
@@ -30,7 +30,7 @@ def get_data_2(param):
     time.sleep(2)
     # Use the param in the returned data
     return f"Data for '{param}'."
-        
+
 def main():
     st.title("Streamlit Cache Clear Bug Demo")
 

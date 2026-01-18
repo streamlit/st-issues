@@ -13,7 +13,7 @@ if user_input:
 for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        
+
         if msg["role"] == "assistant":
             html_code = f"""
             <div style="margin-top:5px;">

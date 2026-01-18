@@ -19,7 +19,7 @@ df = pd.DataFrame(
 )
 
 #The data frame is created in the previous step.
-style = df.style.bar(color=['#33FFCC', '#d65f5f'], align="left",width=50) 
-style = style.set_properties(**{'background-color': '#111111', 'color': '#ffffff','font-size':'0.9em' ,'text-align': 'right','font-family': "Meiryo" }) 
+style = df.style.bar(color=['#33FFCC', '#d65f5f'], align="left",width=50)
+style = style.set_properties(**{'background-color': '#111111', 'color': '#ffffff','font-size':'0.9em' ,'text-align': 'right','font-family': "Meiryo" })
 style = style.set_precision(3)
 st.sidebar.dataframe(style,height=500)

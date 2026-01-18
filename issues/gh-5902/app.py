@@ -36,7 +36,7 @@ def plotting_values(df, opacity_sorted, opacity, colours):
         for idx, row in df.loc[opacity[opacity==style].index].iterrows():
             source = lat_lons[row['i']]
             target = lat_lons[row['j']]
-            
+
             num_points = 100
             lats.extend(np.linspace(source['geo_lat'], target['geo_lat'], num_points, endpoint=True))
             lons.extend(np.linspace(source['geo_lon'], target['geo_lon'], num_points, endpoint=True))
@@ -59,7 +59,7 @@ def plotting_values(df, opacity_sorted, opacity, colours):
         lats = []
         lons = []
         hover_names = []
-        
+
     return fig
 
 def create_plot(df, dt):

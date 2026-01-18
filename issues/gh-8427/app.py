@@ -10,7 +10,7 @@ def update():
 
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=["Shit"])
-  
+
 options = [1, 2, 3]
 
 if "data" in st.session_state:

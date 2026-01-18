@@ -1,9 +1,9 @@
 # Issue #12678 - Fix Implementation Summary
 
-**Issue:** Plots are shown tiny, fixed after maximizing and unmaximizing plot again - v1.50.0  
-**Fix Date:** 2025-10-18  
-**Implemented By:** AI Agent  
-**Issue URL:** https://github.com/streamlit/streamlit/issues/12678  
+**Issue:** Plots are shown tiny, fixed after maximizing and unmaximizing plot again - v1.50.0
+**Fix Date:** 2025-10-18
+**Implemented By:** AI Agent
+**Issue URL:** https://github.com/streamlit/streamlit/issues/12678
 **Related Issue:** #12763 (duplicate)
 
 ---
@@ -54,8 +54,8 @@ Successfully implemented fix for v1.50.0 regression where plots and images rende
 
 ## Root Cause
 
-**Problematic Commit:** `4954237e7d` (Sept 11, 2025)  
-**Title:** "[fix] horizontal alignment of st.image in vertical containers"  
+**Problematic Commit:** `4954237e7d` (Sept 11, 2025)
+**Title:** "[fix] horizontal alignment of st.image in vertical containers"
 **Issue Fixed:** #12435
 
 **What Went Wrong:**
@@ -89,7 +89,7 @@ All 6 tests PASS:
 5. `test_pyplot_in_container_width` - Verifies plots in containers
 6. `test_all_pyplot_elements_present` - Verifies all elements render
 
-**Before Fix:** Tests failed at 16px width  
+**Before Fix:** Tests failed at 16px width
 **After Fix:** Tests pass with width > 200px
 
 ### Manual Testing
@@ -231,4 +231,3 @@ Once merged and deployed:
 - All existing tests pass
 - No breaking changes
 - Ready for release
-

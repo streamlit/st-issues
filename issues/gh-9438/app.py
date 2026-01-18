@@ -25,23 +25,23 @@ def generate_selection(selection):
         columns=columns, index=pd.RangeIndex(100, name="x"),
     )
     source = source.reset_index().melt("x", var_name="category", value_name="y")
-    
+
     # Create a selection that chooses the nearest point & selects based on x-value
     nearest = alt.selection_point(nearest=True, on="pointerover",
                                 fields=["x"], empty=False)
-    
+
     # The basic line
     line = alt.Chart(source).mark_line(interpolate="basis").encode(
         x="x:Q",
         y="y:Q",
         color="category:N"
     )
-    
+
     # Draw points on the line, and highlight based on selection
     points = line.mark_point().encode(
         opacity=alt.condition(selection, alt.value(1), alt.value(0))
     )
-    
+
     # Draw a rule at the location of the selection
     rules = alt.Chart(source).transform_pivot(
         "category",
@@ -52,8 +52,8 @@ def generate_selection(selection):
         opacity=alt.condition(selection, alt.value(0.3), alt.value(0)),
         tooltip=[alt.Tooltip(c, type="quantitative") for c in columns],
     ).add_params(selection)
-    
-    
+
+
     # Put the five layers into a chart and bind the data
     return alt.layer(
         line, points, rules
@@ -68,7 +68,7 @@ st.write("""The old apy uses the `on="mouseover"` event to trigger the selection
 # Old API Selection
 old_selection = alt.selection(nearest=True, on="mouseover",  fields=["x"], empty=False, type = 'single')
 
-# Create chart 
+# Create chart
 chart = generate_selection(old_selection)
 
 st.altair_chart(chart, use_container_width=True)
@@ -80,7 +80,7 @@ st.write("""The new API uses the `on="pointerover"` event to trigger the selecti
 
 new_selection = alt.selection_point(nearest=True, on="pointerover",  fields=["x"], empty=False)
 
-# Create chart 
+# Create chart
 chart = generate_selection(new_selection)
 
 st.altair_chart(chart, use_container_width=True)

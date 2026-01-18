@@ -25,12 +25,21 @@ make app      # Run the Streamlit app
 Other available commands:
 
 ```bash
-make lint       # Check code with ruff
-make lint-fix   # Auto-fix linting issues
-make format     # Format code with ruff
-make typecheck  # Run mypy and ty type checking
-make test       # Run pytest
-make clean      # Remove cache and build artifacts
+make lint              # Check code with ruff
+make lint-fix          # Auto-fix linting issues
+make format            # Format code with ruff
+make typecheck         # Run mypy and ty type checking
+make pre-commit        # Run all pre-commit hooks
+make pre-commit-install # Install pre-commit git hooks
+make clean             # Remove cache and build artifacts
+```
+
+### Pre-commit hooks
+
+This project uses [pre-commit](https://pre-commit.com/) to run checks before each commit. To set up the git hooks:
+
+```bash
+make pre-commit-install
 ```
 
 Some apps require a dedicated environment and need to be run separately.

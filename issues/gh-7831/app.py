@@ -8,7 +8,7 @@ def main():
         st.write("Hello")
 
     st.data_editor(pd.DataFrame({"Key": ["My Property"], "Value": ["42.0"]}, dtype="string"),
-                                column_config={"Key": st.column_config.TextColumn(), 
+                                column_config={"Key": st.column_config.TextColumn(),
                                                 "Value": st.column_config.TextColumn()},
                                 num_rows="dynamic", hide_index=True, use_container_width=True)
 

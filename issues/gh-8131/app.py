@@ -3,7 +3,7 @@ import streamlit as st
 help = """Some code block:
 
 ```
-select * 
+select *
 from table
 ```
 

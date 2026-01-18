@@ -1,4 +1,4 @@
-import streamlit as st 
+import streamlit as st
 
 st.markdown(":gray[This is st.markdown gray]")
 st.caption("This is st.caption gray")

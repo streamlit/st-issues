@@ -26,7 +26,7 @@ elif dataframe_selection == 'wider':
     st.write('wider dataframe')
     st.dataframe(wider_dataframe,width=700,height=wider_height)
     st.write(f'height: {wider_height}')
-    
+
 elif dataframe_selection == 'full width':
     st.write('full width dataframe')
     st.dataframe(full_width_dataframe,use_container_width=True,height=full_width_height)

@@ -11,7 +11,7 @@ with tab0:
     2. Press "Deselect all"
 
     -> Expected Result: Box is unchecked, output is "False"
-    
+
     -> Actual Result: The selected box stays checked, but output is "False"
     """)
 
@@ -23,7 +23,7 @@ with tab1:
     3. Click "select all" again
 
     -> Expected Result: The box is checked, the output is "True"
-    
+
     -> Actual Result: The box stays unchecked, but output is "True"
     """)
 

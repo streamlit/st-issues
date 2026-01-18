@@ -1,4 +1,4 @@
-import streamlit as st 
+import streamlit as st
 
 st.markdown(st.__version__)
 st.markdown("`:material/celebration:`")

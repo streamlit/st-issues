@@ -22,7 +22,7 @@ with st.sidebar:
     menu.markdown("###### Line20")
     menu.markdown("###### Line21")
     menu.markdown("###### Line22")
-    
+
     menu2 = st.popover("Menu")
     menu2.markdown("###### Line1")
     menu2.markdown("###### Line2")

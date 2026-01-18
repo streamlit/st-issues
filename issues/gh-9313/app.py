@@ -10,11 +10,11 @@ class Analysis():
   Dummy class to represent an analysis. In reality, this is a SQLAlchemy Model
   """
   def __init__(self, id, name, type: Literal["line", "bar"]):
-    
+
     self.id = id
     self.name = name
     self.type = type
-    
+
 #Some dummies
 dummy_analysis1 = Analysis(1, "dummy1", "line")
 dummy_analysis2 = Analysis(2, "dummy2", "bar")
@@ -26,14 +26,14 @@ def get_analysis() -> Analysis:
     """
     Dummy function to get an analysis object.
     """
-    
+
     return [dummy_analysis1, dummy_analysis2, dummy_analysis3, dummy_analysis4]
 
 if version.parse(st.__version__) >= version.parse("1.37.0"):
   fragment_handler = st.fragment
 else:
   fragment_handler = st.experimental_fragment
-  
+
 def class_to_dataframe(objects):
     """
     Converts a list of class instances to a pandas DataFrame.
@@ -50,8 +50,8 @@ def class_to_dataframe(objects):
     data = [vars(obj) for obj in objects]
     # Create and return the DataFrame
     return pd.DataFrame(data).drop(columns=["_sa_instance_state"], errors="ignore")
-  
-def _get_selected_analysis(df: pd.DataFrame, analysis: list[Analysis]): 
+
+def _get_selected_analysis(df: pd.DataFrame, analysis: list[Analysis]):
     """
     Updates the session state with the selected analysis.
 
@@ -63,12 +63,12 @@ def _get_selected_analysis(df: pd.DataFrame, analysis: list[Analysis]):
     st.session_state["selected_analysis"] = [
             ausw for ausw in analysis if ausw.id in selected_ausw
         ]
-   
+
 @fragment_handler
 def list_analysis(analysis: list[Analysis]):
   """
   Creates a list of all available analysis.#
-  
+
   Parameters:
       analysis (Analysis): The analysis object to be displayed.
   """
@@ -119,19 +119,19 @@ def list_analysis(analysis: list[Analysis]):
 
       _get_selected_analysis(res, analysis)
       st.rerun()
-      
+
 @fragment_handler
 def show_selected_analysis(analysis: Analysis):
   st.subheader(f"Selected Analysis:  {analysis.name}")
   st.write("ID: ", analysis.id)
-  
+
   st.write("**Some Random Input: Select a value to multiple the ID by**")
   multipe = st.slider("Multiply by", 1, 10, 1,key=f"slider_{analysis.id}")
   st.write("New ID: ", analysis.id * multipe)
-  
-  
-  
-    
+
+
+
+
 #Here we create the dashboard page:
 
 st.session_state["selected_analysis"] = st.session_state.get("selected_analysis", [])
@@ -152,9 +152,9 @@ with st.sidebar:
     st.write("**What is the bug**")
     st.write("""Starting in **version 1.37.1** changing a value in a function decorated with `@st.fragment`might lead to displaying the wrong fragment. This happens if there once where multiple fragments instances of the same function created
              """)
-    
+
     st.write("**How to reproduce**")
-    st.write("""1. Install Streamlit Version 1.37.1\n\n2. Select the first two analysis options and click on the **Show** button  \n\n3. Play around with the two sliders and see that everything works as expected.\n\n4. Now deselect the first analysis and keep the second analysis selected\n\n5. Click on the **Show** button.\n\n6. Only the second analysis is now being displayed. Until here everything was working as expected.\n\n7. If you know touch the slider again, suddently the first analysis is being displayed again instead of the second one.  \n\n 
+    st.write("""1. Install Streamlit Version 1.37.1\n\n2. Select the first two analysis options and click on the **Show** button  \n\n3. Play around with the two sliders and see that everything works as expected.\n\n4. Now deselect the first analysis and keep the second analysis selected\n\n5. Click on the **Show** button.\n\n6. Only the second analysis is now being displayed. Until here everything was working as expected.\n\n7. If you know touch the slider again, suddently the first analysis is being displayed again instead of the second one.  \n\n
              """)
     st.write("**Excepted behavior**")
     st.write("""The expected behavior can be observed by installing Streamlit Version 1.36""")

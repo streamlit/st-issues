@@ -19,7 +19,7 @@ table_html = f"""
    </table>
 </div>
 """
-    
+
 # JavaScript code for clipboard.js
 clipboard_js = """
     <script type="text/javascript">

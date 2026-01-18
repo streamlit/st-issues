@@ -2,7 +2,7 @@ import streamlit as st
 
 text = """
   Here is some code:
-  
+
   ```
   import streamlit as st
   st.write("Hello world!")

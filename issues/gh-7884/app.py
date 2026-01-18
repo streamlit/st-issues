@@ -4,13 +4,13 @@ emoji_str = '✨:sparkles:❔:grey_question:🚑:ambulance:4️⃣:four:'
 
 st.markdown(
     f'''
-    normal {emoji_str}  
-    :rainbow[rainbow {emoji_str}]  
-    :blue[blue {emoji_str}]  
-    :green[green {emoji_str}]  
-    :orange[orange {emoji_str}]  
-    :red[red {emoji_str}]  
-    :violet[violet {emoji_str}]  
+    normal {emoji_str}
+    :rainbow[rainbow {emoji_str}]
+    :blue[blue {emoji_str}]
+    :green[green {emoji_str}]
+    :orange[orange {emoji_str}]
+    :red[red {emoji_str}]
+    :violet[violet {emoji_str}]
     :grey[grey {emoji_str}]
     '''
     )

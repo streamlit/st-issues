@@ -16,8 +16,8 @@ When using `st.data_editor` with `st.column_config.MultiselectColumn` and dynami
 
 **Error Message:**
 ```
-ValueError: setting an array element with a sequence. 
-The requested array has an inhomogeneous shape after 1 dimensions. 
+ValueError: setting an array element with a sequence.
+The requested array has an inhomogeneous shape after 1 dimensions.
 The detected shape was (2,) + inhomogeneous part.
 ```
 
@@ -164,4 +164,3 @@ AI Agent - 2025-10-20
 3. Priority assignment
 4. Feature labels addition
 5. Post confirmation to GitHub issue
-

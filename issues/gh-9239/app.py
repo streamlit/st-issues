@@ -18,7 +18,7 @@ class MessageHistory:
 
     def add_chat_message(self, role, content):
         st.session_state["messages"].append(Message(role, content))
-      
+
     @property
     def messages(self):
         return st.session_state["messages"]

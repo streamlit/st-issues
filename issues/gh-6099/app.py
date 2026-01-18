@@ -22,7 +22,7 @@ def makeTimeDataFrame(nper=10, freq="B", columns=None, start_date=None):
     # Build DataFrame
     df = DataFrame(data, index=date_index, columns=columns)
     return df
-    
+
 data = makeTimeDataFrame(freq='H')
 data = data.reset_index().melt(id_vars="index")
 

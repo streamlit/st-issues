@@ -5,12 +5,12 @@ class A:
     def __init__(self, id: int, name: str):
         self.id = id
         self.name = name
-    
+
     def __hash__(self) -> int:
         return hash(self.name)
     def __eq__(self, other) -> bool:
-        return (self.id == other.id) if str(type(self)) == str(type(other)) else False 
-    
+        return (self.id == other.id) if str(type(self)) == str(type(other)) else False
+
 def on_change(index: int) -> None:
     new_name = st.session_state["new_name"]
     st.session_state["lst"][index].name = new_name

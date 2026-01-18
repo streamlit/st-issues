@@ -27,7 +27,7 @@ df = load_test_data()
 all_types = sorted(df['type'].dropna().unique())
 
 # Sidebar filters (matching original pattern)
-st.sidebar.header("Filters") 
+st.sidebar.header("Filters")
 
 # Create multiselect in sidebar with all types as default
 selected_types = st.sidebar.multiselect(

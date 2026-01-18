@@ -3,7 +3,7 @@ import pandas as pd
 
 
 df = pd.DataFrame({
-    'copy_these':['a, b, c', 'a b c', 'car, house, horse', 'car house horse'], 
+    'copy_these':['a, b, c', 'a b c', 'car, house, horse', 'car house horse'],
     'paste_here': ['', '', '', '']
     })
 

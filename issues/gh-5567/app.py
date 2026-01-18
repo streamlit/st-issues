@@ -48,4 +48,3 @@ for record in st.session_state.records_data:
                 on_click=soft_delete,
                 args=[record],
             )
-

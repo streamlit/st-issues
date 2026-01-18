@@ -14,7 +14,7 @@ state_colors_translated = {
     "Reserved" : "LightGray",
 }
 
-   
+
 st.subheader("App name")
 st.write('**Alex**, welcome!')
 st.write("")

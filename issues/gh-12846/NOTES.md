@@ -99,7 +99,7 @@ This is part of the broader AdvancedLayouts feature set that updated width/heigh
 
 **Confidence:** High
 
-**Reasoning:** 
+**Reasoning:**
 
 1. The issue was reported for Streamlit v1.50.0 specifically
 2. Playwright tests on the current develop branch ALL PASSED (6/6 tests)
@@ -123,7 +123,7 @@ This is part of the broader AdvancedLayouts feature set that updated width/heigh
 
 All 6 tests PASSED:
 1. ✅ `test_issue_12846_width_stretch_with_fragment` - PASSED
-2. ✅ `test_issue_12846_width_stretch_no_fragment` - PASSED  
+2. ✅ `test_issue_12846_width_stretch_no_fragment` - PASSED
 3. ✅ `test_issue_12846_deprecated_use_container_width` - PASSED
 4. ✅ `test_issue_12846_width_content` - PASSED
 5. ✅ `test_issue_12846_width_integer` - PASSED
@@ -246,4 +246,3 @@ pip install --upgrade streamlit
 4. Document workaround in issue response
 
 **Priority:** P3 - Affects new feature, has workarounds, likely already fixed
-

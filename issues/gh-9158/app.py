@@ -12,7 +12,7 @@ else:
 @st.fragment
 def show_page():
     checkmark = st.checkbox("Yes or No - Inside Fragment")
-    
+
     if checkmark:
         st.tabs(["A", "B", "C"])
     else:

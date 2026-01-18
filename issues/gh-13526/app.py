@@ -42,7 +42,7 @@ with col1:
 with col2:
     st.subheader("Actual Behavior (Bug)")
     st.error("""
-    Ordered lists starting with numbers **other than 1** fail to render 
+    Ordered lists starting with numbers **other than 1** fail to render
     when preceded by text with **exactly 1 newline** character.
     """)
 
@@ -61,29 +61,29 @@ Each example shows the exact markdown string passed to `st.markdown()`.
 example = 1
 for newlines, subheader in ((0, "Nothing"), (2, "Text plus 2 newlines"), (1, "Text plus 1 newline")):
     st.subheader(f"{subheader} before the ordered list")
-    
+
     for start in (1, 0, 10):
         markdown = "\n".join(f"{i}. {s}" for i, s in enumerate(("foo", "bar"), start=start))
         if newlines:
             markdown = "Something before:" + "\n" * newlines + markdown
-        
+
         # Determine if this example should work or is buggy
         is_buggy = newlines == 1 and start != 1
         status_icon = "🐛" if is_buggy else "✅"
-        
+
         with st.expander(f"{status_icon} Example {example} - Start={start}, Newlines={newlines}", expanded=is_buggy):
             # Show the actual Python string being passed to st.markdown()
             st.markdown("**String passed to `st.markdown()`:**")
             st.code(repr(markdown), language="python")
-            
+
             st.markdown("**How it renders:**")
             if is_buggy:
                 st.error("❌ BUG: List doesn't render as ordered list")
             else:
                 st.success("✅ Renders correctly")
-            
+
             st.container(border=True).markdown(markdown)
-        
+
         example += 1
 
 st.divider()
@@ -221,4 +221,3 @@ The workaround of adding a second newline character is not intuitive and many us
 not discover it, thinking it's impossible to create ordered lists starting with numbers
 other than 1.
 """)
-

@@ -9,11 +9,11 @@ deck = pdk.Deck(views=[view],initial_view_state=view_state)
 st.pydeck_chart(deck)
 
 st.subheader("OrbitView:")
-view = pdk.View(type="OrbitView", controller=True) 
+view = pdk.View(type="OrbitView", controller=True)
 deck = pdk.Deck(views=[view],initial_view_state=view_state)
 st.pydeck_chart(deck)
 
 st.subheader("OrthographicView:")
-view = pdk.View(type="OrthographicView", controller=True) 
+view = pdk.View(type="OrthographicView", controller=True)
 deck = pdk.Deck(views=[view],initial_view_state=view_state)
 st.pydeck_chart(deck)

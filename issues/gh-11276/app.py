@@ -6,7 +6,7 @@ import numpy as np
 if 'value1' not in st.session_state:
     st.session_state['value1'] = np.random.randint(1, 100, size=20)
     st.session_state['value2'] = np.random.randint(1, 100, size=20)
-    
+
 df = pd.DataFrame({})
 df['date'] = pd.date_range(start='2025-01-01', periods=20, freq='ME').date
 df['value1'] = st.session_state['value1']

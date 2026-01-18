@@ -135,4 +135,3 @@ st.caption("""
 - Tests: All 6 regression tests pass
 - Preserves: Horizontal alignment fix from #12435
 """)
-

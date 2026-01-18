@@ -75,7 +75,6 @@ markdown = "Text:\n1. Item\n2. Item"
 ## Labels
 
 - `type:bug` - Something isn't working as expected
-- `feature:markdown` - Related to Markdown rendering  
+- `feature:markdown` - Related to Markdown rendering
 - `upstream` - Issue caused by upstream dependency
 - `status:needs-triage` - Issue has not been triaged by the Streamlit team
-

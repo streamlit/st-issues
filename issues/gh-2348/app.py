@@ -16,4 +16,4 @@ data += 37
 # create the DataFrame
 health_data = pd.DataFrame(data, index=index, columns=columns)
 print(health_data)  # printing in terminal gives the expected result
-st.dataframe(health_data)  # here the top most index is repeated 
+st.dataframe(health_data)  # here the top most index is repeated

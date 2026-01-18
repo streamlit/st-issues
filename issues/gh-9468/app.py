@@ -2,7 +2,7 @@ import streamlit as st
 
 # Extract the environment from the query parameter
 query_params = st.query_params
-selected_hours = int(query_params.get("hours", 24)) 
+selected_hours = int(query_params.get("hours", 24))
 selected_bus_name = query_params.get("buses", ["MP"])
 st.query_params.hours = int(selected_hours)
 st.query_params.buses = selected_bus_name

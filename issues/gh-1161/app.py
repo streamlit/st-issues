@@ -19,7 +19,3 @@ chart = alt.Chart(df).mark_bar().encode(
     }
 )
 st.altair_chart(chart)
-
-
-
-

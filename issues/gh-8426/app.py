@@ -9,7 +9,7 @@ def update():
         return
     for row in st.session_state.shit["added_rows"]:
         st.session_state.data.loc[len(st.session_state.data)] = [row["Shit"], None]
-    
+
     # The code below is required, otherwise the data_editor breaks.
     # Its commented out to show the behaviour.
 
@@ -41,5 +41,3 @@ st.data_editor(
 st.write("st.dataframe which displays actual dataframe values")
 
 st.dataframe(st.session_state.data)
-
-

@@ -12,7 +12,7 @@ Users should be able to add new rows to the data editor and select multiselect v
 
 Actual Behavior:
 Adding a row and selecting multiselect options triggers:
-ValueError: setting an array element with a sequence. The requested array has an inhomogeneous 
+ValueError: setting an array element with a sequence. The requested array has an inhomogeneous
 shape after 1 dimensions. The detected shape was (2,) + inhomogeneous part.
 
 Reported Version: Streamlit 1.50.0
@@ -43,7 +43,7 @@ with col2:
     st.subheader("Actual Behavior (Bug)")
     st.error("""
     ❌ **ValueError occurs** when adding a new row and selecting multiselect options
-    
+
     Error: `inhomogeneous array shape after 1 dimensions`
     """)
 
@@ -103,13 +103,13 @@ try:
             ),
         },
     )
-    
+
     st.success(f"✅ Data editor is working! Current rows: {len(edited_df)}")
-    
+
     # Show the current data
     with st.expander("View current data", expanded=False):
         st.write(edited_df)
-        
+
 except Exception as e:
     st.error("❌ **BUG TRIGGERED!** Error occurred:")
     st.exception(e)
@@ -175,7 +175,7 @@ st.divider()
 st.header("Technical Details")
 
 st.write("""
-**Root Cause:** 
+**Root Cause:**
 
 The bug occurs in `lib/streamlit/elements/widgets/data_editor.py` in the `_apply_row_additions()` function.
 When adding a new row using:
@@ -203,8 +203,8 @@ This causes a numpy array shape error because pandas cannot create a homogeneous
 
 with st.expander("View Expected Error Message", expanded=False):
     st.code("""
-ValueError: setting an array element with a sequence. 
-The requested array has an inhomogeneous shape after 1 dimensions. 
+ValueError: setting an array element with a sequence.
+The requested array has an inhomogeneous shape after 1 dimensions.
 The detected shape was (2,) + inhomogeneous part.
     """, language="text")
 
@@ -243,4 +243,3 @@ st.write("""
 - Try selecting different combinations of categories
 - Try editing existing rows (this should work fine)
 """)
-

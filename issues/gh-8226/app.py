@@ -5,6 +5,6 @@ import pandas as pd
 mixedData = {'mixed': ['10', 20, 30]}
 # Contains data of single data types
 singleData = {'single': [10, 20, 30]}
-# create 
+# create
 st.data_editor(pd.DataFrame(mixedData), disabled=False)
 st.data_editor(pd.DataFrame(singleData))
