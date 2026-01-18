@@ -1,5 +1,5 @@
 import concurrent.futures
-from typing import List, Optional
+import operator
 
 import pandas as pd
 import plotly.express as px
@@ -8,16 +8,14 @@ import streamlit as st
 from app.perf import pytest_interpreting_results, pytest_writing_a_test
 from app.perf.utils.artifacts import get_artifact_results
 from app.perf.utils.perf_github_artifacts import get_commit_hashes_for_branch_name
-from app.perf.utils.pytest_types import OutputJson
+from app.perf.utils.pytest_types import BenchmarkStats, OutputJson
 from app.perf.utils.tab_nav import segmented_tabs
 
 TITLE = "Streamlit Performance - Pytest"
 
 st.set_page_config(page_title=TITLE, layout="wide")
 
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("🧪 Performance - Pytest")
 
@@ -43,20 +41,20 @@ if token is None:
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_commits(branch_name: str, limit: int = 50):
+def get_commits(branch_name: str, limit: int = 50) -> list[str]:
     return get_commit_hashes_for_branch_name(branch_name, limit=limit)
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_pytest_results(hash: str):
-    return get_artifact_results(hash, "pytest")
+def get_pytest_results(commit_hash: str) -> tuple:
+    return get_artifact_results(commit_hash, "pytest")
 
 
 commit_hashes = get_commits("develop")
 
 
-directories: List[str] = []
-timestamps: List[str] = []
+directories: list[str] = []
+timestamps: list[str] = []
 results_by_run: list[OutputJson] = []
 
 # Download all the artifacts for the performance runs in parallel
@@ -79,19 +77,17 @@ if not results_by_run:
     st.stop()
 
 # Sort results and timestamps based on timestamps
-sorted_results_timestamps = sorted(
-    zip(results_by_run, timestamps), key=lambda x: x[1]
-)
-results_by_run, timestamps = zip(*sorted_results_timestamps)
+sorted_results_timestamps = sorted(zip(results_by_run, timestamps, strict=False), key=operator.itemgetter(1))
+results_by_run, timestamps = zip(*sorted_results_timestamps, strict=False)
 
 
-all_tests = set()
-processed_results = {}
-benchmark_data = []
+all_tests_set: set[str] = set()
+processed_results: dict[str, BenchmarkStats] = {}
+benchmark_data: list[dict] = []
 
 for results in results_by_run:
     for test in results["benchmarks"]:
-        all_tests.add(test["name"])
+        all_tests_set.add(test["name"])
 
         if test["name"] not in processed_results:
             processed_results[test["name"]] = test["stats"]
@@ -119,9 +115,9 @@ if df.empty:
 
 grid = st.container(horizontal=True, gap="medium")
 
-all_tests = sorted(all_tests)
+all_tests = sorted(all_tests_set)
 
-for index, test_name in enumerate(all_tests):
+for test_name in all_tests:
     test_df = df[df["test_name"] == test_name].reset_index()
     fig = px.box(
         test_df,
@@ -138,11 +134,11 @@ for index, test_name in enumerate(all_tests):
 st.divider()
 
 
-def force_refresh():
+def force_refresh() -> None:
     get_commits.clear()
 
 
-def clear_artifacts():
+def clear_artifacts() -> None:
     get_commits.clear()
     get_pytest_results.clear()
 
@@ -153,10 +149,7 @@ with st.expander("Debug Info"):
     st.write("Commits for the develop branch:")
     st.dataframe(
         {
-            "Commit Hash": [
-                f"https://github.com/streamlit/streamlit/commit/{hash}"
-                for hash in commit_hashes
-            ],
+            "Commit Hash": [f"https://github.com/streamlit/streamlit/commit/{h}" for h in commit_hashes],
         },
         column_config={
             "Commit Hash": st.column_config.LinkColumn(

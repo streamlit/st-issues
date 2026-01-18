@@ -1,4 +1,3 @@
-import os
 import pathlib
 import platform
 import re
@@ -24,25 +23,21 @@ DEFAULT_ISSUES_FOLDER = "issues"
 
 
 def initial_query_params() -> dict:
-    """
+    """Sync url params to session state on first load.
+
     When page is first loaded, or if current params are empty, sync url params to
     session state. Afterwards, just return local copy.
     """
-    if (
-        "initial_query_params_issue" not in st.session_state
-        or not st.session_state["initial_query_params_issue"]
-    ):
+    if "initial_query_params_issue" not in st.session_state or not st.session_state["initial_query_params_issue"]:
         st.session_state["initial_query_params_issue"] = st.query_params.to_dict()
     return st.session_state["initial_query_params_issue"]
 
 
 path_of_script = pathlib.Path(__file__).parent.resolve()
-path_to_issues = (
-    pathlib.Path(path_of_script).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
-)
+path_to_issues = pathlib.Path(path_of_script).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 
 issues = []
-for issue_folder in os.listdir(path_to_issues):
+for issue_folder in (p.name for p in path_to_issues.iterdir()):
     issue_folder_path = path_to_issues.joinpath(issue_folder).resolve()
     if not issue_folder_path.is_dir():
         continue
@@ -57,7 +52,7 @@ title_to_issue_folder = {}
 
 issue_titles = []
 default_index = 0
-for i, issue in enumerate(issues):
+for issue in issues:
     if not issue:
         continue
     if "gh-template" in issue:
@@ -68,9 +63,9 @@ for i, issue in enumerate(issues):
 
 # Add empty state:
 issue_titles.sort(reverse=True)
-issue_titles = [""] + issue_titles
+issue_titles = ["", *issue_titles]
 query_params = initial_query_params()
-if "issue" in query_params and query_params["issue"]:
+if query_params.get("issue"):
     query_param_issue = str(query_params["issue"])
     if query_param_issue in issue_titles:
         default_index = issue_titles.index(query_param_issue)
@@ -84,15 +79,10 @@ st.query_params["issue"] = selected_issue
 
 if selected_issue:
     selected_issue_folder = title_to_issue_folder[selected_issue]
-    selected_issue_folder_path = path_to_issues.joinpath(
-        selected_issue_folder
-    ).resolve()
+    selected_issue_folder_path = path_to_issues.joinpath(selected_issue_folder).resolve()
 
     with st.container():
-        if (
-            selected_issue_folder.startswith("gh-")
-            and selected_issue_folder.replace("gh-", "").isnumeric()
-        ):
+        if selected_issue_folder.startswith("gh-") and selected_issue_folder.replace("gh-", "").isnumeric():
             issue_number = selected_issue_folder.replace("gh-", "")
             # Request issue from GitHub API and extract the body:
             try:
@@ -135,9 +125,7 @@ if selected_issue:
                         # Old issue template
                         elif "### Steps to reproduce" in issue_body:
                             # Extract from issue body
-                            steps_to_reproduce = issue_body.split(
-                                "### Steps to reproduce"
-                            )[1].split("###")[0]
+                            steps_to_reproduce = issue_body.split("### Steps to reproduce")[1].split("###")[0]
                             # Remove markdown code blocks via regex
                             steps_to_reproduce = re.sub(
                                 r"```.*?```",
@@ -159,11 +147,10 @@ if selected_issue:
                 print(ex, flush=True)
 
         with st.expander("Source Code", expanded=True):
-            with open(
-                selected_issue_folder_path.joinpath(DEFAULT_SCRIPT_NAME).resolve(),
-                encoding="UTF-8",
-            ) as f:
-                st.code(f.read(), language="python")
+            source_code = pathlib.Path(selected_issue_folder_path.joinpath(DEFAULT_SCRIPT_NAME).resolve()).read_text(
+                encoding="UTF-8"
+            )
+            st.code(source_code, language="python")
 
     if (
         selected_issue_folder_path.joinpath("requirements.txt").exists()
@@ -186,4 +173,7 @@ In case the app embedded below is not running, you can deploy it yourself [here]
         )
     else:
         # Run the issue script
-        exec(open(selected_issue_folder_path.joinpath(DEFAULT_SCRIPT_NAME)).read())
+        script_content = pathlib.Path(selected_issue_folder_path.joinpath(DEFAULT_SCRIPT_NAME)).read_text(
+            encoding="utf-8"
+        )
+        exec(script_content)  # noqa: S102

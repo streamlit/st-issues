@@ -1,5 +1,6 @@
 import datetime
 import json
+from typing import Any
 
 import plotly.express as px
 import streamlit as st
@@ -17,6 +18,7 @@ DOCS = """
 Every Performance job in CI, and any run of a performance job locally outputs json file artifacts that contain the captured traces from the Playwright run. This tool allows you to upload one of these json files and visualize the captured traces in a Gantt chart as well as understand the meaning of the key metrics.
 """
 
+
 def render_metrics_explorer() -> None:
     with st.container(width="content"):
         st.markdown(DOCS)
@@ -24,7 +26,6 @@ def render_metrics_explorer() -> None:
     st.divider()
 
     json_file = st.file_uploader("Upload JSON File", type=["json"])
-
 
     if not json_file:
         st.stop()
@@ -34,35 +35,27 @@ def render_metrics_explorer() -> None:
     with st.expander("View JSON File"):
         st.json(json_file_as_dict)
 
-
-    json_file_calculations = {
+    json_file_calculations: dict[str, Any] = {
         "long_animation_frames": sum_long_animation_frames(json_file_as_dict),
         "phases": get_phases_for_all_profiles(json_file_as_dict),
     }
 
-
     @st.cache_data(ttl=60 * 60 * 12)
-    def get_json_data(the_file):
+    def get_json_data(the_file: Any) -> dict:
         return json.load(the_file)
-
 
     data = get_json_data(json_file)
 
-
     @st.cache_data(ttl=60 * 60 * 12)
-    def get_gantt_data(the_data):
-        timestamp_parsed = datetime.datetime.strptime(
-            json_file.name.split("_")[0], "%Y%m%d%H%M%S"
-        )
+    def get_gantt_data(the_data: dict) -> dict:
+        timestamp_parsed = datetime.datetime.strptime(json_file.name.split("_")[0], "%Y%m%d%H%M%S")
 
         # Extract relevant data for the Gantt chart
         gantt_data = []
 
         for phase in the_data["capturedTraces"]["profiles"]:
             for entry in the_data["capturedTraces"]["profiles"][phase]["entries"]:
-                start_time = timestamp_parsed + datetime.timedelta(
-                    milliseconds=entry["startTime"]
-                )
+                start_time = timestamp_parsed + datetime.timedelta(milliseconds=entry["startTime"])
                 finish_time = timestamp_parsed + datetime.timedelta(
                     milliseconds=entry["startTime"] + entry["actualDuration"]
                 )
@@ -75,22 +68,20 @@ def render_metrics_explorer() -> None:
                     }
                 )
 
-        for measurement in the_data["capturedTraces"]["measure"]:
-            if measurement["name"] == "script-run-cycle":
-                gantt_data.append(
-                    make_gantt_entry(
-                        timestamp_parsed, measurement, "script-run-cycle", "Global"
-                    )
-                )
+        gantt_data.extend(
+            make_gantt_entry(timestamp_parsed, measurement, "script-run-cycle", "Global")
+            for measurement in the_data["capturedTraces"]["measure"]
+            if measurement["name"] == "script-run-cycle"
+        )
 
-        TRACES = ["long-animation-frame"]
+        traces = ["long-animation-frame"]
 
-        for trace in TRACES:
+        for trace in traces:
             if trace in the_data["capturedTraces"]:
-                for measurement in the_data["capturedTraces"][trace]:
-                    gantt_data.append(
-                        make_gantt_entry(timestamp_parsed, measurement, trace, "Global")
-                    )
+                gantt_data.extend(
+                    make_gantt_entry(timestamp_parsed, measurement, trace, "Global")
+                    for measurement in the_data["capturedTraces"][trace]
+                )
 
         all_start_times = [entry["Start"] for entry in gantt_data]
         all_finish_times = [entry["Finish"] for entry in gantt_data]
@@ -127,7 +118,7 @@ def render_metrics_explorer() -> None:
         with st.expander("Metric Definitions"):
             st.markdown(METRIC_DEFINITIONS)
 
-    def check_mount_count(phase_values, profile_id):
+    def check_mount_count(phase_values: dict, profile_id: str) -> str:
         st.write("#### Mount")
         res = f"""
 Total time spent in mount: `{round(phase_values["actualDuration"], 2)}ms`
@@ -148,7 +139,7 @@ unless we are dealing with a full page transition/reload.
 
         return res
 
-    def check_nested_update(phase_values, profile_id):
+    def check_nested_update(phase_values: dict, _profile_id: str) -> str:
         st.write("#### Nested Update")
         res = f"""
 Total time spent in nested updates: `{round(phase_values["actualDuration"], 2)}ms`
@@ -166,7 +157,7 @@ synchronous. Expand the Metric Definitions section above for more information.
 
         return res
 
-    def check_update(phase_values, profile_id):
+    def check_update(phase_values: dict, _profile_id: str) -> str:
         st.write("#### Update")
         res = f"""
 Total time spent in updates: `{round(phase_values["actualDuration"], 2)}ms`

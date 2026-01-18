@@ -1,28 +1,29 @@
 from __future__ import annotations
 
-import pandas as pd
-import json
-
 import json
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any, Dict, Final, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Final
 
 import pandas as pd
 import requests
 import streamlit as st
 from requests.exceptions import (
     ChunkedEncodingError,
+)
+from requests.exceptions import (
     ConnectionError as RequestsConnectionError,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 GITHUB_GRAPHQL_ENDPOINT: Final[str] = "https://api.github.com/graphql"
 CACHE_BASE_DIR: Final[Path] = Path(".cache/github_prs")
 
 
-def get_graphql_headers() -> Dict[str, str]:
+def get_graphql_headers() -> dict[str, str]:
     """Get headers for GitHub GraphQL requests."""
     return {
         "Authorization": f"bearer {st.secrets['github']['token']}",
@@ -32,11 +33,10 @@ def get_graphql_headers() -> Dict[str, str]:
 
 def _run_graphql_query(
     query: str,
-    variables: Dict[str, Any],
+    variables: dict[str, Any],
     allow_rate_limit_wait: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Execute a GraphQL query with retry and rate-limit handling."""
-
     headers = get_graphql_headers()
     retryable_status = {502, 503, 504, 429}
 
@@ -48,7 +48,7 @@ def _run_graphql_query(
                 json={"query": query, "variables": variables},
                 timeout=40,
             )
-        except (ChunkedEncodingError, RequestsConnectionError) as exc:
+        except (ChunkedEncodingError, RequestsConnectionError):
             wait_seconds = 1.5 * (attempt + 1)
             time.sleep(wait_seconds)
             continue
@@ -69,27 +69,20 @@ def _run_graphql_query(
                     reset_at,
                 )
 
-            if "errors" in payload and payload["errors"]:
+            if payload.get("errors"):
                 # Handle rate limit errors specifically if present
-                error_messages = {
-                    err.get("type", ""): err.get("message", "")
-                    for err in payload["errors"]
-                }
+                error_messages = {err.get("type", ""): err.get("message", "") for err in payload["errors"]}
                 if "RATE_LIMITED" in error_messages or any(
                     "rate limit" in msg.lower() for msg in error_messages.values()
                 ):
-                    reset_at = (
-                        payload.get("data", {}).get("rateLimit", {}).get("resetAt")
-                    )
+                    reset_at = payload.get("data", {}).get("rateLimit", {}).get("resetAt")
                     wait_seconds = 5
                     if reset_at:
                         try:
-                            reset_dt = datetime.fromisoformat(
-                                reset_at.replace("Z", "+00:00")
-                            )
+                            reset_dt = datetime.fromisoformat(reset_at)
                             wait_seconds = max(
                                 5,
-                                (reset_dt - datetime.now(timezone.utc)).total_seconds(),
+                                (reset_dt - datetime.now(UTC)).total_seconds(),
                             )
                         except ValueError:
                             wait_seconds = 5
@@ -98,11 +91,13 @@ def _run_graphql_query(
                     time.sleep(wait_seconds)
                     continue
 
-                raise RuntimeError(f"GitHub GraphQL error: {payload['errors']}")
+                msg = f"GitHub GraphQL error: {payload['errors']}"
+                raise RuntimeError(msg)
 
             data = payload.get("data")
             if data is None:
-                raise RuntimeError("GitHub GraphQL response missing data")
+                msg = "GitHub GraphQL response missing data"
+                raise RuntimeError(msg)
 
             return data
 
@@ -128,16 +123,15 @@ def _run_graphql_query(
 
         response.raise_for_status()
 
-    raise RuntimeError("GitHub GraphQL request failed after retries.")
+    msg = "GitHub GraphQL request failed after retries."
+    raise RuntimeError(msg)
 
 
-def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+def _parse_iso_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(
-            timezone.utc
-        )
+        return datetime.fromisoformat(value).astimezone(UTC)
     except ValueError:
         return None
 
@@ -145,8 +139,8 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
 def _build_search_query(
     repo: str,
     base_branch: str,
-    merged_since: Optional[date],
-    merged_until: Optional[date],
+    merged_since: date | None,
+    merged_until: date | None,
 ) -> str:
     parts = [f"repo:{repo}", "is:pr", "is:merged", f"base:{base_branch}"]
     if merged_since:
@@ -156,12 +150,10 @@ def _build_search_query(
     return " ".join(parts)
 
 
-def _is_human_reviewer(typename: str, login: Optional[str], ignore_bots: bool) -> bool:
+def _is_human_reviewer(typename: str, login: str | None, ignore_bots: bool) -> bool:
     if typename != "User" or not login:
         return False
-    if ignore_bots and login.endswith("[bot]"):
-        return False
-    return True
+    return not (ignore_bots and login.endswith("[bot]"))
 
 
 PULL_REQUESTS_QUERY: Final[str] = """
@@ -207,11 +199,11 @@ query($owner: String!, $name: String!, $baseRef: String!, $cursor: String, $stat
 
 
 def _extract_pr_metrics(
-    pr_node: Dict[str, Any],
-    review_states: Iterable[str],
+    pr_node: dict[str, Any],
+    _review_states: Iterable[str],
     ignore_bots: bool,
     seen_pr_numbers: set[int],
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     pr_number = pr_node["number"]
     if pr_number in seen_pr_numbers:
         return None
@@ -226,9 +218,7 @@ def _extract_pr_metrics(
     all_reviews = reviews_conn.get("nodes", [])
 
     review_times = [
-        _parse_iso_datetime(review.get("submittedAt"))
-        for review in all_reviews
-        if review.get("submittedAt")
+        _parse_iso_datetime(review.get("submittedAt")) for review in all_reviews if review.get("submittedAt")
     ]
 
     first_review_event = min(
@@ -237,37 +227,29 @@ def _extract_pr_metrics(
     )
 
     approvals = [
-        _parse_iso_datetime(review.get("submittedAt"))
+        dt
         for review in all_reviews
         if review.get("state") == "APPROVED" and review.get("submittedAt")
+        for dt in [_parse_iso_datetime(review.get("submittedAt"))]
+        if dt is not None
     ]
     earliest_approval = min(approvals) if approvals else None
 
-    time_open_to_first_review = (
-        first_review_event - created_at if created_at and first_review_event else None
-    )
+    time_open_to_first_review = first_review_event - created_at if created_at and first_review_event else None
 
-    post_first_candidates: List[datetime] = []
-    if (
-        earliest_approval
-        and first_review_event
-        and earliest_approval >= first_review_event
-    ):
+    post_first_candidates: list[datetime] = []
+    if earliest_approval and first_review_event and earliest_approval >= first_review_event:
         post_first_candidates.append(earliest_approval)
     if merged_at and first_review_event and merged_at >= first_review_event:
         post_first_candidates.append(merged_at)
 
     time_first_review_to_merge_or_approval = (
-        min(post_first_candidates) - first_review_event
-        if first_review_event and post_first_candidates
-        else None
+        min(post_first_candidates) - first_review_event if first_review_event and post_first_candidates else None
     )
 
     time_open_to_merge = merged_at - created_at if created_at and merged_at else None
 
-    num_review_comments = sum(
-        (review.get("comments") or {}).get("totalCount", 0) for review in all_reviews
-    )
+    num_review_comments = sum((review.get("comments") or {}).get("totalCount", 0) for review in all_reviews)
 
     reviewer_logins: set[str] = set()
     for review in all_reviews:
@@ -287,8 +269,7 @@ def _extract_pr_metrics(
         "url": pr_node.get("url"),
         "title": pr_node.get("title"),
         "author": author_login,
-        "from_bot": author_typename == "Bot"
-        or (author_login and author_login.endswith("[bot]")),
+        "from_bot": author_typename == "Bot" or (author_login and author_login.endswith("[bot]")),
         "merged_by": (pr_node.get("mergedBy") or {}).get("login"),
         "is_draft": pr_node.get("isDraft", False),
         "open_date": created_at,
@@ -303,23 +284,16 @@ def _extract_pr_metrics(
         "distinct_reviewer_count": len(reviewers),
         "additions": pr_node.get("additions", 0),
         "deletions": pr_node.get("deletions", 0),
-        "loc_changes": (pr_node.get("additions", 0) or 0)
-        + (pr_node.get("deletions", 0) or 0),
+        "loc_changes": (pr_node.get("additions", 0) or 0) + (pr_node.get("deletions", 0) or 0),
         "changed_files": pr_node.get("changedFiles", 0),
         "closing_issues": [
-            node["number"]
-            for node in (pr_node.get("closingIssuesReferences") or {}).get("nodes", [])
-            if node
+            node["number"] for node in (pr_node.get("closingIssuesReferences") or {}).get("nodes", []) if node
         ],
-        "labels": [
-            node["name"]
-            for node in (pr_node.get("labels") or {}).get("nodes", [])
-            if node
-        ],
+        "labels": [node["name"] for node in (pr_node.get("labels") or {}).get("nodes", []) if node],
     }
 
 
-def _split_owner_repo(repo: str) -> Tuple[str, str]:
+def _split_owner_repo(repo: str) -> tuple[str, str]:
     owner, name = repo.split("/", 1)
     return owner, name
 
@@ -335,33 +309,30 @@ def _incremental_cache_path(base_branch: str) -> Path:
     return cache_dir / "merged_prs.parquet"
 
 
-@st.cache_data(
-    ttl=60 * 60 * 24, show_spinner="Loading merged PR metrics via GraphQL..."
-)
+@st.cache_data(ttl=60 * 60 * 24, show_spinner="Loading merged PR metrics via GraphQL...")
 def fetch_merged_pr_metrics(
     repo: str = "streamlit/streamlit",
     base_branch: str = "develop",
-    merged_since: Optional[date] = None,
-    merged_until: Optional[date] = None,
+    merged_since: date | None = None,
+    merged_until: date | None = None,
     include_commented: bool = True,
     ignore_bots: bool = False,
-    max_results: Optional[int] = None,
+    max_results: int | None = None,
     use_disk_cache: bool = False,
     paginate_ascending: bool = True,
-    starting_cursor: Optional[str] = None,
-    full_history_cache_path: Optional[Path] = None,
+    starting_cursor: str | None = None,
+    full_history_cache_path: Path | None = None,
     resume_on_rate_limit: bool = False,
 ) -> pd.DataFrame:
     """Fetch merged PR metrics using the GitHub GraphQL API."""
-
-    review_states: List[str] = ["APPROVED", "CHANGES_REQUESTED"]
+    review_states: list[str] = ["APPROVED", "CHANGES_REQUESTED"]
     if include_commented:
         review_states.append("COMMENTED")
 
-    existing_df: Optional[pd.DataFrame] = None
+    existing_df: pd.DataFrame | None = None
     seen_pr_numbers: set[int] = set()
-    records: List[Dict[str, Any]] = []
-    rate_stats: Dict[str, Any] = {}
+    records: list[dict[str, Any]] = []
+    rate_stats: dict[str, Any] = {}
     collected = 0
     owner, name = _split_owner_repo(repo)
     order_direction = "ASC" if paginate_ascending else "DESC"
@@ -413,9 +384,7 @@ def fetch_merged_pr_metrics(
             node = edge.get("node")
             if not node:
                 continue
-            record = _extract_pr_metrics(
-                node, review_states, ignore_bots, seen_pr_numbers
-            )
+            record = _extract_pr_metrics(node, review_states, ignore_bots, seen_pr_numbers)
             if not record:
                 continue
             merge_date = record.get("merge_date")
@@ -440,13 +409,9 @@ def fetch_merged_pr_metrics(
         if resume_on_rate_limit and remaining is not None and remaining <= 0:
             reset_at = rate_stats.get("reset_at")
             if reset_at:
-                reset_dt = datetime.fromisoformat(reset_at.replace("Z", "+00:00"))
-                sleep_seconds = max(
-                    5, (reset_dt - datetime.now(timezone.utc)).total_seconds()
-                )
-                st.info(
-                    f"Rate limit reached. Waiting {sleep_seconds:.0f} seconds to resume…"
-                )
+                reset_dt = datetime.fromisoformat(reset_at)
+                sleep_seconds = max(5, (reset_dt - datetime.now(UTC)).total_seconds())
+                st.info(f"Rate limit reached. Waiting {sleep_seconds:.0f} seconds to resume…")
                 time.sleep(sleep_seconds)
                 continue
 

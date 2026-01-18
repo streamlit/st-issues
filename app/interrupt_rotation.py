@@ -32,15 +32,11 @@ from app.utils.interrupt_data import (
 )
 
 # Set page configuration
-st.set_page_config(
-    page_title="Interrupt Rotation - Dashboard", page_icon="🩺", layout="wide"
-)
+st.set_page_config(page_title="Interrupt Rotation - Dashboard", page_icon="🩺", layout="wide")
 
 # Main app
 st.title("🩺 Interrupt Rotation - Dashboard")
-st.caption(
-    "This dashboard provides an overview of repository health and areas that require attention."
-)
+st.caption("This dashboard provides an overview of repository health and areas that require attention.")
 
 timeframe = st.sidebar.selectbox(
     "Select timeframe",
@@ -69,8 +65,8 @@ with st.sidebar.form("issue_form"):
     parsed_repo, parsed_issue = parse_github_url(github_url)
 
     # Use parsed values as defaults if available
-    default_repo = parsed_repo if parsed_repo else "streamlit/streamlit"
-    default_issue = parsed_issue if parsed_issue else ""
+    default_repo = parsed_repo or "streamlit/streamlit"
+    default_issue = parsed_issue or ""
 
     repo_info = st.text_input(
         "Repository (owner/repo)",
@@ -95,17 +91,13 @@ if submitted and manual_issue_number:
         if not manual_issue_number.strip():
             st.sidebar.error("❌ Please enter an issue number.")
         else:
-            st.sidebar.error(
-                "❌ Issue number must be a valid number between 1 and 150,000."
-            )
+            st.sidebar.error("❌ Issue number must be a valid number between 1 and 150,000.")
     elif not repo_info.strip():
         st.sidebar.error("❌ Please enter a repository in the format 'owner/repo'.")
     else:
         st.session_state.selected_issue_number = validated_issue
         st.session_state.selected_repo = repo_info
-        st.session_state.selected_issue_url = (
-            f"https://github.com/{repo_info}/issues/{validated_issue}"
-        )
+        st.session_state.selected_issue_url = f"https://github.com/{repo_info}/issues/{validated_issue}"
         st.session_state.show_agent_dialog = True
 
 days = 14 if timeframe == "Last 14 days" else 7
@@ -319,9 +311,7 @@ if p0_p1_bugs_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
     # Sort by priority (P0 first, then P1) and then by creation date
-    p0_p1_bugs_df["Priority_Sort"] = p0_p1_bugs_df["Priority"].map(
-        {"priority:P0": 0, "priority:P1": 1}
-    )
+    p0_p1_bugs_df["Priority_Sort"] = p0_p1_bugs_df["Priority"].map({"priority:P0": 0, "priority:P1": 1})
     p0_p1_bugs_df = p0_p1_bugs_df.sort_values(by=["Priority_Sort", "Created"])
     p0_p1_bugs_df = p0_p1_bugs_df.drop("Priority_Sort", axis=1)
 
@@ -463,9 +453,7 @@ else:
         column_config={
             "Test": st.column_config.TextColumn("Test", width="large"),
             "Failures": st.column_config.NumberColumn("Failures"),
-            "Workflow Run": st.column_config.LinkColumn(
-                "Last Workflow Run", display_text="Open"
-            ),
+            "Workflow Run": st.column_config.LinkColumn("Last Workflow Run", display_text="Open"),
             "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
         },
     )

@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import urllib.parse
-from datetime import date
 from io import BytesIO
-from typing import Any, Dict, Final, Iterator, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Final, Literal
 from zipfile import ZipFile
 
 import requests
 import streamlit as st
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from datetime import date
 
 # Streamlit team members:
 
@@ -97,14 +101,10 @@ EXPECTED_FLAKY_TESTS: Final[list[str]] = [
 
 def is_community_author(author: str) -> bool:
     """Check if an author is a community member."""
-    return (
-        author not in STREAMLIT_TEAM_MEMBERS
-        and not author.startswith("sfc-gh-")
-        and not author.endswith("[bot]")
-    )
+    return author not in STREAMLIT_TEAM_MEMBERS and not author.startswith("sfc-gh-") and not author.endswith("[bot]")
 
 
-def get_headers() -> Dict[str, str]:
+def get_headers() -> dict[str, str]:
     """Get headers for GitHub API requests."""
     return {
         "Authorization": f"token {st.secrets['github']['token']}",
@@ -113,9 +113,8 @@ def get_headers() -> Dict[str, str]:
 
 
 @st.cache_data(ttl=60 * 5)  # cache for 5 minutes
-def get_issue_data(repo: str, issue_number: str) -> Optional[Dict[str, Any]]:
-    """
-    Fetch issue data from GitHub API
+def get_issue_data(repo: str, issue_number: str) -> dict[str, Any] | None:
+    """Fetch issue data from GitHub API.
 
     Args:
         repo: Repository in format "owner/repo"
@@ -132,13 +131,12 @@ def get_issue_data(repo: str, issue_number: str) -> Optional[Dict[str, Any]]:
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        st.error(f"Error fetching issue: {str(e)}")
+        st.error(f"Error fetching issue: {e!s}")
         return None
 
 
-def extract_issue_metadata(issue_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Extract relevant metadata from the issue data
+def extract_issue_metadata(issue_data: dict[str, Any]) -> dict[str, Any]:
+    """Extract relevant metadata from the issue data.
 
     Args:
         issue_data: Raw issue data from GitHub API
@@ -160,9 +158,8 @@ def extract_issue_metadata(issue_data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @st.cache_data(ttl=60 * 5)  # cache for 5 minutes
-def get_issue_comments(repo: str, issue_number: str) -> Optional[List[Dict[str, Any]]]:
-    """
-    Fetch comments for a GitHub issue
+def get_issue_comments(repo: str, issue_number: str) -> list[dict[str, Any]] | None:
+    """Fetch comments for a GitHub issue.
 
     Args:
         repo: Repository in format "owner/repo"
@@ -179,13 +176,12 @@ def get_issue_comments(repo: str, issue_number: str) -> Optional[List[Dict[str, 
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        st.error(f"Error fetching comments: {str(e)}")
+        st.error(f"Error fetching comments: {e!s}")
         return None
 
 
-def extract_comment_data(comment: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Extract relevant data from a comment
+def extract_comment_data(comment: dict[str, Any]) -> dict[str, Any]:
+    """Extract relevant data from a comment.
 
     Args:
         comment: Raw comment data from GitHub API
@@ -205,8 +201,8 @@ def extract_comment_data(comment: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def load_issue_data() -> bool:
-    """
-    Loads issue data based on form input in the session state.
+    """Load issue data based on form input in the session state.
+
     Returns True if an issue was loaded, False otherwise.
 
     Assumes the following session state variables:
@@ -223,10 +219,8 @@ def load_issue_data() -> bool:
     - processed_comments
     """
     # Process form data after submission
-    if (
-        not st.session_state.get("form_issue_number")
-        or not st.session_state.get("form_issue_number").strip()
-    ):
+    form_issue_number = st.session_state.get("form_issue_number")
+    if not form_issue_number or not str(form_issue_number).strip():
         return False
 
     # Check if we need to fetch new data
@@ -237,9 +231,7 @@ def load_issue_data() -> bool:
     ):
         return True
 
-    with st.spinner(
-        f"Fetching issue #{st.session_state.form_issue_number} from {st.session_state.form_repo_info}..."
-    ):
+    with st.spinner(f"Fetching issue #{st.session_state.form_issue_number} from {st.session_state.form_repo_info}..."):
         # Fetch issue data
         issue_data = get_issue_data(
             st.session_state.form_repo_info,
@@ -250,9 +242,7 @@ def load_issue_data() -> bool:
             st.session_state.issue_data = issue_data
             st.session_state.issue_number = st.session_state.form_issue_number
             st.session_state.repo_info = st.session_state.form_repo_info
-            st.success(
-                f"Successfully fetched issue #{st.session_state.form_issue_number}"
-            )
+            st.success(f"Successfully fetched issue #{st.session_state.form_issue_number}")
 
             # Extract and store issue metadata
             issue_metadata = extract_issue_metadata(issue_data)
@@ -269,33 +259,30 @@ def load_issue_data() -> bool:
             if comments_data:
                 st.session_state.comments_data = comments_data
                 # Extract relevant comment data
-                processed_comments = [
-                    extract_comment_data(comment) for comment in comments_data
-                ]
+                processed_comments = [extract_comment_data(comment) for comment in comments_data]
                 st.session_state.processed_comments = processed_comments
             else:
                 st.session_state.comments_data = []
                 st.session_state.processed_comments = []
 
             return True
-        else:
-            st.error(
-                f"Failed to fetch issue #{st.session_state.form_issue_number}. Please check the repository and issue number."
-            )
-            return False
+        st.error(
+            f"Failed to fetch issue #{st.session_state.form_issue_number}. Please check the repository and issue number."
+        )
+        return False
 
 
 @st.cache_data(ttl=60 * 60 * 24)  # cache for 24 hours
 def get_all_github_issues(
     state: Literal["open", "closed", "all"] = "all",
-) -> List[Dict[str, Any]]:
-    """Paginate through all issues in the streamlit/streamlit repo
-    and return them all as a list of dicts."""
+) -> list[dict[str, Any]]:
+    """Paginate through all issues in the streamlit/streamlit repo.
+
+    Returns all issues as a list of dicts.
+    """
     issues = []
     state_param = f"state={state}" if state else ""
-    url: str | None = (
-        f"https://api.github.com/repos/streamlit/streamlit/issues?{state_param}&per_page=100"
-    )
+    url: str | None = f"https://api.github.com/repos/streamlit/streamlit/issues?{state_param}&per_page=100"
 
     while url:
         try:
@@ -321,9 +308,7 @@ def get_all_github_issues(
                             url = link.split(";")[0].strip().strip("<>")
                             break
             else:
-                st.error(
-                    f"Failed to retrieve data from {url}: {response.status_code}: {response.text}"
-                )
+                st.error(f"Failed to retrieve data from {url}: {response.status_code}: {response.text}")
                 break
         except Exception as ex:
             st.error(f"Failed to retrieve issues: {ex}")
@@ -334,14 +319,14 @@ def get_all_github_issues(
 @st.cache_data(ttl=60 * 60 * 24)  # cache for 24 hours
 def get_all_github_prs(
     state: Literal["open", "closed", "all"] = "all",
-) -> List[Dict[str, Any]]:
-    """Paginate through all PRs in the streamlit/streamlit repo
-    and return them all as a list of dicts."""
+) -> list[dict[str, Any]]:
+    """Paginate through all PRs in the streamlit/streamlit repo.
+
+    Returns all PRs as a list of dicts.
+    """
     prs = []
     state_param = f"state={state}" if state else ""
-    url: str | None = (
-        f"https://api.github.com/repos/streamlit/streamlit/pulls?{state_param}&per_page=100"
-    )
+    url: str | None = f"https://api.github.com/repos/streamlit/streamlit/pulls?{state_param}&per_page=100"
 
     while url:
         try:
@@ -367,9 +352,7 @@ def get_all_github_prs(
                             url = link.split(";")[0].strip().strip("<>")
                             break
             else:
-                st.error(
-                    f"Failed to retrieve data from {url}: {response.status_code}: {response.text}"
-                )
+                st.error(f"Failed to retrieve data from {url}: {response.status_code}: {response.text}")
                 break
         except Exception as ex:
             st.error(f"Failed to retrieve PRs: {ex}")
@@ -377,22 +360,20 @@ def get_all_github_prs(
     return prs
 
 
-@st.cache_data(
-    ttl=60 * 60 * 24, show_spinner="Fetching workflow runs..."
-)  # cache for 24 hours
+@st.cache_data(ttl=60 * 60 * 24, show_spinner="Fetching workflow runs...")  # cache for 24 hours
 def fetch_workflow_runs(
     workflow_name: str,
     limit: int = 50,
     since: date | None = None,
     branch: str | None = "develop",
     status: str | None = "success",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Fetch workflow runs for a specific workflow."""
-    all_runs: List[Dict[str, Any]] = []
+    all_runs: list[dict[str, Any]] = []
     page = 1
     per_page = 100
 
-    params: Dict[str, Any] = {
+    params: dict[str, Any] = {
         "per_page": per_page,
         "page": page,
     }
@@ -439,7 +420,7 @@ def fetch_workflow_runs(
 
 
 @st.cache_data(show_spinner="Fetching artifacts...")
-def fetch_artifacts(run_id: int) -> List[Dict[str, Any]]:
+def fetch_artifacts(run_id: int) -> list[dict[str, Any]]:
     """Fetch artifacts for a specific workflow run."""
     try:
         response = requests.get(
@@ -459,17 +440,13 @@ def fetch_artifacts(run_id: int) -> List[Dict[str, Any]]:
 
 
 @st.cache_data(show_spinner=False)
-def download_artifact(artifact_url: str) -> Optional[bytes]:
+def download_artifact(artifact_url: str) -> bytes | None:
     """Download an artifact from GitHub Actions."""
     try:
         # The artifact URL is a redirect, so we need to get the real URL.
-        redirect_response = requests.get(
-            artifact_url, headers=get_headers(), timeout=60, allow_redirects=False
-        )
+        redirect_response = requests.get(artifact_url, headers=get_headers(), timeout=60, allow_redirects=False)
         if redirect_response.status_code != 302:
-            st.error(
-                f"Error getting artifact redirect URL: {redirect_response.status_code}"
-            )
+            st.error(f"Error getting artifact redirect URL: {redirect_response.status_code}")
             return None
 
         download_url = redirect_response.headers["Location"]
@@ -487,7 +464,7 @@ def download_artifact(artifact_url: str) -> Optional[bytes]:
         return None
 
 
-def zip_namelist(zip_bytes: bytes) -> List[str]:
+def zip_namelist(zip_bytes: bytes) -> list[str]:
     """Return the list of member names from a zip blob (in-memory)."""
     with ZipFile(BytesIO(zip_bytes)) as z:
         return z.namelist()
@@ -495,9 +472,8 @@ def zip_namelist(zip_bytes: bytes) -> List[str]:
 
 def iter_json_from_zip_bytes(
     zip_bytes: bytes, *, prefix: str | None = None, root_only: bool = False
-) -> Iterator[Tuple[str, Any]]:
-    """
-    Iterate JSON files within a zip blob (in-memory).
+) -> Iterator[tuple[str, Any]]:
+    """Iterate JSON files within a zip blob (in-memory).
 
     Args:
         zip_bytes: Raw zip bytes.
@@ -521,16 +497,14 @@ def iter_json_from_zip_bytes(
                 yield name, json.load(f)
 
 
-def first_json_from_zip_bytes(
-    zip_bytes: bytes, *, prefix: str | None = None
-) -> Optional[Tuple[str, Any]]:
+def first_json_from_zip_bytes(zip_bytes: bytes, *, prefix: str | None = None) -> tuple[str, Any] | None:
     """Return the first JSON member from a zip blob, optionally under a prefix."""
     for name, payload in iter_json_from_zip_bytes(zip_bytes, prefix=prefix):
         return name, payload
     return None
 
 
-def fetch_pr_info(pr_number: str) -> Optional[Dict[str, Any]]:
+def fetch_pr_info(pr_number: str) -> dict[str, Any] | None:
     """Fetch information about a PR from GitHub API."""
     try:
         response = requests.get(
@@ -550,9 +524,9 @@ def fetch_pr_info(pr_number: str) -> Optional[Dict[str, Any]]:
 
 
 @st.cache_data(ttl=60 * 60 * 3, show_spinner=False)
-def fetch_pr_reviews(pr_number: int) -> List[Dict[str, Any]]:
+def fetch_pr_reviews(pr_number: int) -> list[dict[str, Any]]:
     """Fetch all reviews for a given PR."""
-    reviews: List[Dict[str, Any]] = []
+    reviews: list[dict[str, Any]] = []
     page = 1
 
     while True:
@@ -565,9 +539,7 @@ def fetch_pr_reviews(pr_number: int) -> List[Dict[str, Any]]:
             )
 
             if response.status_code != 200:
-                st.error(
-                    f"Error fetching PR reviews for #{pr_number}: {response.status_code}"
-                )
+                st.error(f"Error fetching PR reviews for #{pr_number}: {response.status_code}")
                 break
 
             data = response.json()
@@ -587,9 +559,7 @@ def fetch_pr_reviews(pr_number: int) -> List[Dict[str, Any]]:
     return reviews
 
 
-def fetch_workflow_runs_for_commit(
-    commit_sha: str, workflow_name: str
-) -> List[Dict[str, Any]]:
+def fetch_workflow_runs_for_commit(commit_sha: str, workflow_name: str) -> list[dict[str, Any]]:
     """Fetch workflow runs for a specific commit."""
     try:
         response = requests.get(
@@ -611,7 +581,7 @@ def fetch_workflow_runs_for_commit(
 @st.cache_data(show_spinner=False)
 def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
     annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-runs/{check_run_id}/annotations"
-    response = requests.get(annotations_url, headers=get_headers())
+    response = requests.get(annotations_url, headers=get_headers(), timeout=30)
 
     if response.status_code == 200:
         return response.json()
@@ -622,15 +592,11 @@ def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
 @st.cache_data(show_spinner=False)
 def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
     annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-suites/{check_suite_id}/check-runs"
-    response = requests.get(annotations_url, headers=get_headers())
+    response = requests.get(annotations_url, headers=get_headers(), timeout=30)
 
     if response.status_code == 200:
         check_runs = response.json()["check_runs"]
-        check_runs = [
-            check_run
-            for check_run in check_runs
-            if check_run["conclusion"] == "success"
-        ]
+        check_runs = [check_run for check_run in check_runs if check_run["conclusion"] == "success"]
         return [check_run["id"] for check_run in check_runs]
     st.error(f"Error fetching annotations: {response.status_code}")
     return []
@@ -640,25 +606,24 @@ def extract_issue_number(github_url: str) -> int:
     """Extract issue number from GitHub URL."""
     if "/issues/" in github_url:
         try:
-            return int(github_url.split("/issues/")[-1].split("?")[0].split("#")[0])
+            return int(github_url.rsplit("/issues/", maxsplit=1)[-1].split("?")[0].split("#")[0])
         except (ValueError, IndexError):
             return 0
     return 0
 
 
-def validate_issue_number(issue_str):
+def validate_issue_number(issue_str: str) -> tuple[bool, int | None]:
     """Validate issue number is between 1 and 150,000."""
     try:
         issue_num = int(issue_str.strip())
         if 1 <= issue_num <= 150000:
             return True, issue_num
-        else:
-            return False, None
+        return False, None
     except (ValueError, TypeError):
         return False, None
 
 
-def parse_github_url(url):
+def parse_github_url(url: str | None) -> tuple[str | None, str | None]:
     """Parse GitHub issue URL to extract repository and issue number."""
     import re
 
@@ -668,8 +633,7 @@ def parse_github_url(url):
     url = url.strip()
 
     # Remove @ symbol if present at the beginning
-    if url.startswith("@"):
-        url = url[1:]
+    url = url.removeprefix("@")
 
     # Pattern to match GitHub issue URLs
     pattern = r"https://github\.com/([^/]+/[^/]+)/issues/(\d+)"
@@ -684,12 +648,8 @@ def parse_github_url(url):
 
 
 @st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
-def get_count_issues_commented_by_user(
-    username: str, repo: str = "streamlit/streamlit"
-) -> int:
-    """
-    Get the number of issues commented on by a user.
-    """
+def get_count_issues_commented_by_user(username: str, _repo: str = "streamlit/streamlit") -> int:
+    """Get the number of issues commented on by a user."""
     headers = get_headers()
     query = f"repo:streamlit/streamlit is:issue commenter:{username}"
     # Manually encode the query to ensure compatibility
@@ -703,9 +663,7 @@ def get_count_issues_commented_by_user(
         return response.json().get("total_count", 0)
     except Exception as e:
         st.error(f"Error fetching commented issues count for {username}: {e}")
-        try:
+        with contextlib.suppress(Exception):
             # Try to show the error message from GitHub
             st.error(f"GitHub API Error: {response.text}")
-        except Exception:
-            pass
         return 0

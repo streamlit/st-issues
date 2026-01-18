@@ -20,9 +20,7 @@ from app.utils.github_utils import (
 
 st.set_page_config(page_title="Frontend Bundle Analysis", page_icon="📦", layout="wide")
 
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("📦 Frontend Bundle Analysis")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
@@ -30,7 +28,7 @@ with title_row:
 
 
 @st.cache_data(show_spinner=False)
-def process_bundle_artifact(content):
+def process_bundle_artifact(content: bytes) -> list | None:
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as z:
             for name in z.namelist():
@@ -44,7 +42,7 @@ def process_bundle_artifact(content):
 
 
 @st.cache_data(show_spinner=False)
-def get_html_report_content(url):
+def get_html_report_content(url: str) -> str | None:
     content = download_artifact(url)
     if content:
         try:
@@ -58,7 +56,9 @@ def get_html_report_content(url):
     return None
 
 
-def format_bytes(size):
+def format_bytes(size: int | None) -> str:
+    if size is None:
+        return "N/A"
     return humanize.naturalsize(size, binary=True)
 
 
@@ -66,7 +66,7 @@ ASSET_JS_EXTENSIONS = (".js", ".mjs", ".cjs")
 ASSET_CSS_EXTENSIONS = (".css",)
 
 
-def get_asset_category(filename):
+def get_asset_category(filename: str | None) -> str:
     if not filename:
         return "other"
 
@@ -81,7 +81,7 @@ def get_asset_category(filename):
     return "other"
 
 
-def compute_bundle_metrics(bundle_data):
+def compute_bundle_metrics(bundle_data: list) -> dict:
     metrics = {
         "total_parsed": 0,
         "total_gzip": 0,
@@ -105,9 +105,7 @@ def compute_bundle_metrics(bundle_data):
             metrics["entry_brotli"] += item.get("brotliSize", 0)
 
         if item.get("isAsset"):
-            category = get_asset_category(
-                item.get("filename") or item.get("label") or ""
-            )
+            category = get_asset_category(item.get("filename") or item.get("label") or "")
             asset_key = f"asset_{category}_gzip"
             if asset_key in metrics:
                 metrics[asset_key] += item.get("gzipSize", 0)
@@ -115,13 +113,9 @@ def compute_bundle_metrics(bundle_data):
     return metrics
 
 
-def extract_bundle_metrics_from_artifacts(artifacts, include_bundle_data=False):
+def extract_bundle_metrics_from_artifacts(artifacts: list, include_bundle_data: bool = False) -> dict | tuple | None:
     json_artifact = next(
-        (
-            artifact
-            for artifact in artifacts
-            if artifact["name"] == "bundle_analysis_json"
-        ),
+        (artifact for artifact in artifacts if artifact["name"] == "bundle_analysis_json"),
         None,
     )
 
@@ -144,13 +138,9 @@ def extract_bundle_metrics_from_artifacts(artifacts, include_bundle_data=False):
     return metrics
 
 
-def get_html_artifact_urls(run, artifacts):
+def get_html_artifact_urls(run: dict, artifacts: list) -> tuple[str | None, str | None]:
     html_artifact = next(
-        (
-            artifact
-            for artifact in artifacts
-            if artifact["name"] == "bundle_analysis_html"
-        ),
+        (artifact for artifact in artifacts if artifact["name"] == "bundle_analysis_html"),
         None,
     )
 
@@ -162,7 +152,9 @@ def get_html_artifact_urls(run, artifacts):
     return html_artifact_url, html_report_url
 
 
-def build_bundle_record(run, metrics, html_artifact_url=None, html_report_url=None):
+def build_bundle_record(
+    run: dict, metrics: dict, html_artifact_url: str | None = None, html_report_url: str | None = None
+) -> dict:
     return {
         "run_id": run["id"],
         "created_at": run["created_at"],
@@ -175,16 +167,18 @@ def build_bundle_record(run, metrics, html_artifact_url=None, html_report_url=No
     }
 
 
-def get_bundle_record_for_run(run, include_bundle_data=False):
+def get_bundle_record_for_run(run: dict, include_bundle_data: bool = False) -> dict | tuple | None:
     artifacts = fetch_artifacts(run["id"])
 
     if include_bundle_data:
-        extraction = extract_bundle_metrics_from_artifacts(
-            artifacts, include_bundle_data=True
-        )
-        metrics, bundle_data = extraction if extraction else (None, None)
+        extraction = extract_bundle_metrics_from_artifacts(artifacts, include_bundle_data=True)
+        if isinstance(extraction, tuple):
+            metrics, bundle_data = extraction
+        else:
+            metrics, bundle_data = None, None
     else:
-        metrics = extract_bundle_metrics_from_artifacts(artifacts)
+        extraction = extract_bundle_metrics_from_artifacts(artifacts)
+        metrics = extraction if isinstance(extraction, dict) else None
         bundle_data = None
 
     if not metrics:
@@ -199,7 +193,7 @@ def get_bundle_record_for_run(run, include_bundle_data=False):
     return record
 
 
-def format_delta_bytes(current, baseline):
+def format_delta_bytes(current: int, baseline: int) -> str:
     delta = current - baseline
     if delta == 0:
         return "0 B"
@@ -207,7 +201,7 @@ def format_delta_bytes(current, baseline):
     return f"{prefix}{format_bytes(abs(delta))}"
 
 
-def display_bundle_report(html_artifact_url, title):
+def display_bundle_report(html_artifact_url: str | None, title: str) -> None:
     if not html_artifact_url:
         st.warning("No HTML report available for this run.")
         return
@@ -221,7 +215,7 @@ def display_bundle_report(html_artifact_url, title):
         st.error("Failed to download or parse HTML report.")
 
 
-def build_treemap_dataframe(bundle_data):
+def build_treemap_dataframe(bundle_data: list | None) -> pd.DataFrame:
     if not bundle_data:
         return pd.DataFrame()
 
@@ -241,9 +235,7 @@ def build_treemap_dataframe(bundle_data):
 
         rows.append(
             {
-                "Category": "Entry Chunks"
-                if item.get("isEntry")
-                else "Async/Lazy Chunks",
+                "Category": "Entry Chunks" if item.get("isEntry") else "Async/Lazy Chunks",
                 "Label": label,
                 "Size": item.get("parsedSize") or item.get("gzipSize") or 0,
             }
@@ -253,12 +245,12 @@ def build_treemap_dataframe(bundle_data):
     if df.empty:
         return df
 
-    df = df.groupby(["Category", "Label"], as_index=False)["Size"].sum()
+    df = df.groupby(["Category", "Label"], as_index=False).agg({"Size": "sum"})
     df["Size (Human)"] = df["Size"].apply(format_bytes)
     return df
 
 
-def render_bundle_treemap(title, bundle_data):
+def render_bundle_treemap(title: str, bundle_data: list | None) -> None:
     df = build_treemap_dataframe(bundle_data)
     if df.empty:
         st.warning(f"No bundle data available for {title.lower()}.")
@@ -272,17 +264,19 @@ def render_bundle_treemap(title, bundle_data):
         color_continuous_scale="Blues",
         hover_data={"Size (Human)": True},
     )
-    fig.update_traces(
-        hovertemplate="<b>%{label}</b><br>Size: %{customdata[0]}<extra></extra>"
-    )
+    fig.update_traces(hovertemplate="<b>%{label}</b><br>Size: %{customdata[0]}<extra></extra>")  # noqa: RUF027
 
     st.markdown(f"**{title}**")
     st.plotly_chart(fig, width="stretch")
 
 
 def display_pr_bundle_comparison(
-    pr_bundle, develop_bundle, pr_bundle_chunks, develop_bundle_chunks, pr_number
-):
+    pr_bundle: dict,
+    develop_bundle: dict,
+    pr_bundle_chunks: list | None,
+    develop_bundle_chunks: list | None,
+    _pr_number: int,
+) -> None:
     st.subheader("PR Bundle Comparison")
 
     st.markdown(
@@ -332,7 +326,7 @@ def display_pr_bundle_comparison(
     ]
 
     cols = st.columns(3)
-    for col, group in zip(cols, metric_groups):
+    for col, group in zip(cols, metric_groups, strict=False):
         with col:
             for label, key, help_text in group:
                 st.metric(
@@ -364,7 +358,7 @@ def display_pr_bundle_comparison(
         ),
     ]
 
-    for col, (label, key, help_text) in zip(asset_cols, asset_metric_groups):
+    for col, (label, key, help_text) in zip(asset_cols, asset_metric_groups, strict=False):
         with col:
             st.metric(
                 label,
@@ -408,9 +402,7 @@ def display_pr_bundle_comparison(
     with report_col1:
         st.markdown("**PR Bundle Report**")
         if pr_bundle["html_artifact_url"]:
-            display_bundle_report(
-                pr_bundle["html_artifact_url"], "the PR bundle analysis report"
-            )
+            display_bundle_report(pr_bundle["html_artifact_url"], "the PR bundle analysis report")
         else:
             st.warning("No HTML report available for the PR run.")
 
@@ -425,9 +417,9 @@ def display_pr_bundle_comparison(
             st.warning("No HTML report available for the develop run.")
 
 
-def handle_pr_mode(pr_number):
+def handle_pr_mode(pr_number: int) -> None:
     with st.spinner(f"Fetching data for PR #{pr_number}..."):
-        pr_info = fetch_pr_info(pr_number)
+        pr_info = fetch_pr_info(str(pr_number))
 
     if not pr_info:
         st.error(f"Could not fetch information for PR #{pr_number}.")
@@ -439,9 +431,7 @@ def handle_pr_mode(pr_number):
         pr_runs = fetch_workflow_runs_for_commit(head_sha, "pr-preview.yml")
 
     if not pr_runs:
-        st.error(
-            f"No successful `pr-preview.yml` workflow runs found for PR commit {head_sha[:7]}."
-        )
+        st.error(f"No successful `pr-preview.yml` workflow runs found for PR commit {head_sha[:7]}.")
         return
 
     pr_bundle = None
@@ -463,20 +453,14 @@ def handle_pr_mode(pr_number):
         st.error("No successful develop workflow runs found for `pr-preview.yml`.")
         return
 
-    develop_record = get_bundle_record_for_run(
-        develop_runs[0], include_bundle_data=True
-    )
+    develop_record = get_bundle_record_for_run(develop_runs[0], include_bundle_data=True)
     if not develop_record or not develop_record[0]:
-        st.error(
-            "Could not extract bundle metrics from the latest develop workflow run."
-        )
+        st.error("Could not extract bundle metrics from the latest develop workflow run.")
         return
 
     develop_bundle, develop_bundle_chunks = develop_record
 
-    display_pr_bundle_comparison(
-        pr_bundle, develop_bundle, pr_bundle_chunks, develop_bundle_chunks, pr_number
-    )
+    display_pr_bundle_comparison(pr_bundle, develop_bundle, pr_bundle_chunks, develop_bundle_chunks, pr_number)
 
 
 query_params = st.query_params
@@ -488,12 +472,10 @@ if pr_number:
     st.caption(
         f"Comparing bundle metrics for [PR #{pr_number}](https://github.com/streamlit/streamlit/pull/{pr_number}) against the latest develop run."
     )
-    handle_pr_mode(pr_number)
+    handle_pr_mode(int(pr_number))
     st.stop()
 
-st.caption(
-    "This page visualizes the frontend bundle size metrics tracked in the PR preview workflow."
-)
+st.caption("This page visualizes the frontend bundle size metrics tracked in the PR preview workflow.")
 
 # Sidebar
 time_period = st.sidebar.selectbox(
@@ -510,6 +492,7 @@ limit = st.sidebar.slider(
 )
 
 # Calculate date
+since: datetime | None
 if time_period == "Last 7 days":
     since = datetime.now() - timedelta(days=7)
 elif time_period == "Last 30 days":
@@ -522,9 +505,7 @@ else:
 
 # Fetch runs
 # Analyze frontend bundle is in pr-preview.yml
-runs = fetch_workflow_runs(
-    "pr-preview.yml", limit=limit, since=since.date() if since else None
-)
+runs = fetch_workflow_runs("pr-preview.yml", limit=limit, since=since.date() if since else None)
 
 if not runs:
     st.warning("No workflow runs found.")
@@ -546,9 +527,10 @@ with st.spinner("Processing bundle analysis data..."):
             continue
 
         artifacts = fetch_artifacts(run["id"])
-        metrics = extract_bundle_metrics_from_artifacts(artifacts)
-        if not metrics:
+        extraction = extract_bundle_metrics_from_artifacts(artifacts)
+        if not extraction or not isinstance(extraction, dict):
             continue
+        metrics = extraction
 
         html_artifact_url, html_report_url = get_html_artifact_urls(run, artifacts)
 
@@ -581,7 +563,7 @@ sparkline_data = df.tail(20)
 start_run = df.iloc[0]
 
 
-def calculate_delta(current, start):
+def calculate_delta(current: int, start: int) -> int | None:
     if start == 0:
         return None
     return current - start
@@ -593,9 +575,7 @@ with col1:
     st.metric(
         "Total Size (gzip)",
         format_bytes(latest["total_gzip"]),
-        delta=format_bytes(
-            calculate_delta(latest["total_gzip"], start_run["total_gzip"])
-        ),
+        delta=format_bytes(calculate_delta(latest["total_gzip"], start_run["total_gzip"])),
         delta_color="inverse",
         help="Total size of all JavaScript files after Gzip compression. This is a good approximation of the download size for most users.",
         border=True,
@@ -606,9 +586,7 @@ with col1:
     st.metric(
         "Entry Size (gzip)",
         format_bytes(latest["entry_gzip"]),
-        delta=format_bytes(
-            calculate_delta(latest["entry_gzip"], start_run["entry_gzip"])
-        ),
+        delta=format_bytes(calculate_delta(latest["entry_gzip"], start_run["entry_gzip"])),
         delta_color="inverse",
         help="Size of the entry point chunks (initial load) after Gzip compression. Smaller entry size means faster initial page load.",
         border=True,
@@ -620,9 +598,7 @@ with col2:
     st.metric(
         "Total Size (brotli)",
         format_bytes(latest["total_brotli"]),
-        delta=format_bytes(
-            calculate_delta(latest["total_brotli"], start_run["total_brotli"])
-        ),
+        delta=format_bytes(calculate_delta(latest["total_brotli"], start_run["total_brotli"])),
         delta_color="inverse",
         help="Total size of all JavaScript files after Brotli compression. Brotli usually provides better compression than Gzip but is slower to compress.",
         border=True,
@@ -633,9 +609,7 @@ with col2:
     st.metric(
         "Entry Size (brotli)",
         format_bytes(latest["entry_brotli"]),
-        delta=format_bytes(
-            calculate_delta(latest["entry_brotli"], start_run["entry_brotli"])
-        ),
+        delta=format_bytes(calculate_delta(latest["entry_brotli"], start_run["entry_brotli"])),
         delta_color="inverse",
         help="Size of the entry point chunks (initial load) after Brotli compression.",
         border=True,
@@ -647,9 +621,7 @@ with col3:
     st.metric(
         "Total Size (parsed)",
         format_bytes(latest["total_parsed"]),
-        delta=format_bytes(
-            calculate_delta(latest["total_parsed"], start_run["total_parsed"])
-        ),
+        delta=format_bytes(calculate_delta(latest["total_parsed"], start_run["total_parsed"])),
         delta_color="inverse",
         help="Total size of the JavaScript code after decompression (as it exists in memory). This affects parsing and execution time in the browser.",
         border=True,
@@ -660,9 +632,7 @@ with col3:
     st.metric(
         "Entry Size (parsed)",
         format_bytes(latest["entry_parsed"]),
-        delta=format_bytes(
-            calculate_delta(latest["entry_parsed"], start_run["entry_parsed"])
-        ),
+        delta=format_bytes(calculate_delta(latest["entry_parsed"], start_run["entry_parsed"])),
         delta_color="inverse",
         help="Size of the entry point chunks after decompression.",
         border=True,
@@ -690,7 +660,7 @@ asset_metric_configs = [
     ),
 ]
 
-for col, (label, key, help_text) in zip(asset_cols_overview, asset_metric_configs):
+for col, (label, key, help_text) in zip(asset_cols_overview, asset_metric_configs, strict=False):
     with col:
         st.metric(
             label,
@@ -710,7 +680,7 @@ st.subheader("Bundle Size Trends")
 tab_gzip, tab_brotli, tab_parsed = st.tabs(["Gzip Size", "Brotli Size", "Parsed Size"])
 
 
-def create_trend_chart(df, metric_suffix, title):
+def create_trend_chart(df: pd.DataFrame, metric_suffix: str, title: str) -> alt.Chart:
     chart_data = df.melt(
         id_vars=["created_at", "commit_sha"],
         value_vars=[f"total_{metric_suffix}", f"entry_{metric_suffix}"],
@@ -727,7 +697,7 @@ def create_trend_chart(df, metric_suffix, title):
     )
 
     # Add human readable size for tooltip
-    chart_data["Size (Human)"] = chart_data["Size"].apply(lambda x: format_bytes(x))
+    chart_data["Size (Human)"] = chart_data["Size"].apply(format_bytes)
 
     chart = (
         alt.Chart(chart_data)
@@ -770,9 +740,7 @@ with tab_parsed:
 
 # Detailed Data Table
 st.subheader("Bundle Size History")
-st.caption(
-    ":material/keyboard_arrow_down: Select a row to view the Bundle Analysis HTML report."
-)
+st.caption(":material/keyboard_arrow_down: Select a row to view the Bundle Analysis HTML report.")
 
 # Prepare display dataframe
 display_df = df.copy()
@@ -786,16 +754,12 @@ display_df["entry_brotli_change"] = display_df["entry_brotli"].pct_change(period
 display_df["total_parsed_change"] = display_df["total_parsed"].pct_change(periods=-1)
 display_df["entry_parsed_change"] = display_df["entry_parsed"].pct_change(periods=-1)
 display_df["asset_js_gzip_change"] = display_df["asset_js_gzip"].pct_change(periods=-1)
-display_df["asset_css_gzip_change"] = display_df["asset_css_gzip"].pct_change(
-    periods=-1
-)
-display_df["asset_other_gzip_change"] = display_df["asset_other_gzip"].pct_change(
-    periods=-1
-)
+display_df["asset_css_gzip_change"] = display_df["asset_css_gzip"].pct_change(periods=-1)
+display_df["asset_other_gzip_change"] = display_df["asset_other_gzip"].pct_change(periods=-1)
 
 
 # Add formatted columns for display
-for col in [
+for col_name in [
     "total_gzip",
     "entry_gzip",
     "total_brotli",
@@ -806,47 +770,29 @@ for col in [
     "asset_css_gzip",
     "asset_other_gzip",
 ]:
-    display_df[f"{col}_fmt"] = display_df[col].apply(format_bytes)
+    display_df[f"{col_name}_fmt"] = display_df[col_name].apply(format_bytes)
 
 # Configure columns
 column_config = {
     "created_at": st.column_config.DatetimeColumn("Date", format="distance"),
     "total_gzip_fmt": st.column_config.TextColumn("Total Gzip"),
-    "total_gzip_change": st.column_config.NumberColumn(
-        "Total Gzip Change", format="percent"
-    ),
+    "total_gzip_change": st.column_config.NumberColumn("Total Gzip Change", format="percent"),
     "entry_gzip_fmt": st.column_config.TextColumn("Entry Gzip"),
-    "entry_gzip_change": st.column_config.NumberColumn(
-        "Entry Gzip Change", format="percent"
-    ),
+    "entry_gzip_change": st.column_config.NumberColumn("Entry Gzip Change", format="percent"),
     "total_brotli_fmt": st.column_config.TextColumn("Total Brotli"),
-    "total_brotli_change": st.column_config.NumberColumn(
-        "Total Brotli Change", format="percent"
-    ),
+    "total_brotli_change": st.column_config.NumberColumn("Total Brotli Change", format="percent"),
     "entry_brotli_fmt": st.column_config.TextColumn("Entry Brotli"),
-    "entry_brotli_change": st.column_config.NumberColumn(
-        "Entry Brotli Change", format="percent"
-    ),
+    "entry_brotli_change": st.column_config.NumberColumn("Entry Brotli Change", format="percent"),
     "total_parsed_fmt": st.column_config.TextColumn("Total Parsed"),
-    "total_parsed_change": st.column_config.NumberColumn(
-        "Total Parsed Change", format="percent"
-    ),
+    "total_parsed_change": st.column_config.NumberColumn("Total Parsed Change", format="percent"),
     "entry_parsed_fmt": st.column_config.TextColumn("Entry Parsed"),
-    "entry_parsed_change": st.column_config.NumberColumn(
-        "Entry Parse Change", format="percent"
-    ),
+    "entry_parsed_change": st.column_config.NumberColumn("Entry Parse Change", format="percent"),
     "asset_js_gzip_fmt": st.column_config.TextColumn("JS Asset Gzip"),
-    "asset_js_gzip_change": st.column_config.NumberColumn(
-        "JS Asset Gzip Change", format="percent"
-    ),
+    "asset_js_gzip_change": st.column_config.NumberColumn("JS Asset Gzip Change", format="percent"),
     "asset_css_gzip_fmt": st.column_config.TextColumn("CSS Asset Gzip"),
-    "asset_css_gzip_change": st.column_config.NumberColumn(
-        "CSS Asset Gzip Change", format="percent"
-    ),
+    "asset_css_gzip_change": st.column_config.NumberColumn("CSS Asset Gzip Change", format="percent"),
     "asset_other_gzip_fmt": st.column_config.TextColumn("Other Asset Gzip"),
-    "asset_other_gzip_change": st.column_config.NumberColumn(
-        "Other Asset Gzip Change", format="percent"
-    ),
+    "asset_other_gzip_change": st.column_config.NumberColumn("Other Asset Gzip Change", format="percent"),
     "run_url": st.column_config.LinkColumn("Workflow Run", display_text="View Run"),
     "commit_url": st.column_config.LinkColumn(
         "Commit",
@@ -893,14 +839,12 @@ selection = st.dataframe(
     width="stretch",
 )
 
-if selection.selection.rows:
-    row_idx = selection.selection.rows[0]
+if selection["selection"]["rows"]:
+    row_idx = selection["selection"]["rows"][0]
     selected_row = display_df.iloc[row_idx]
 
     if selected_row["html_artifact_url"]:
         st.subheader("Bundle Analysis Report")
-        display_bundle_report(
-            selected_row["html_artifact_url"], "the selected bundle analysis report"
-        )
+        display_bundle_report(selected_row["html_artifact_url"], "the selected bundle analysis report")
     else:
         st.warning("No HTML report available for this run.")

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Union, List, TypedDict, Optional
+from typing import TypedDict
 
 
 class Statistics(TypedDict):
@@ -37,7 +37,7 @@ class CalculatedPhase(TypedDict):
     count: int
 
 
-CalculatedPhases = Dict[str, CalculatedPhase]
+CalculatedPhases = dict[str, CalculatedPhase]
 
 
 # region JSON file types
@@ -46,7 +46,7 @@ CalculatedPhases = Dict[str, CalculatedPhase]
 # camelCase since they represent the structure of the JSON file.
 class Metric(TypedDict):
     name: str
-    value: Union[float, int]
+    value: float | int
 
 
 class Mark(TypedDict):
@@ -95,7 +95,7 @@ class LongAnimationFrame(TypedDict):
     styleAndLayoutStart: float
     firstUIEventTimestamp: float
     blockingDuration: float
-    scripts: List[Script]
+    scripts: list[Script]
 
 
 class LongTaskAttribution(TypedDict):
@@ -114,7 +114,7 @@ class LongTask(TypedDict):
     entryType: str
     startTime: float
     duration: float
-    attribution: List[LongTaskAttribution]
+    attribution: list[LongTaskAttribution]
 
 
 class ProfileEntry(TypedDict):
@@ -126,23 +126,23 @@ class ProfileEntry(TypedDict):
 
 
 class Profile(TypedDict):
-    entries: List[ProfileEntry]
+    entries: list[ProfileEntry]
     totalWrittenEntries: int
 
 
 class CapturedTraces(TypedDict):
-    mark: Optional[List[Mark]]
-    paint: Optional[List[Paint]]
-    measure: Optional[List[Measure]]
+    mark: list[Mark] | None
+    paint: list[Paint] | None
+    measure: list[Measure] | None
     # We can't utilize `long-animation-frame` as a key because it's not a valid
     # Python identifier, but that is the actual key in the JSON file.
     # "long-animation-frame": Optional[List[LongAnimationFrame]]
-    longtask: Optional[List[LongTask]]
-    profiles: Optional[Dict[str, Profile]]
+    longtask: list[LongTask] | None
+    profiles: dict[str, Profile] | None
 
 
 class PerformanceTraceJSONShape(TypedDict):
-    metrics: List[Metric]
+    metrics: list[Metric]
     capturedTraces: CapturedTraces
 
 

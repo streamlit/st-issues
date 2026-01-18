@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import operator
 import pathlib
 
 import pandas as pd
@@ -10,25 +11,19 @@ from app.utils.github_utils import get_all_github_issues
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
-PATH_TO_ISSUES = (
-    pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
-)
+PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 
 st.set_page_config(
     page_title="Issue Reactions",
     page_icon="👍",
 )
 
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("🫶 Issue Reactions")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_all_github_issues.clear()
-st.caption(
-    "This page analyzes user reactions on Github issues (emoji reaction or comment)."
-)
+st.caption("This page analyzes user reactions on Github issues (emoji reaction or comment).")
 
 
 REACTION_EMOJI = {
@@ -43,53 +38,38 @@ REACTION_EMOJI = {
 }
 
 
-def reactions_to_str(reactions):
-    return " ".join(
-        [
-            f"{reactions[name]} {emoji}"
-            for name, emoji in REACTION_EMOJI.items()
-            if reactions[name] > 0
-        ]
-    )
+def reactions_to_str(reactions: dict) -> str:
+    return " ".join([f"{reactions[name]} {emoji}" for name, emoji in REACTION_EMOJI.items() if reactions[name] > 0])
 
 
 # Function to determine issue type based on labels
-def get_issue_type(labels):
+def get_issue_type(labels: list) -> str | list[str]:
     is_bug = any(label["name"] == "type:bug" for label in labels)
     is_enhancement = any(label["name"] == "type:enhancement" for label in labels)
 
     if is_bug and is_enhancement:
         return ["Bug", "Enhancement"]
-    elif is_bug:
+    if is_bug:
         return "Bug"
-    elif is_enhancement:
+    if is_enhancement:
         return "Enhancement"
-    else:
-        return []
+    return []
 
 
 # Process the data
-all_issues_df = pd.DataFrame(
-    [issue for issue in get_all_github_issues() if "pull_request" not in issue]
-)
+all_issues_df = pd.DataFrame([issue for issue in get_all_github_issues() if "pull_request" not in issue])
 
 
 all_issues_df["closed_at"] = pd.to_datetime(all_issues_df["closed_at"])
-all_issues_df["total_reactions"] = all_issues_df["reactions"].apply(
-    lambda x: x["total_count"]
-)
+all_issues_df["total_reactions"] = all_issues_df["reactions"].apply(operator.itemgetter("total_count"))
 
 chart_container = st.container(gap=None)
-row = chart_container.container(
-    horizontal=True, horizontal_alignment="left", vertical_alignment="bottom"
-)
+row = chart_container.container(horizontal=True, horizontal_alignment="left", vertical_alignment="bottom")
 title_container = row.container(gap=None)
 
 with row.popover("Modify", width="content"):
     # Allow user to select time grouping
-    time_grouping = st.selectbox(
-        "Group reactions by", options=["Day", "Week", "Month", "Year"], index=2
-    )
+    time_grouping = st.selectbox("Group reactions by", options=["Day", "Week", "Month", "Year"], index=2)
 
     # Allow user to select date range
     date_range = st.date_input(
@@ -103,16 +83,15 @@ with row.popover("Modify", width="content"):
     )
 
     # Filter who closed the issue:
-    closed_by_filter = st.text_input(
-        "Closed by", value=st.query_params.get("closed_by", "")
-    )
+    closed_by_filter = st.text_input("Closed by", value=st.query_params.get("closed_by", ""))
 
     # Filter data based on selected date range
-    start_date, end_date = date_range
+    # date_input can return () or (start,) or (start, end) depending on user input
+    start_date = date_range[0] if len(date_range) > 0 else None
+    end_date = date_range[1] if len(date_range) > 1 else None
     if start_date and end_date:
         df_filtered = all_issues_df[
-            (all_issues_df["closed_at"].dt.date >= start_date)
-            & (all_issues_df["closed_at"].dt.date <= end_date)
+            (all_issues_df["closed_at"].dt.date >= start_date) & (all_issues_df["closed_at"].dt.date <= end_date)
         ]
     else:
         df_filtered = all_issues_df
@@ -121,9 +100,7 @@ with row.popover("Modify", width="content"):
         # Closed by contains a json string, we need to extract the name from it in the login
         df_filtered = df_filtered[
             df_filtered["closed_by"].apply(
-                lambda x: closed_by_filter.lower() in x.get("login", "").lower()
-                if x
-                else False
+                lambda x: closed_by_filter.lower() in x.get("login", "").lower() if x else False
             )
         ]
 
@@ -131,42 +108,20 @@ with title_container:
     st.markdown(
         f"##### Total Reactions on Closed Issues (Grouped by {time_grouping})",
     )
-    st.caption(
-        ":material/web_traffic: Click on a bar to view the issues closed in that time period."
-    )
+    st.caption(":material/web_traffic: Click on a bar to view the issues closed in that time period.")
 
 
 # Group data based on selected time grouping
 if time_grouping == "Day":
-    df_grouped = (
-        df_filtered.groupby(df_filtered["closed_at"].dt.date)["total_reactions"]
-        .sum()
-        .reset_index()
-    )
+    df_grouped = df_filtered.groupby(df_filtered["closed_at"].dt.date)["total_reactions"].sum().reset_index()
 elif time_grouping == "Week":
-    df_grouped = (
-        df_filtered.groupby(df_filtered["closed_at"].dt.to_period("W"))[
-            "total_reactions"
-        ]
-        .sum()
-        .reset_index()
-    )
+    df_grouped = df_filtered.groupby(df_filtered["closed_at"].dt.to_period("W"))["total_reactions"].sum().reset_index()
     df_grouped["closed_at"] = df_grouped["closed_at"].dt.start_time
 elif time_grouping == "Month":
-    df_grouped = (
-        df_filtered.groupby(df_filtered["closed_at"].dt.to_period("M"))[
-            "total_reactions"
-        ]
-        .sum()
-        .reset_index()
-    )
+    df_grouped = df_filtered.groupby(df_filtered["closed_at"].dt.to_period("M"))["total_reactions"].sum().reset_index()
     df_grouped["closed_at"] = df_grouped["closed_at"].dt.start_time
 else:  # Year
-    df_grouped = (
-        df_filtered.groupby(df_filtered["closed_at"].dt.year)["total_reactions"]
-        .sum()
-        .reset_index()
-    )
+    df_grouped = df_filtered.groupby(df_filtered["closed_at"].dt.year)["total_reactions"].sum().reset_index()
     df_grouped["closed_at"] = pd.to_datetime(df_grouped["closed_at"], format="%Y")
 
 
@@ -195,9 +150,7 @@ if event_data and "selection" in event_data and event_data["selection"]["points"
 
     # Filter issues based on time grouping
     if time_grouping == "Day":
-        selected_issues = df_filtered[
-            df_filtered["closed_at"].dt.date == selected_date.date()
-        ]
+        selected_issues = df_filtered[df_filtered["closed_at"].dt.date == selected_date.date()]
     elif time_grouping == "Week":
         # Convert to pandas Timestamp to handle timezone issues
         week_start = pd.Timestamp(selected_date)
@@ -216,9 +169,7 @@ if event_data and "selection" in event_data and event_data["selection"]["points"
             & (df_filtered["closed_at"].dt.month == month_start.month)
         ]
     else:  # Year
-        selected_issues = df_filtered[
-            df_filtered["closed_at"].dt.year == selected_date.year
-        ]
+        selected_issues = df_filtered[df_filtered["closed_at"].dt.year == selected_date.year]
 
     # Create a dataframe with the required columns
     if not selected_issues.empty:
@@ -237,12 +188,12 @@ if event_data and "selection" in event_data and event_data["selection"]["points"
 
         # Create appropriate header based on time grouping
         if time_grouping == "Day":
-            header_text = (
-                f"##### Issues closed on {selected_date.strftime('%B %d, %Y')}"
-            )
+            header_text = f"##### Issues closed on {selected_date.strftime('%B %d, %Y')}"
         elif time_grouping == "Week":
             week_end = pd.Timestamp(selected_date) + pd.Timedelta(days=6)
-            header_text = f"##### Issues closed between {selected_date.strftime('%b %d')} and {week_end.strftime('%b %d, %Y')}"
+            header_text = (
+                f"##### Issues closed between {selected_date.strftime('%b %d')} and {week_end.strftime('%b %d, %Y')}"
+            )
         elif time_grouping == "Month":
             header_text = f"##### Issues closed in {selected_date.strftime('%B %Y')}"
         else:  # Year
@@ -285,18 +236,16 @@ st.divider()
 # Only use issues with state "open"
 open_issues_df = all_issues_df[all_issues_df["state"] == "open"]
 feature_labels = open_issues_df[
-    open_issues_df["labels"].apply(
-        lambda x: any(label["name"].startswith("feature:") for label in x)
-    )
+    open_issues_df["labels"].apply(lambda x: any(label["name"].startswith("feature:") for label in x))
 ]
-label_reactions = []
+label_reactions: list[dict[str, object]] = []
 
 for _, issue in feature_labels.iterrows():
-    for label in issue["labels"]:
-        if label["name"].startswith("feature:"):
-            label_reactions.append(
-                {"label": label["name"], "reactions": issue["total_reactions"]}
-            )
+    label_reactions.extend(
+        {"label": label["name"], "reactions": issue["total_reactions"]}
+        for label in issue["labels"]
+        if label["name"].startswith("feature:")
+    )
 
 label_df = pd.DataFrame(label_reactions)
 
@@ -305,9 +254,7 @@ unique_labels = len(label_df["label"].unique())
 
 chart_container = st.container(gap=None)
 
-row = chart_container.container(
-    horizontal=True, horizontal_alignment="left", vertical_alignment="bottom"
-)
+row = chart_container.container(horizontal=True, horizontal_alignment="left", vertical_alignment="bottom")
 title_container = row.container(gap=None)
 
 with row.popover("Modify", width="content"):
@@ -315,9 +262,7 @@ with row.popover("Modify", width="content"):
 
 with title_container:
     st.markdown(f"##### Top {top_x} Feature Labels by Reactions")
-    st.caption(
-        ":material/web_traffic: Click on a bar to view all open issues with that label."
-    )
+    st.caption(":material/web_traffic: Click on a bar to view all open issues with that label.")
 
 top_labels = label_df.groupby("label")["reactions"].sum().nlargest(top_x).reset_index()
 # Create the bar chart for top 10 feature labels
@@ -337,24 +282,16 @@ fig_labels.update_layout(
 )
 
 # Display the chart
-feature_event_data = chart_container.plotly_chart(
-    fig_labels, width="stretch", on_select="rerun"
-)
+feature_event_data = chart_container.plotly_chart(fig_labels, width="stretch", on_select="rerun")
 
 # Show issues for selected feature label when a bar is clicked
-if (
-    feature_event_data
-    and "selection" in feature_event_data
-    and feature_event_data["selection"]["points"]
-):
+if feature_event_data and "selection" in feature_event_data and feature_event_data["selection"]["points"]:
     selected_point = feature_event_data["selection"]["points"][0]
     selected_label = selected_point["x"]
 
     # Filter issues with the selected feature label
     selected_feature_issues = open_issues_df[
-        open_issues_df["labels"].apply(
-            lambda x: any(label["name"] == selected_label for label in x)
-        )
+        open_issues_df["labels"].apply(lambda x: any(label["name"] == selected_label for label in x))
     ]
 
     # Create a dataframe with the required columns
@@ -364,9 +301,7 @@ if (
                 "Title": selected_feature_issues["title"],
                 "Reactions": selected_feature_issues["total_reactions"],
                 "Type": selected_feature_issues["labels"].apply(get_issue_type),
-                "Created on": pd.to_datetime(
-                    selected_feature_issues["created_at"]
-                ).dt.date,
+                "Created on": pd.to_datetime(selected_feature_issues["created_at"]).dt.date,
                 "Link": selected_feature_issues["html_url"],
             }
         )
@@ -402,9 +337,7 @@ closers_df["closed_by_login"] = closers_df["closed_by"].apply(
 closers_df = closers_df[closers_df["closed_by_login"] != ""]
 
 closers_container = st.container(gap=None)
-row = closers_container.container(
-    horizontal=True, horizontal_alignment="left", vertical_alignment="bottom"
-)
+row = closers_container.container(horizontal=True, horizontal_alignment="left", vertical_alignment="bottom")
 title_container = row.container(gap=None)
 
 filtered_closers_df = closers_df
@@ -412,9 +345,7 @@ filtered_closers_df = closers_df
 if filtered_closers_df.empty:
     with title_container:
         st.markdown("##### Closers by Reactions on Closed Issues")
-        st.caption(
-            ":material/person: No issues found for the current filters and closer selection."
-        )
+        st.caption(":material/person: No issues found for the current filters and closer selection.")
 else:
     closers_stats = (
         filtered_closers_df.groupby("closed_by_login")
@@ -431,12 +362,8 @@ else:
             }
         )
     )
-    closers_stats["Average reactions per issue"] = (
-        closers_stats["Total reactions"] / closers_stats["Issues closed"]
-    )
-    closers_stats = closers_stats.sort_values(
-        "Total reactions", ascending=False
-    ).reset_index(drop=True)
+    closers_stats["Average reactions per issue"] = closers_stats["Total reactions"] / closers_stats["Issues closed"]
+    closers_stats = closers_stats.sort_values("Total reactions", ascending=False).reset_index(drop=True)
 
     unique_closers = len(closers_stats)
 
@@ -451,9 +378,7 @@ else:
 
     with title_container:
         st.markdown(f"##### Top {top_k} Closers by Reactions on Closed Issues")
-        st.caption(
-            ":material/person: Sorted by total reactions on issues they closed within the selected date range."
-        )
+        st.caption(":material/person: Sorted by total reactions on issues they closed within the selected date range.")
 
     selection = st.dataframe(
         closers_stats.head(top_k),
@@ -468,15 +393,13 @@ else:
         selection_mode="single-row",
     )
 
-    if selection.selection.rows:
-        selected_index = selection.selection.rows[0]
+    if selection["selection"]["rows"]:
+        selected_index = selection["selection"]["rows"][0]
         selected_closer = closers_stats.iloc[selected_index]["Closer"]
 
         # Filter issues closed by the selected user
         # We need to go back to the filtered_closers_df which has the raw data
-        closer_issues = filtered_closers_df[
-            filtered_closers_df["closed_by_login"] == selected_closer
-        ].copy()
+        closer_issues = filtered_closers_df[filtered_closers_df["closed_by_login"] == selected_closer].copy()
 
         if not closer_issues.empty:
             st.divider()
@@ -491,9 +414,7 @@ else:
                     "Closed on": closer_issues["closed_at"].dt.date,
                     "Link": closer_issues["html_url"],
                     "Comments": closer_issues["comments"],
-                    "Reaction Types": closer_issues["reactions"].apply(
-                        reactions_to_str
-                    ),
+                    "Reaction Types": closer_issues["reactions"].apply(reactions_to_str),
                 }
             )
 
@@ -507,9 +428,7 @@ else:
                     "Link": st.column_config.LinkColumn(display_text="Open Issue"),
                     "Type": st.column_config.ListColumn(),
                     "Closed on": st.column_config.DateColumn(format="MMM DD, YYYY"),
-                    "Reactions": st.column_config.NumberColumn(
-                        format="%d 🫶", help="Total number of reactions"
-                    ),
+                    "Reactions": st.column_config.NumberColumn(format="%d 🫶", help="Total number of reactions"),
                     "Comments": st.column_config.NumberColumn(format="%d 💬"),
                 },
                 hide_index=True,

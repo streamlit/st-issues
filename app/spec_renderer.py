@@ -1,5 +1,4 @@
 import re
-from typing import Dict, List, Optional
 
 import requests
 import streamlit as st
@@ -7,12 +6,12 @@ import streamlit as st
 from app.utils.github_utils import get_all_github_prs, get_headers
 
 
-def fetch_open_prs() -> List[Dict]:
+def fetch_open_prs() -> list[dict]:
     """Fetch open PRs from streamlit/streamlit repo."""
     return get_all_github_prs(state="open")
 
 
-def filter_spec_prs(prs: List[Dict]) -> List[Dict]:
+def filter_spec_prs(prs: list[dict]) -> list[dict]:
     """Filter PRs that start with [spec]."""
     spec_prs = []
     for pr in prs:
@@ -23,7 +22,7 @@ def filter_spec_prs(prs: List[Dict]) -> List[Dict]:
 
 
 @st.cache_data(ttl=300)
-def fetch_pr_files(pr_number: int) -> List[Dict]:
+def fetch_pr_files(pr_number: int) -> list[dict]:
     """Fetch files changed in a PR."""
     url = f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}/files"
 
@@ -36,23 +35,19 @@ def fetch_pr_files(pr_number: int) -> List[Dict]:
         return []
 
 
-def find_spec_markdown_file(files: List[Dict]) -> Optional[str]:
+def find_spec_markdown_file(files: list[dict]) -> str | None:
     """Find the markdown file in specs directory that was added or modified."""
     for file in files:
         filename = file.get("filename", "")
         status = file.get("status", "")
 
         # Look for markdown files in specs directory that were added or modified
-        if (
-            filename.startswith("specs/")
-            and filename.endswith(".md")
-            and status in ["added", "modified"]
-        ):
+        if filename.startswith("specs/") and filename.endswith(".md") and status in {"added", "modified"}:
             return filename
     return None
 
 
-def fetch_markdown_content(filepath: str, pr_number: int) -> Optional[str]:
+def fetch_markdown_content(filepath: str, pr_number: int) -> str | None:
     """Fetch the content of a markdown file from a PR."""
     # Get the PR details to find the head SHA
     pr_url = f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}"
@@ -64,14 +59,10 @@ def fetch_markdown_content(filepath: str, pr_number: int) -> Optional[str]:
         head_sha = pr_data["head"]["sha"]
 
         # Fetch the file content from the PR's head commit
-        content_url = (
-            f"https://api.github.com/repos/streamlit/streamlit/contents/{filepath}"
-        )
+        content_url = f"https://api.github.com/repos/streamlit/streamlit/contents/{filepath}"
         params = {"ref": head_sha}
 
-        content_response = requests.get(
-            content_url, headers=get_headers(), params=params, timeout=100
-        )
+        content_response = requests.get(content_url, headers=get_headers(), params=params, timeout=100)
         content_response.raise_for_status()
         content_data = content_response.json()
 
@@ -93,9 +84,7 @@ def clean_spec_title(title: str) -> str:
     return cleaned.strip()
 
 
-def replace_local_images_with_github_urls(
-    markdown_content: str, pr_number: int, spec_file_path: str
-) -> str:
+def replace_local_images_with_github_urls(markdown_content: str, pr_number: int, spec_file_path: str) -> str:
     """Replace local image references with GitHub raw URLs."""
     # Get the PR details to find the head SHA
     pr_url = f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}"
@@ -107,15 +96,13 @@ def replace_local_images_with_github_urls(
         head_sha = pr_data["head"]["sha"]
 
         # Get the directory of the spec file to resolve relative paths
-        spec_dir = "/".join(
-            spec_file_path.split("/")[:-1]
-        )  # Remove filename, keep directory
+        spec_dir = "/".join(spec_file_path.split("/")[:-1])  # Remove filename, keep directory
 
         # Pattern to match markdown images with local paths
         # Matches: ![alt text](./path/to/image.ext) or ![](./path/to/image.ext) or ![alt](path/to/image.ext)
         image_pattern = r"!\[([^\]]*)\]\((?!https?://)([^)]+)\)"
 
-        def replace_image(match):
+        def replace_image(match: re.Match) -> str:
             alt_text = match.group(1)
             image_path = match.group(2)
 
@@ -140,9 +127,7 @@ def replace_local_images_with_github_urls(
                         remaining_parts.append(part)
 
                 # Go up the directory tree
-                final_dir_parts = (
-                    dir_parts[:-up_count] if up_count <= len(dir_parts) else []
-                )
+                final_dir_parts = dir_parts[:-up_count] if up_count <= len(dir_parts) else []
                 full_path = "/".join(final_dir_parts + remaining_parts)
             else:
                 # Assume it's relative to the spec directory
@@ -163,7 +148,7 @@ def replace_local_images_with_github_urls(
 
 
 @st.cache_data(ttl=300)
-def fetch_issue_details(issue_number: int) -> Optional[Dict]:
+def fetch_issue_details(issue_number: int) -> dict | None:
     """Fetch issue details from GitHub API."""
     url = f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}"
 
@@ -184,7 +169,6 @@ def fetch_issue_details(issue_number: int) -> Optional[Dict]:
 
 def replace_issue_references_with_previews(markdown_content: str) -> str:
     """Replace issue references with styled previews."""
-
     # Pattern for standalone issue numbers like #1234
     standalone_pattern = r"(?<!\[)#(\d+)(?!\])"
 
@@ -219,18 +203,16 @@ def replace_issue_references_with_previews(markdown_content: str) -> str:
 
         return preview
 
-    def replace_standalone_issue(match):
+    def replace_standalone_issue(match: re.Match) -> str:
         issue_number = int(match.group(1))
         return create_issue_preview(issue_number)
 
-    def replace_issue_link(match):
+    def replace_issue_link(match: re.Match) -> str:
         issue_number = int(match.group(1))
         return create_issue_preview(issue_number)
 
     # Replace standalone issue references first
-    updated_content = re.sub(
-        standalone_pattern, replace_standalone_issue, markdown_content
-    )
+    updated_content = re.sub(standalone_pattern, replace_standalone_issue, markdown_content)
 
     # Then replace issue links
     updated_content = re.sub(link_pattern, replace_issue_link, updated_content)
@@ -240,14 +222,11 @@ def replace_issue_references_with_previews(markdown_content: str) -> str:
 
 def replace_github_mentions_with_links(markdown_content: str) -> str:
     """Replace GitHub username mentions with clickable links."""
-
     # Pattern for GitHub mentions like @username
     # Avoid matching email addresses by ensuring no dot after @
-    mention_pattern = (
-        r"@([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})(?!\.[a-zA-Z])"
-    )
+    mention_pattern = r"@([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})(?!\.[a-zA-Z])"
 
-    def create_mention_link(match):
+    def create_mention_link(match: re.Match) -> str:
         username = match.group(1)
         # Create a link to the GitHub profile
         return f"[@{username}](https://github.com/{username})"
@@ -258,7 +237,7 @@ def replace_github_mentions_with_links(markdown_content: str) -> str:
     return updated_content
 
 
-def extract_frontmatter(markdown_content: str) -> tuple[Optional[Dict], str]:
+def extract_frontmatter(markdown_content: str) -> tuple[dict | None, str]:
     """Extract YAML frontmatter from markdown content."""
     # Pattern to match frontmatter at the beginning of the document
     frontmatter_pattern = r"^---\s*\n(.*?)\n---\s*\n"
@@ -280,7 +259,7 @@ def extract_frontmatter(markdown_content: str) -> tuple[Optional[Dict], str]:
     return frontmatter, content_without_frontmatter
 
 
-def render_frontmatter_caption(frontmatter: Dict) -> None:
+def render_frontmatter_caption(frontmatter: dict) -> None:
     """Render frontmatter as caption."""
     if not frontmatter:
         return
@@ -320,7 +299,7 @@ def render_frontmatter_caption(frontmatter: Dict) -> None:
         st.caption(info_text)
 
 
-def extract_title_and_content(markdown_content: str) -> tuple[Optional[str], str]:
+def extract_title_and_content(markdown_content: str) -> tuple[str | None, str]:
     """Extract the first heading as title and return remaining content."""
     lines = markdown_content.split("\n")
     title = None
@@ -340,17 +319,13 @@ def extract_title_and_content(markdown_content: str) -> tuple[Optional[str], str
     return title, remaining_content
 
 
-def main():
-    title_row = st.container(
-        horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-    )
+def main() -> None:
+    title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
     with title_row:
         st.title("🔧 Spec Renderer")
         if st.button(":material/refresh: Refresh Data", type="tertiary"):
             get_all_github_prs.clear(state="open")
-    st.markdown(
-        "Read product specs from the Streamlit repo. So far only supports PRs, not merged specs."
-    )
+    st.markdown("Read product specs from the Streamlit repo. So far only supports PRs, not merged specs.")
 
     # Get query parameters
     query_params = st.query_params
@@ -384,7 +359,7 @@ def main():
     if pr_param:
         try:
             pr_number = int(pr_param)
-            for i, (option_key, pr) in enumerate(pr_options.items()):
+            for i, (_option_key, pr) in enumerate(pr_options.items()):
                 if pr["number"] == pr_number:
                     default_index = i
                     break
@@ -403,10 +378,7 @@ def main():
         pr_number = selected_pr["number"]
 
         # Only update query parameter if selection has changed
-        if (
-            "last_selected_pr" not in st.session_state
-            or st.session_state.last_selected_pr != pr_number
-        ):
+        if "last_selected_pr" not in st.session_state or st.session_state.last_selected_pr != pr_number:
             st.query_params["pr"] = str(pr_number)
             st.session_state.last_selected_pr = pr_number
 
@@ -423,9 +395,7 @@ def main():
 
         if not spec_file:
             st.warning("No spec markdown file found in this PR.")
-            st.info(
-                "Looking for markdown files in the `specs/` directory that were added or modified."
-            )
+            st.info("Looking for markdown files in the `specs/` directory that were added or modified.")
 
             # Show all files for debugging
             with st.expander("All files in this PR"):
@@ -439,14 +409,10 @@ def main():
 
         if markdown_content:
             # Extract frontmatter
-            frontmatter, content_without_frontmatter = extract_frontmatter(
-                markdown_content
-            )
+            frontmatter, content_without_frontmatter = extract_frontmatter(markdown_content)
 
             # Extract title and remaining content
-            title, remaining_content = extract_title_and_content(
-                content_without_frontmatter
-            )
+            title, remaining_content = extract_title_and_content(content_without_frontmatter)
 
             # Render title if found
             if title:
@@ -457,14 +423,10 @@ def main():
                 render_frontmatter_caption(frontmatter)
 
             # Replace local image references with GitHub URLs
-            processed_content = replace_local_images_with_github_urls(
-                remaining_content, pr_number, spec_file
-            )
+            processed_content = replace_local_images_with_github_urls(remaining_content, pr_number, spec_file)
 
             # Replace issue references with styled previews
-            processed_content = replace_issue_references_with_previews(
-                processed_content
-            )
+            processed_content = replace_issue_references_with_previews(processed_content)
 
             st.markdown(processed_content)
         else:

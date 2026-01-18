@@ -1,8 +1,8 @@
 import json
-import os
+import pathlib
 from datetime import datetime, timedelta
 from io import BytesIO
-from typing import Any, Dict, Optional
+from typing import Any
 from zipfile import ZipFile
 
 import pandas as pd
@@ -28,9 +28,7 @@ query_params = st.query_params
 pr_number = query_params.get("pr")
 
 # Page title and description
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("☂️ Test Coverage (Python)")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
@@ -40,7 +38,7 @@ if pr_number is not None:
     Analyzing coverage for [PR #{pr_number}](https://github.com/streamlit/streamlit/pull/{pr_number})
     """)
     # Default values for PR mode
-    since_date = None
+    since_date: datetime | None = None
     workflow_runs_limit = 1
     uploaded_file = None
 else:
@@ -73,7 +71,7 @@ else:
 
     # Convert time period to date
     if time_period == "Last 7 days":
-        since_date: Optional[datetime] = datetime.now() - timedelta(days=7)
+        since_date = datetime.now() - timedelta(days=7)
     elif time_period == "Last 30 days":
         since_date = datetime.now() - timedelta(days=30)
     elif time_period == "Last 90 days":
@@ -82,8 +80,8 @@ else:
         since_date = None
 
 
-def parse_coverage_json(coverage_file):
-    """Parse a coverage.py JSON report file and return the data"""
+def parse_coverage_json(coverage_file: Any) -> dict | None:
+    """Parse a coverage.py JSON report file and return the data."""
     try:
         # Parse the JSON data
         coverage_data = json.load(coverage_file)
@@ -93,7 +91,7 @@ def parse_coverage_json(coverage_file):
 
         # Process each file in the coverage data
         for file_path, file_data in coverage_data["files"].items():
-            file_name = os.path.basename(file_path)
+            file_name = pathlib.Path(file_path).name
 
             # Get executed and missing lines directly from the file data
             executed_lines = file_data.get("executed_lines", [])
@@ -103,9 +101,7 @@ def parse_coverage_json(coverage_file):
             total_lines = len(executed_lines) + len(missing_lines)
 
             # Calculate coverage percentage
-            coverage_pct = (
-                (len(executed_lines) / total_lines * 100) if total_lines > 0 else 0
-            )
+            coverage_pct = (len(executed_lines) / total_lines * 100) if total_lines > 0 else 0
 
             # Store information
             coverage_info[file_path] = {
@@ -120,17 +116,15 @@ def parse_coverage_json(coverage_file):
         return coverage_info
 
     except json.JSONDecodeError:
-        st.error(
-            "Invalid JSON file. Please ensure you're uploading a valid coverage.py JSON report."
-        )
+        st.error("Invalid JSON file. Please ensure you're uploading a valid coverage.py JSON report.")
         return None
     except Exception as e:
-        st.error(f"Error processing coverage data: {str(e)}")
+        st.error(f"Error processing coverage data: {e!s}")
         return None
 
 
-def extract_coverage_summary(coverage_data: Dict) -> Dict[str, Any]:
-    """Extract summary statistics from coverage data"""
+def extract_coverage_summary(coverage_data: dict) -> dict[str, Any]:
+    """Extract summary statistics from coverage data."""
     total_lines = 0
     total_covered = 0
     total_files = len(coverage_data)
@@ -152,7 +146,7 @@ def extract_coverage_summary(coverage_data: Dict) -> Dict[str, Any]:
 
 
 @st.cache_data(show_spinner=False)
-def get_coverage_data_from_artifact(run_id: int) -> Optional[Dict[str, Any]]:
+def get_coverage_data_from_artifact(run_id: int) -> dict[str, Any] | None:
     """Get coverage data from the artifact of a workflow run."""
     artifacts = fetch_artifacts(run_id)
 
@@ -185,7 +179,7 @@ def get_coverage_data_from_artifact(run_id: int) -> Optional[Dict[str, Any]]:
 
 
 @st.cache_data(show_spinner=False)
-def get_html_report_url(run_id: int) -> Optional[str]:
+def get_html_report_url(run_id: int) -> str | None:
     """Get the download URL for the HTML coverage report artifact."""
     artifacts = fetch_artifacts(run_id)
 
@@ -205,7 +199,9 @@ def get_html_report_url(run_id: int) -> Optional[str]:
     return None
 
 
-def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
+def display_coverage_details(
+    coverage_data: dict, html_report_url: str | None = None, run_id: int | None = None
+) -> None:
     """Display detailed coverage information."""
     # Convert coverage data to DataFrame for easier manipulation
     coverage_df = pd.DataFrame(
@@ -313,8 +309,8 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
     )
 
     # Check if a file was selected
-    if file_coverage_selection.selection and file_coverage_selection.selection.rows:
-        selected_file_index = file_coverage_selection.selection.rows[0]
+    if file_coverage_selection["selection"] and file_coverage_selection["selection"]["rows"]:
+        selected_file_index = file_coverage_selection["selection"]["rows"][0]
         selected_file_path = coverage_df.iloc[selected_file_index]["Path"]
         selected_file_name = coverage_df.iloc[selected_file_index]["Filename"]
 
@@ -371,9 +367,8 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
             url=html_report_url,
             width="stretch",
         )
-    if run_id:
-        if col2.button(":material/preview: View PR Report", width="stretch"):
-            display_coverage_report_dialog(run_id=run_id)
+    if run_id and col2.button(":material/preview: View PR Report", width="stretch"):
+        display_coverage_report_dialog(run_id=run_id)
 
     # Create a horizontal bar chart for file coverage
     if len(coverage_df) > 0:
@@ -384,11 +379,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
         treemap_df = coverage_df.copy()
 
         # Extract directory structure
-        treemap_df["Directory"] = treemap_df["Path"].apply(
-            lambda x: os.path.dirname(x).replace("\\", "/").split("/")[-1]
-            if os.path.dirname(x)
-            else "root"
-        )
+        treemap_df["Directory"] = treemap_df["Path"].apply(lambda x: pathlib.Path(x).parent.name or "root")
 
         fig = px.treemap(
             treemap_df,
@@ -408,9 +399,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
         display_df = coverage_df.sort_values("Coverage %", ascending=True)
         if len(coverage_df) > 20:
             display_df = display_df.head(20)
-            st.info(
-                "Showing only the 20 files with the lowest coverage. Use the table above to see all files."
-            )
+            st.info("Showing only the 20 files with the lowest coverage. Use the table above to see all files.")
 
         fig = px.bar(
             display_df,
@@ -463,7 +452,7 @@ def display_coverage_details(coverage_data, html_report_url=None, run_id=None):
         st.plotly_chart(fig, width="stretch")
 
 
-def get_latest_develop_coverage() -> Optional[Dict[str, Any]]:
+def get_latest_develop_coverage() -> dict[str, Any] | None:
     """Get coverage data for the latest successful workflow run on develop."""
     # Fetch the latest successful workflow run on develop
     latest_runs = fetch_workflow_runs("python-tests.yml", limit=1)
@@ -492,7 +481,7 @@ def get_latest_develop_coverage() -> Optional[Dict[str, Any]]:
     }
 
 
-def get_pr_coverage(pr_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def get_pr_coverage(pr_info: dict[str, Any]) -> dict[str, Any] | None:
     """Get coverage data for a PR's head commit."""
     head_sha = pr_info["head"]["sha"]
     # Fetch workflow runs for this commit
@@ -525,7 +514,7 @@ def get_pr_coverage(pr_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 @st.cache_data(show_spinner=False)
-def deploy_coverage_report(run_id: int) -> Optional[str]:
+def deploy_coverage_report(run_id: int) -> str | None:
     """Deploy the HTML coverage report to smokeshow."""
     # Fetch artifacts
     artifacts = fetch_artifacts(run_id)
@@ -552,9 +541,8 @@ def deploy_coverage_report(run_id: int) -> Optional[str]:
 
 # Function to download, extract, upload and display the HTML coverage report
 @st.dialog("Coverage Report", width="large")
-def display_coverage_report_dialog(run_id: int):
+def display_coverage_report_dialog(run_id: int) -> None:
     """Download, extract, upload and display the HTML coverage report in an iframe."""
-
     # Download the artifact
     with st.spinner("Downloading and deploying the coverage report..."):
         report_url = deploy_coverage_report(run_id)
@@ -566,9 +554,7 @@ def display_coverage_report_dialog(run_id: int):
         components.iframe(report_url, height=600, scrolling=True)
 
 
-def display_pr_coverage_comparison(
-    pr_coverage: Dict[str, Any], develop_coverage: Dict[str, Any]
-):
+def display_pr_coverage_comparison(pr_coverage: dict[str, Any], develop_coverage: dict[str, Any]) -> None:
     """Display a comparison of PR coverage against develop branch coverage."""
     st.subheader("PR Coverage Comparison")
 
@@ -580,9 +566,7 @@ def display_pr_coverage_comparison(
     # Determine if changes are positive or negative
     coverage_delta = "+" if coverage_change >= 0 else ""
     stmts_delta = "+" if total_stmts_change >= 0 else ""
-    miss_delta = (
-        "" if total_miss_change <= 0 else "+"
-    )  # Inverted logic for misses (less is better)
+    miss_delta = "" if total_miss_change <= 0 else "+"  # Inverted logic for misses (less is better)
 
     # Create comparison columns
     col1, col2, col3 = st.columns(3)
@@ -652,29 +636,21 @@ def display_pr_coverage_comparison(
 
     # Fetch artifacts for PR
     pr_artifacts = fetch_artifacts(pr_coverage["run_id"])
-    pr_coverage_json_artifact = next(
-        (a for a in pr_artifacts if a["name"] == "combined_coverage_json"), None
-    )
+    pr_coverage_json_artifact = next((a for a in pr_artifacts if a["name"] == "combined_coverage_json"), None)
     if pr_coverage_json_artifact:
-        pr_artifact_content = download_artifact(
-            pr_coverage_json_artifact["archive_download_url"]
-        )
+        pr_artifact_content = download_artifact(pr_coverage_json_artifact["archive_download_url"])
 
     # Fetch artifacts for develop
     develop_artifacts = fetch_artifacts(develop_coverage["run_id"])
-    develop_coverage_json_artifact = next(
-        (a for a in develop_artifacts if a["name"] == "combined_coverage_json"), None
-    )
+    develop_coverage_json_artifact = next((a for a in develop_artifacts if a["name"] == "combined_coverage_json"), None)
     if develop_coverage_json_artifact:
-        develop_artifact_content = download_artifact(
-            develop_coverage_json_artifact["archive_download_url"]
-        )
+        develop_artifact_content = download_artifact(develop_coverage_json_artifact["archive_download_url"])
 
     # If we have both artifacts, show a detailed file-by-file comparison
     if pr_artifact_content and develop_artifact_content:
         # Extract the coverage.json files from the zips
-        pr_coverage_data = {}
-        develop_coverage_data = {}
+        pr_coverage_data: dict | None = {}
+        develop_coverage_data: dict | None = {}
 
         try:
             with ZipFile(BytesIO(pr_artifact_content)) as zip_file:
@@ -691,7 +667,7 @@ def display_pr_coverage_comparison(
             st.error(f"Error extracting coverage data: {e}")
 
 
-def display_pr_detailed_comparison(pr_coverage_data: Dict, develop_coverage_data: Dict):
+def display_pr_detailed_comparison(pr_coverage_data: dict, develop_coverage_data: dict) -> None:
     """Display a detailed file-by-file comparison of PR coverage against develop coverage."""
     st.subheader("File-by-File Coverage Comparison")
 
@@ -725,8 +701,7 @@ def display_pr_detailed_comparison(pr_coverage_data: Dict, develop_coverage_data
     )
 
     # Merge the DataFrames on Path
-    merged_df = pd.merge(
-        pr_df,
+    merged_df = pr_df.merge(
         develop_df,
         on=["Path", "Filename"],
         how="outer",
@@ -734,18 +709,10 @@ def display_pr_detailed_comparison(pr_coverage_data: Dict, develop_coverage_data
     ).fillna(0)
 
     # Calculate coverage changes
-    merged_df["Coverage Change"] = (
-        merged_df["PR Coverage %"] - merged_df["Develop Coverage %"]
-    )
-    merged_df["Lines Covered Change"] = (
-        merged_df["PR Lines Covered"] - merged_df["Develop Lines Covered"]
-    )
-    merged_df["Lines Missed Change"] = (
-        merged_df["PR Lines Missed"] - merged_df["Develop Lines Missed"]
-    )
-    merged_df["Total Lines Change"] = (
-        merged_df["PR Total Lines"] - merged_df["Develop Total Lines"]
-    )
+    merged_df["Coverage Change"] = merged_df["PR Coverage %"] - merged_df["Develop Coverage %"]
+    merged_df["Lines Covered Change"] = merged_df["PR Lines Covered"] - merged_df["Develop Lines Covered"]
+    merged_df["Lines Missed Change"] = merged_df["PR Lines Missed"] - merged_df["Develop Lines Missed"]
+    merged_df["Total Lines Change"] = merged_df["PR Total Lines"] - merged_df["Develop Total Lines"]
 
     # Flag new and removed files
     merged_df["Status"] = "-"
@@ -830,9 +797,7 @@ def display_pr_detailed_comparison(pr_coverage_data: Dict, develop_coverage_data
         improved = changed_files[changed_files["Coverage Change"] > 0].head(10)
         decreased = changed_files[changed_files["Coverage Change"] < 0].head(10)
         display_df = pd.concat([improved, decreased])
-        st.info(
-            "Showing only the top 10 improved and top 10 decreased files. Use the table above to see all files."
-        )
+        st.info("Showing only the top 10 improved and top 10 decreased files. Use the table above to see all files.")
     else:
         display_df = changed_files
 
@@ -868,7 +833,7 @@ if pr_number is not None:
 
     # Get coverage for PR and develop
     with st.spinner("Fetching PR coverage data..."):
-        pr_coverage = get_pr_coverage(pr_info)
+        pr_coverage = get_pr_coverage(pr_info)  # ty:ignore[invalid-argument-type]
 
     with st.spinner("Fetching develop branch coverage data..."):
         develop_coverage = get_latest_develop_coverage()
@@ -901,9 +866,7 @@ if uploaded_file:
 with st.spinner("Fetching data..."):
     # If no file was uploaded or parsing failed, continue with GitHub data
     # Fetch workflow runs
-    workflow_runs = fetch_workflow_runs(
-        "python-tests.yml", limit=workflow_runs_limit, since=since_date
-    )
+    workflow_runs = fetch_workflow_runs("python-tests.yml", limit=workflow_runs_limit, since=since_date)
 
     if not workflow_runs:
         st.warning("No workflow runs found for the specified criteria.")
@@ -928,9 +891,7 @@ with st.spinner("Fetching data..."):
                     "run_id": run["id"],
                     "commit_sha": run["head_sha"][:7],
                     "commit_url": f"https://github.com/streamlit/streamlit/commit/{run['head_sha']}",
-                    "created_at": datetime.strptime(
-                        run["created_at"], "%Y-%m-%dT%H:%M:%SZ"
-                    ),
+                    "created_at": datetime.strptime(run["created_at"], "%Y-%m-%dT%H:%M:%SZ"),
                     "total_stmts": coverage_data["total_stmts"],
                     "total_miss": coverage_data["total_miss"],
                     "covered_stmts": coverage_data["covered_stmts"],
@@ -1055,9 +1016,7 @@ st.plotly_chart(fig_metrics, width="stretch", theme="streamlit")
 # Create a table with the data
 st.subheader("Coverage History")
 
-st.caption(
-    ":material/keyboard_arrow_down: Select a row to view the detailed coverage information for that run."
-)
+st.caption(":material/keyboard_arrow_down: Select a row to view the detailed coverage information for that run.")
 # Create a dataframe for the coverage history with row selection
 coverage_history_df = df[
     [
@@ -1077,9 +1036,7 @@ coverage_history_df = coverage_history_df.sort_values("created_at", ascending=Fa
 coverage_history_df["coverage_change"] = coverage_history_df["coverage"].diff(-1)
 
 # Add HTML report URLs to the dataframe
-coverage_history_df["html_report_url"] = coverage_history_df["run_id"].apply(
-    get_html_report_url
-)
+coverage_history_df["html_report_url"] = coverage_history_df["run_id"].apply(get_html_report_url)
 
 # Display the dataframe with row selection enabled
 df_selection = st.dataframe(
@@ -1088,9 +1045,7 @@ df_selection = st.dataframe(
     column_config={
         "created_at": st.column_config.DatetimeColumn("Date", format="distance"),
         "commit_sha": st.column_config.TextColumn("Commit"),
-        "coverage": st.column_config.ProgressColumn(
-            "Coverage %", help="Percentage of lines covered by tests"
-        ),
+        "coverage": st.column_config.ProgressColumn("Coverage %", help="Percentage of lines covered by tests"),
         "coverage_change": st.column_config.NumberColumn(
             "Coverage Change",
             help="Change in coverage percentage compared to the previous commit",
@@ -1127,17 +1082,15 @@ df_selection = st.dataframe(
 )
 
 # Check if a row was selected from the dataframe
-if df_selection.selection.rows:
+if df_selection["selection"]["rows"]:
     # Get the selected row index
-    selected_row_index = df_selection.selection.rows[0]
+    selected_row_index = df_selection["selection"]["rows"][0]
     # Get the data from the selected row
     selected_run_id = coverage_history_df.iloc[selected_row_index]["run_id"]
     selected_commit = coverage_history_df.iloc[selected_row_index]["commit_sha"]
     selected_date = coverage_history_df.iloc[selected_row_index]["created_at"]
     selected_coverage = coverage_history_df.iloc[selected_row_index]["coverage"]
-    selected_html_report_url = coverage_history_df.iloc[selected_row_index][
-        "html_report_url"
-    ]
+    selected_html_report_url = coverage_history_df.iloc[selected_row_index]["html_report_url"]
 
     # Fetch artifacts for the selected run
     artifacts = fetch_artifacts(selected_run_id)
@@ -1150,9 +1103,7 @@ if df_selection.selection.rows:
 
     if coverage_json_artifact:
         # Download the artifact
-        artifact_content = download_artifact(
-            coverage_json_artifact["archive_download_url"]
-        )
+        artifact_content = download_artifact(coverage_json_artifact["archive_download_url"])
 
         if artifact_content:
             # Extract the coverage.json file from the zip
@@ -1162,9 +1113,7 @@ if df_selection.selection.rows:
 
                     if coverage_data:
                         # Display detailed coverage information
-                        display_coverage_details(
-                            coverage_data, selected_html_report_url, selected_run_id
-                        )
+                        display_coverage_details(coverage_data, selected_html_report_url, selected_run_id)
                     else:
                         st.error("Failed to parse coverage data from the artifact.")
         else:

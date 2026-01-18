@@ -1,6 +1,6 @@
 import concurrent.futures
+import operator
 from datetime import datetime
-from typing import List, Optional
 
 import altair as alt
 import pandas as pd
@@ -18,9 +18,7 @@ TITLE = "Streamlit Performance - Lighthouse"
 
 st.set_page_config(page_title=TITLE)
 
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("💡 Performance - Lighthouse")
 
@@ -46,27 +44,24 @@ if token is None:
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_commits(branch_name: str, limit: int = 20):
+def get_commits(branch_name: str, limit: int = 20) -> list[str]:
     return get_commit_hashes_for_branch_name(branch_name, limit=limit)
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_lighthouse_results(hash: str):
-    return get_artifact_results(hash, "lighthouse")
+def get_lighthouse_results(commit_hash: str) -> tuple:
+    return get_artifact_results(commit_hash, "lighthouse")
 
 
 commit_hashes = get_commits("develop")
 
-directories: List[str] = []
-timestamps: List[str] = []
+directories: list[str] = []
+timestamps: list[str] = []
 scores_by_run: list[dict[str, float]] = []
 
 # Download all the artifacts for the performance runs in parallel
 with concurrent.futures.ThreadPoolExecutor() as executor:
-    futures = [
-        executor.submit(get_lighthouse_results, commit_hash)
-        for commit_hash in commit_hashes
-    ]
+    futures = [executor.submit(get_lighthouse_results, commit_hash) for commit_hash in commit_hashes]
     for future in concurrent.futures.as_completed(futures):
         result = future.result()
 
@@ -84,16 +79,14 @@ if not scores_by_run:
     st.stop()
 
 # Sort scores and timestamps based on timestamps
-sorted_scores_timestamps = sorted(
-    zip(scores_by_run, timestamps), key=lambda x: x[1]
-)
-scores_by_run, timestamps = zip(*sorted_scores_timestamps)
+sorted_scores_timestamps = sorted(zip(scores_by_run, timestamps, strict=False), key=operator.itemgetter(1))
+scores_by_run_sorted, timestamps_sorted = zip(*sorted_scores_timestamps, strict=False)
 
-performance_scores = {}
+performance_scores: dict[str, dict] = {}
 
-for idx, scores in enumerate(scores_by_run):
+for idx, scores in enumerate(scores_by_run_sorted):
     for app_name, score in scores.items():
-        append_to_performance_scores(performance_scores, timestamps[idx], app_name, score)
+        append_to_performance_scores(performance_scores, timestamps_sorted[idx], app_name, score)
 
 
 # Convert performance_scores to a DataFrame
@@ -125,9 +118,7 @@ df["index"] = df.groupby("app_name").cumcount()
 df = df.sort_values(by=["app_name", "index"])
 
 # Calculate rolling mean
-df["rolling_mean"] = df.groupby("app_name")["score"].transform(
-    lambda x: x.rolling(window=5, min_periods=1).mean()
-)
+df["rolling_mean"] = df.groupby("app_name")["score"].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
 
 chart = (
     alt.Chart(df)

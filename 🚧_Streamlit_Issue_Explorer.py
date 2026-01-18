@@ -8,9 +8,7 @@ ASSETS_FOLDER = Path(__file__).parent / "app" / "assets"
 st.logo(ASSETS_FOLDER / "streamlit-logo.svg", size="small")
 page = st.navigation(
     [
-        st.Page(
-            "./app/issue_explorer.py", title="Issue Explorer", icon="🚧", default=True
-        ),
+        st.Page("./app/issue_explorer.py", title="Issue Explorer", icon="🚧", default=True),
         st.Page(
             "./app/open_issues.py",
             title="Open Issues",

@@ -1,5 +1,6 @@
+import operator
 import re
-import subprocess
+import subprocess  # noqa: S404
 import tempfile
 from datetime import date
 
@@ -30,51 +31,43 @@ REACTION_EMOJI = {
 }
 
 
-def reactions_to_str(reactions):
-    return " ".join(
-        [
-            f"{reactions[name]} {emoji}"
-            for name, emoji in REACTION_EMOJI.items()
-            if reactions[name] > 0
-        ]
-    )
+def reactions_to_str(reactions: dict) -> str:
+    return " ".join([f"{reactions[name]} {emoji}" for name, emoji in REACTION_EMOJI.items() if reactions[name] > 0])
 
 
-def get_issue_type(labels):
+def get_issue_type(labels: list) -> str | list[str]:
     is_bug = any(label["name"] == "type:bug" for label in labels)
     is_enhancement = any(label["name"] == "type:enhancement" for label in labels)
 
     if is_bug and is_enhancement:
         return ["Bug", "Enhancement"]
-    elif is_bug:
+    if is_bug:
         return "Bug"
-    elif is_enhancement:
+    if is_enhancement:
         return "Enhancement"
-    else:
-        return []
+    return []
 
 
-def get_issue_emoji(labels):
+def get_issue_emoji(labels: list) -> str:
     label_names = [label["name"] for label in labels]
     if "type:enhancement" in label_names:
         return "✨"
-    elif "type:bug" in label_names:
+    if "type:bug" in label_names:
         return "🚨"
-    elif "type:docs" in label_names:
+    if "type:docs" in label_names:
         return "📚"
-    elif "type:kudos" in label_names:
+    if "type:kudos" in label_names:
         return "🙏"
-    else:
-        return "❓"
+    return "❓"
 
 
 @st.cache_data(show_spinner="Cloning and analyzing repository...")
-def get_git_fame_stats():
+def get_git_fame_stats() -> dict:
     # Use a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
         # Clone the repository
-        subprocess.run(
-            ["git", "clone", "https://github.com/" + GITHUB_REPO, temp_dir],
+        subprocess.run(  # noqa: S603
+            ["git", "clone", "https://github.com/" + GITHUB_REPO, temp_dir],  # noqa: S607
             check=True,
             capture_output=True,
         )
@@ -98,13 +91,11 @@ def get_git_fame_stats():
     ttl=60 * 60 * 72,
     show_spinner="Fetching PR metrics (this may take a couple of minutes)...",
 )
-def fetch_pr_metrics(merged_since: date):
+def fetch_pr_metrics(merged_since: date) -> pd.DataFrame:
     return fetch_merged_pr_metrics(merged_since=merged_since)
 
 
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("📊 GitHub Stats")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
@@ -122,9 +113,7 @@ selected_metrics = st.segmented_control(
     options=["Team Productivity Metrics", "Contribution Metrics"],
     label_visibility="collapsed",
     width="stretch",
-    default="Team Productivity Metrics"
-    if not contribution_metrics
-    else "Contribution Metrics",
+    default="Team Productivity Metrics" if not contribution_metrics else "Contribution Metrics",
 )
 
 with st.sidebar:
@@ -164,14 +153,10 @@ if selected_metrics == "Contribution Metrics":
     if not merged_prs_df.empty:
         # Calculate feature and bugfix flags
         merged_prs_df["is_feature"] = merged_prs_df["labels"].apply(
-            lambda labels: 1
-            if "change:feature" in labels and "impact:users" in labels
-            else 0
+            lambda labels: 1 if "change:feature" in labels and "impact:users" in labels else 0
         )
         merged_prs_df["is_bugfix"] = merged_prs_df["labels"].apply(
-            lambda labels: 1
-            if "change:bugfix" in labels and "impact:users" in labels
-            else 0
+            lambda labels: 1 if "change:bugfix" in labels and "impact:users" in labels else 0
         )
 
         # Group by author and calculate stats
@@ -198,54 +183,34 @@ if selected_metrics == "Contribution Metrics":
 
         author_stats["pct_total_prs"] = author_stats["prs_merged"] / total_prs * 100
         author_stats["pct_total_features"] = (
-            author_stats["merged_features"] / total_features * 100
-            if total_features > 0
-            else 0
+            author_stats["merged_features"] / total_features * 100 if total_features > 0 else 0
         )
         author_stats["pct_total_bugfixes"] = (
-            author_stats["merged_bugfixes"] / total_bugfixes * 100
-            if total_bugfixes > 0
-            else 0
+            author_stats["merged_bugfixes"] / total_bugfixes * 100 if total_bugfixes > 0 else 0
         )
-        author_stats["pct_total_loc"] = (
-            author_stats["total_loc_changes"] / total_loc * 100 if total_loc > 0 else 0
-        )
+        author_stats["pct_total_loc"] = author_stats["total_loc_changes"] / total_loc * 100 if total_loc > 0 else 0
 
         # Add links
         author_stats["Show PRs"] = author_stats["author"].apply(
             lambda x: f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+author%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
         )
-        author_stats["author"] = author_stats["author"].apply(
-            lambda x: f"https://github.com/{x}"
-        )
+        author_stats["author"] = author_stats["author"].apply(lambda x: f"https://github.com/{x}")
 
         st.dataframe(
             author_stats.head(20),
             column_config={
-                "author": st.column_config.LinkColumn(
-                    "Author", display_text="github.com/([^/]+)"
-                ),
+                "author": st.column_config.LinkColumn("Author", display_text="github.com/([^/]+)"),
                 "prs_merged": st.column_config.NumberColumn("Merged PRs"),
-                "pct_total_prs": st.column_config.NumberColumn(
-                    "% of Total", format="%.1f%%"
-                ),
+                "pct_total_prs": st.column_config.NumberColumn("% of Total", format="%.1f%%"),
                 "merged_features": st.column_config.NumberColumn("Feature PRs"),
-                "pct_total_features": st.column_config.NumberColumn(
-                    "% of Features", format="%.1f%%"
-                ),
+                "pct_total_features": st.column_config.NumberColumn("% of Features", format="%.1f%%"),
                 "merged_bugfixes": st.column_config.NumberColumn("Bugfix PRs"),
-                "pct_total_bugfixes": st.column_config.NumberColumn(
-                    "% of Bugfixes", format="%.1f%%"
-                ),
+                "pct_total_bugfixes": st.column_config.NumberColumn("% of Bugfixes", format="%.1f%%"),
                 "total_loc_changes": st.column_config.NumberColumn("LOC Changed"),
-                "pct_total_loc": st.column_config.NumberColumn(
-                    "% of LOC Changed", format="%.1f%%"
-                ),
+                "pct_total_loc": st.column_config.NumberColumn("% of LOC Changed", format="%.1f%%"),
                 "total_additions": st.column_config.NumberColumn("LOC Additions"),
                 "total_deletions": st.column_config.NumberColumn("LOC Deletions"),
-                "Show PRs": st.column_config.LinkColumn(
-                    display_text=":material/open_in_new:"
-                ),
+                "Show PRs": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
             },
             hide_index=True,
             column_order=[
@@ -281,9 +246,7 @@ if selected_metrics == "Contribution Metrics":
         reviewers_exploded = reviewers_exploded.dropna(subset=["reviewers"])
 
         # Exclude PRs where the reviewer is also the author
-        reviewers_exploded = reviewers_exploded[
-            reviewers_exploded["reviewers"] != reviewers_exploded["author"]
-        ]
+        reviewers_exploded = reviewers_exploded[reviewers_exploded["reviewers"] != reviewers_exploded["author"]]
 
         # Count reviews by reviewer
         reviewer_counts = (
@@ -298,7 +261,7 @@ if selected_metrics == "Contribution Metrics":
         total_prs = len(merged_prs_df)
         author_counts_map = merged_prs_df["author"].value_counts().to_dict()
 
-        def calculate_percentage(row):
+        def calculate_percentage(row: dict) -> float:
             reviewer = row["reviewers"]
             prs_reviewed = row["PRs Reviewed"]
             prs_authored = author_counts_map.get(reviewer, 0)
@@ -307,39 +270,31 @@ if selected_metrics == "Contribution Metrics":
                 return prs_reviewed / eligible_prs
             return 0
 
-        reviewer_counts["% of Others' PRs"] = reviewer_counts.apply(
-            calculate_percentage, axis=1
-        )
+        reviewer_counts["% of Others' PRs"] = reviewer_counts.apply(calculate_percentage, axis=1)
 
         # Add links
         reviewer_counts["Show PRs"] = reviewer_counts["reviewers"].apply(
             lambda x: f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
         )
-        reviewer_counts["reviewers"] = reviewer_counts["reviewers"].apply(
-            lambda x: f"https://github.com/{x}"
-        )
+        reviewer_counts["reviewers"] = reviewer_counts["reviewers"].apply(lambda x: f"https://github.com/{x}")
 
         selection = st.dataframe(
             reviewer_counts,
             column_config={
-                "reviewers": st.column_config.LinkColumn(
-                    display_text="github.com/([^/]+)"
-                ),
+                "reviewers": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
                 "% of Others' PRs": st.column_config.NumberColumn(
                     format="percent",
                     help="Percentage of PRs reviewed by the user that were not authored by the user",
                 ),
-                "Show PRs": st.column_config.LinkColumn(
-                    display_text=":material/open_in_new:"
-                ),
+                "Show PRs": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
             },
             hide_index=True,
             on_select="rerun",
             selection_mode="single-row",
         )
 
-        if selection.selection.rows:
-            selected_index = selection.selection.rows[0]
+        if selection["selection"]["rows"]:
+            selected_index = selection["selection"]["rows"][0]
             selected_reviewer_url = reviewer_counts.iloc[selected_index]["reviewers"]
             selected_reviewer = selected_reviewer_url.split("/")[-1]
 
@@ -358,15 +313,11 @@ if selected_metrics == "Contribution Metrics":
                         "Title": reviewer_prs["title"],
                         "Link": reviewer_prs["url"],
                         "Merged on": reviewer_prs["merge_date"].dt.date,
-                        "Author": reviewer_prs["author"].apply(
-                            lambda x: f"https://github.com/{x}"
-                        ),
+                        "Author": reviewer_prs["author"].apply(lambda x: f"https://github.com/{x}"),
                     }
                 )
 
-                detailed_pr_df = detailed_pr_df.sort_values(
-                    "Merged on", ascending=False
-                )
+                detailed_pr_df = detailed_pr_df.sort_values("Merged on", ascending=False)
 
                 st.dataframe(
                     detailed_pr_df,
@@ -374,9 +325,7 @@ if selected_metrics == "Contribution Metrics":
                         "Title": st.column_config.TextColumn(width="large"),
                         "Link": st.column_config.LinkColumn(display_text="Open PR"),
                         "Merged on": st.column_config.DateColumn(format="MMM DD, YYYY"),
-                        "Author": st.column_config.LinkColumn(
-                            display_text="github.com/([^/]+)"
-                        ),
+                        "Author": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
                     },
                     hide_index=True,
                 )
@@ -388,9 +337,7 @@ if selected_metrics == "Contribution Metrics":
 
     if not merged_prs_df.empty:
         # Filter for community PRs
-        community_prs_df = merged_prs_df[
-            ~merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)
-        ].copy()
+        community_prs_df = merged_prs_df[~merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)].copy()
         # Always exclude bot PRs
         community_prs_df = community_prs_df[~community_prs_df["from_bot"]]
 
@@ -404,9 +351,7 @@ if selected_metrics == "Contribution Metrics":
             community_reviewers_exploded = community_prs_df.explode("reviewers")
 
             # Filter out None values if any
-            community_reviewers_exploded = community_reviewers_exploded.dropna(
-                subset=["reviewers"]
-            )
+            community_reviewers_exploded = community_reviewers_exploded.dropna(subset=["reviewers"])
 
             # Count reviews by reviewer
             community_reviewer_counts = (
@@ -418,24 +363,18 @@ if selected_metrics == "Contribution Metrics":
             )
 
             # Add links
-            community_reviewer_counts["Show PRs"] = community_reviewer_counts[
-                "reviewers"
-            ].apply(
+            community_reviewer_counts["Show PRs"] = community_reviewer_counts["reviewers"].apply(
                 lambda x: f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
             )
-            community_reviewer_counts["reviewers"] = community_reviewer_counts[
-                "reviewers"
-            ].apply(lambda x: f"https://github.com/{x}")
+            community_reviewer_counts["reviewers"] = community_reviewer_counts["reviewers"].apply(
+                lambda x: f"https://github.com/{x}"
+            )
 
             community_selection = st.dataframe(
                 community_reviewer_counts.head(20),
                 column_config={
-                    "reviewers": st.column_config.LinkColumn(
-                        "GitHub User", display_text="github.com/([^/]+)"
-                    ),
-                    "Show PRs": st.column_config.LinkColumn(
-                        display_text=":material/open_in_new:"
-                    ),
+                    "reviewers": st.column_config.LinkColumn("GitHub User", display_text="github.com/([^/]+)"),
+                    "Show PRs": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
                 },
                 hide_index=True,
                 on_select="rerun",
@@ -443,53 +382,37 @@ if selected_metrics == "Contribution Metrics":
                 key="community_reviewers_selection",
             )
 
-            if community_selection.selection.rows:
-                selected_community_index = community_selection.selection.rows[0]
-                selected_community_reviewer_url = community_reviewer_counts.iloc[
-                    selected_community_index
-                ]["reviewers"]
-                selected_community_reviewer = selected_community_reviewer_url.split(
-                    "/"
-                )[-1]
+            if community_selection["selection"]["rows"]:
+                selected_community_index = community_selection["selection"]["rows"][0]
+                selected_community_reviewer_url = community_reviewer_counts.iloc[selected_community_index]["reviewers"]
+                selected_community_reviewer = selected_community_reviewer_url.split("/")[-1]
 
                 # Filter PRs reviewed by the selected user
                 community_reviewer_prs = community_prs_df[
-                    community_prs_df["reviewers"].apply(
-                        lambda x: selected_community_reviewer in x
-                    )
+                    community_prs_df["reviewers"].apply(lambda x: selected_community_reviewer in x)
                 ].copy()
 
                 if not community_reviewer_prs.empty:
-                    st.markdown(
-                        f"##### Community PRs reviewed by {selected_community_reviewer}"
-                    )
+                    st.markdown(f"##### Community PRs reviewed by {selected_community_reviewer}")
 
                     detailed_community_pr_df = pd.DataFrame(
                         {
                             "Title": community_reviewer_prs["title"],
                             "Link": community_reviewer_prs["url"],
                             "Merged on": community_reviewer_prs["merge_date"].dt.date,
-                            "Author": community_reviewer_prs["author"].apply(
-                                lambda x: f"https://github.com/{x}"
-                            ),
+                            "Author": community_reviewer_prs["author"].apply(lambda x: f"https://github.com/{x}"),
                         }
                     )
 
-                    detailed_community_pr_df = detailed_community_pr_df.sort_values(
-                        "Merged on", ascending=False
-                    )
+                    detailed_community_pr_df = detailed_community_pr_df.sort_values("Merged on", ascending=False)
 
                     st.dataframe(
                         detailed_community_pr_df,
                         column_config={
                             "Title": st.column_config.TextColumn(width="large"),
                             "Link": st.column_config.LinkColumn(display_text="Open PR"),
-                            "Merged on": st.column_config.DateColumn(
-                                format="MMM DD, YYYY"
-                            ),
-                            "Author": st.column_config.LinkColumn(
-                                display_text="github.com/([^/]+)"
-                            ),
+                            "Merged on": st.column_config.DateColumn(format="MMM DD, YYYY"),
+                            "Author": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
                         },
                         hide_index=True,
                     )
@@ -501,16 +424,12 @@ if selected_metrics == "Contribution Metrics":
     st.markdown("#### :material/thumbs_up_double: Issue Closers by Reactions")
 
     # Process the data
-    all_issues_df = pd.DataFrame(
-        [issue for issue in get_all_github_issues() if "pull_request" not in issue]
-    )
+    all_issues_df = pd.DataFrame([issue for issue in get_all_github_issues() if "pull_request" not in issue])
 
     all_issues_df["closed_at"] = pd.to_datetime(all_issues_df["closed_at"])
     all_issues_df["created_at"] = pd.to_datetime(all_issues_df["created_at"])
 
-    all_issues_df["total_reactions"] = all_issues_df["reactions"].apply(
-        lambda x: x["total_count"]
-    )
+    all_issues_df["total_reactions"] = all_issues_df["reactions"].apply(operator.itemgetter("total_count"))
 
     # Closers who closed issues with the most reactions
     closers_df = all_issues_df.copy()
@@ -524,16 +443,12 @@ if selected_metrics == "Contribution Metrics":
     closers_df = closers_df[closers_df["closed_by_login"] != ""]
 
     # Calculate issue types
-    closers_df["is_bug"] = closers_df["labels"].apply(
-        lambda x: 1 if any(l["name"] == "type:bug" for l in x) else 0
-    )
+    closers_df["is_bug"] = closers_df["labels"].apply(lambda x: 1 if any(lbl["name"] == "type:bug" for lbl in x) else 0)
     closers_df["is_enhancement"] = closers_df["labels"].apply(
-        lambda x: 1 if any(l["name"] == "type:enhancement" for l in x) else 0
+        lambda x: 1 if any(lbl["name"] == "type:enhancement" for lbl in x) else 0
     )
     closers_df["is_other"] = closers_df["labels"].apply(
-        lambda x: 1
-        if not any(l["name"] in ["type:bug", "type:enhancement"] for l in x)
-        else 0
+        lambda x: 1 if not any(lbl["name"] in {"type:bug", "type:enhancement"} for lbl in x) else 0
     )
 
     closers_container = st.container(gap=None)
@@ -544,9 +459,7 @@ if selected_metrics == "Contribution Metrics":
 
     if filtered_closers_df.empty:
         with title_container:
-            st.caption(
-                ":material/person: No issues found for the current filters and closer selection."
-            )
+            st.caption(":material/person: No issues found for the current filters and closer selection.")
     else:
         closers_stats = (
             filtered_closers_df.groupby("closed_by_login")
@@ -573,22 +486,14 @@ if selected_metrics == "Contribution Metrics":
         # Calculate percentage of total reactions
         total_closed_reactions = closers_stats["Total reactions"].sum()
         closers_stats["pct_total_reactions"] = (
-            closers_stats["Total reactions"] / total_closed_reactions * 100
-            if total_closed_reactions > 0
-            else 0
+            closers_stats["Total reactions"] / total_closed_reactions * 100 if total_closed_reactions > 0 else 0
         )
 
-        closers_stats["Average reactions per issue"] = (
-            closers_stats["Total reactions"] / closers_stats["Issues closed"]
-        )
-        closers_stats = closers_stats.sort_values(
-            "Total reactions", ascending=False
-        ).reset_index(drop=True)
+        closers_stats["Average reactions per issue"] = closers_stats["Total reactions"] / closers_stats["Issues closed"]
+        closers_stats = closers_stats.sort_values("Total reactions", ascending=False).reset_index(drop=True)
 
         # Transform Closer to URL
-        closers_stats["Closer"] = closers_stats["Closer"].apply(
-            lambda x: f"https://github.com/{x}"
-        )
+        closers_stats["Closer"] = closers_stats["Closer"].apply(lambda x: f"https://github.com/{x}")
 
         unique_closers = len(closers_stats)
 
@@ -602,20 +507,14 @@ if selected_metrics == "Contribution Metrics":
         selection = st.dataframe(
             closers_stats,
             column_config={
-                "Closer": st.column_config.LinkColumn(
-                    display_text="github.com/([^/]+)"
-                ),
+                "Closer": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
                 "Total reactions": st.column_config.NumberColumn(),
-                "pct_total_reactions": st.column_config.NumberColumn(
-                    "% of Total", format="%.1f%%"
-                ),
+                "pct_total_reactions": st.column_config.NumberColumn("% of Total", format="%.1f%%"),
                 "Issues closed": st.column_config.NumberColumn(),
                 "Bugs": st.column_config.NumberColumn(),
                 "Enhancements": st.column_config.NumberColumn(),
                 "Others": st.column_config.NumberColumn(),
-                "Average reactions per issue": st.column_config.NumberColumn(
-                    format="%.2f"
-                ),
+                "Average reactions per issue": st.column_config.NumberColumn(format="%.2f"),
             },
             column_order=[
                 "Closer",
@@ -632,16 +531,14 @@ if selected_metrics == "Contribution Metrics":
             selection_mode="single-row",
         )
 
-        if selection.selection.rows:
-            selected_index = selection.selection.rows[0]
+        if selection["selection"]["rows"]:
+            selected_index = selection["selection"]["rows"][0]
             selected_closer_url = closers_stats.iloc[selected_index]["Closer"]
             selected_closer = selected_closer_url.split("/")[-1]
 
             # Filter issues closed by the selected user
             # We need to go back to the filtered_closers_df which has the raw data
-            closer_issues = filtered_closers_df[
-                filtered_closers_df["closed_by_login"] == selected_closer
-            ].copy()
+            closer_issues = filtered_closers_df[filtered_closers_df["closed_by_login"] == selected_closer].copy()
 
             if not closer_issues.empty:
                 issues_container = st.container(gap=None)
@@ -649,14 +546,10 @@ if selected_metrics == "Contribution Metrics":
                 issues_title_container = issues_row.container()
 
                 with issues_row.popover("Modify", width="content"):
-                    min_reactions = st.number_input(
-                        "Minimum reactions", min_value=0, value=0, step=1
-                    )
+                    min_reactions = st.number_input("Minimum reactions", min_value=0, value=0, step=1)
 
                 if min_reactions > 0:
-                    closer_issues = closer_issues[
-                        closer_issues["total_reactions"] >= min_reactions
-                    ]
+                    closer_issues = closer_issues[closer_issues["total_reactions"] >= min_reactions]
 
                 with issues_title_container:
                     st.markdown(f"##### Issues closed by {selected_closer}")
@@ -672,9 +565,7 @@ if selected_metrics == "Contribution Metrics":
                         "Closed on": closer_issues["closed_at"].dt.date,
                         "Link": closer_issues["html_url"],
                         "Comments": closer_issues["comments"],
-                        "Reaction Types": closer_issues["reactions"].apply(
-                            reactions_to_str
-                        ),
+                        "Reaction Types": closer_issues["reactions"].apply(reactions_to_str),
                         "Type": closer_issues["labels"].apply(get_issue_type),
                     }
                 )
@@ -689,9 +580,7 @@ if selected_metrics == "Contribution Metrics":
                         "Link": st.column_config.LinkColumn(display_text="Open Issue"),
                         "Type": st.column_config.ListColumn(),
                         "Closed on": st.column_config.DateColumn(format="MMM DD, YYYY"),
-                        "Reactions": st.column_config.NumberColumn(
-                            format="%d 🫶", help="Total number of reactions"
-                        ),
+                        "Reactions": st.column_config.NumberColumn(format="%d 🫶", help="Total number of reactions"),
                         "Comments": st.column_config.NumberColumn(format="%d 💬"),
                     },
                     hide_index=True,
@@ -701,9 +590,7 @@ if selected_metrics == "Contribution Metrics":
 
     # Calculate top issue authors
     authors_df = all_issues_df.copy()
-    authors_df["author"] = authors_df["user"].apply(
-        lambda x: x.get("login", "") if isinstance(x, dict) else ""
-    )
+    authors_df["author"] = authors_df["user"].apply(lambda x: x.get("login", "") if isinstance(x, dict) else "")
     authors_df = authors_df[authors_df["author"] != ""]
 
     if since_input:
@@ -731,21 +618,15 @@ if selected_metrics == "Contribution Metrics":
         author_counts["Show Issues"] = author_counts["author"].apply(
             lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue+author%3A{x}"
         )
-        author_counts["author"] = author_counts["author"].apply(
-            lambda x: f"https://github.com/{x}"
-        )
+        author_counts["author"] = author_counts["author"].apply(lambda x: f"https://github.com/{x}")
 
         st.dataframe(
             author_counts,
             column_config={
-                "author": st.column_config.LinkColumn(
-                    display_text="github.com/([^/]+)"
-                ),
+                "author": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
                 "Issue Count": st.column_config.NumberColumn(format="%d 📝"),
                 "% of Total": st.column_config.NumberColumn(format="%.1f%%"),
-                "Show Issues": st.column_config.LinkColumn(
-                    display_text=":material/open_in_new:"
-                ),
+                "Show Issues": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
             },
             hide_index=True,
             column_order=["author", "Issue Count", "% of Total", "Show Issues"],
@@ -769,22 +650,16 @@ if selected_metrics == "Contribution Metrics":
     commenters_df["Show Issues"] = commenters_df["User"].apply(
         lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue%20commenter%3A{x}"
     )
-    commenters_df["User"] = commenters_df["User"].apply(
-        lambda x: f"https://github.com/{x}"
-    )
+    commenters_df["User"] = commenters_df["User"].apply(lambda x: f"https://github.com/{x}")
 
     if not commenters_df.empty:
-        commenters_df = commenters_df.sort_values(
-            "Issues Commented On", ascending=False
-        ).reset_index(drop=True)
+        commenters_df = commenters_df.sort_values("Issues Commented On", ascending=False).reset_index(drop=True)
         st.dataframe(
             commenters_df,
             column_config={
                 "User": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
                 "Issues Commented On": st.column_config.NumberColumn(format="%d 💬"),
-                "Show Issues": st.column_config.LinkColumn(
-                    display_text=":material/open_in_new:"
-                ),
+                "Show Issues": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
             },
             hide_index=True,
         )
@@ -808,22 +683,16 @@ if selected_metrics == "Contribution Metrics":
 
         if not member_prs_df.empty:
             # Prepare monthly data
-            member_prs_df["merge_month"] = (
-                member_prs_df["merge_date"].dt.to_period("M").dt.to_timestamp()
-            )
+            member_prs_df["merge_month"] = member_prs_df["merge_date"].dt.to_period("M").dt.to_timestamp()
 
             # Calculate feature and bugfix flags if not already present
             if "is_feature" not in member_prs_df.columns:
                 member_prs_df["is_feature"] = member_prs_df["labels"].apply(
-                    lambda labels: 1
-                    if "change:feature" in labels and "impact:users" in labels
-                    else 0
+                    lambda labels: 1 if "change:feature" in labels and "impact:users" in labels else 0
                 )
             if "is_bugfix" not in member_prs_df.columns:
                 member_prs_df["is_bugfix"] = member_prs_df["labels"].apply(
-                    lambda labels: 1
-                    if "change:bugfix" in labels and "impact:users" in labels
-                    else 0
+                    lambda labels: 1 if "change:bugfix" in labels and "impact:users" in labels else 0
                 )
 
             # Monthly stats for the member
@@ -850,9 +719,7 @@ if selected_metrics == "Contribution Metrics":
             )
 
             # Calculate weekly stats for the member
-            member_prs_df["merge_week"] = (
-                member_prs_df["merge_date"].dt.to_period("W").dt.to_timestamp()
-            )
+            member_prs_df["merge_week"] = member_prs_df["merge_date"].dt.to_period("W").dt.to_timestamp()
             member_weekly_stats = (
                 member_prs_df.groupby("merge_week")
                 .agg(merged_prs=("pr_number", "count"))
@@ -950,9 +817,7 @@ if selected_metrics == "Contribution Metrics":
                 )
                 st.plotly_chart(fig_member_types, use_container_width=True)
         else:
-            st.info(
-                f"No merged PRs found for @{selected_member} in the selected period."
-            )
+            st.info(f"No merged PRs found for @{selected_member} in the selected period.")
     elif merged_prs_df.empty:
         st.info("No merged PRs found for the selected period.")
 
@@ -1036,21 +901,15 @@ elif selected_metrics == "Team Productivity Metrics":
         total_merged_prs = len(merged_prs_df)
 
         # Calculate medians
-        median_open_to_merge = (
-            merged_prs_df["time_open_to_merge"].dt.total_seconds() / 3600
-        ).median()
+        median_open_to_merge = (merged_prs_df["time_open_to_merge"].dt.total_seconds() / 3600).median()
 
-        median_open_to_first_review = (
-            merged_prs_df["time_open_to_first_review"].dt.total_seconds() / 3600
-        ).median()
+        median_open_to_first_review = (merged_prs_df["time_open_to_first_review"].dt.total_seconds() / 3600).median()
 
         total_loc_changed = merged_prs_df["loc_changes"].sum()
 
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Merged PRs", total_merged_prs, border=True)
-        col2.metric(
-            "Median Time to Merge", f"{median_open_to_merge:.1f} h", border=True
-        )
+        col2.metric("Median Time to Merge", f"{median_open_to_merge:.1f} h", border=True)
         col3.metric(
             "Median Time to First Review",
             f"{median_open_to_first_review:.1f} h",
@@ -1060,20 +919,14 @@ elif selected_metrics == "Team Productivity Metrics":
 
         # Monthly PR Trends
         # Prepare data for monthly trends
-        merged_prs_df["merge_month"] = (
-            merged_prs_df["merge_date"].dt.to_period("M").dt.to_timestamp()
-        )
+        merged_prs_df["merge_month"] = merged_prs_df["merge_date"].dt.to_period("M").dt.to_timestamp()
 
         # Calculate feature and bugfix flags
         merged_prs_df["is_feature"] = merged_prs_df["labels"].apply(
-            lambda labels: 1
-            if "change:feature" in labels and "impact:users" in labels
-            else 0
+            lambda labels: 1 if "change:feature" in labels and "impact:users" in labels else 0
         )
         merged_prs_df["is_bugfix"] = merged_prs_df["labels"].apply(
-            lambda labels: 1
-            if "change:bugfix" in labels and "impact:users" in labels
-            else 0
+            lambda labels: 1 if "change:bugfix" in labels and "impact:users" in labels else 0
         )
 
         # Monthly PR Stats (Counts & LOC) - Full Data
@@ -1148,9 +1001,7 @@ elif selected_metrics == "Team Productivity Metrics":
         )
 
         with tab1:
-            fig_prs = px.bar(
-                monthly_pr_stats, x="Date", y="Merged PRs", title="Monthly Merged PRs"
-            )
+            fig_prs = px.bar(monthly_pr_stats, x="Date", y="Merged PRs", title="Monthly Merged PRs")
             st.plotly_chart(fig_prs, width="stretch")
 
         with tab2:
@@ -1178,15 +1029,11 @@ elif selected_metrics == "Team Productivity Metrics":
 
             if show_avg_loc:
                 # Filter for team members only
-                team_loc_df = merged_prs_df[
-                    merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)
-                ].copy()
+                team_loc_df = merged_prs_df[merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)].copy()
 
                 # Get active contributors per month (>= 3 PRs)
                 team_monthly_pr_counts = (
-                    team_loc_df.groupby(["merge_month", "author"])
-                    .size()
-                    .reset_index(name="pr_count")
+                    team_loc_df.groupby(["merge_month", "author"]).size().reset_index(name="pr_count")
                 )
                 active_contributors_per_month = (
                     team_monthly_pr_counts[team_monthly_pr_counts["pr_count"] >= 3]
@@ -1213,17 +1060,11 @@ elif selected_metrics == "Team Productivity Metrics":
                     right_on="merge_month",
                     how="left",
                 )
-                team_monthly_loc["active_count"] = team_monthly_loc[
-                    "active_count"
-                ].fillna(1)
+                team_monthly_loc["active_count"] = team_monthly_loc["active_count"].fillna(1)
 
                 # Calculate average per active contributor
-                team_monthly_loc["Additions"] = (
-                    team_monthly_loc["Additions"] / team_monthly_loc["active_count"]
-                )
-                team_monthly_loc["Deletions"] = (
-                    team_monthly_loc["Deletions"] / team_monthly_loc["active_count"]
-                )
+                team_monthly_loc["Additions"] /= team_monthly_loc["active_count"]
+                team_monthly_loc["Deletions"] /= team_monthly_loc["active_count"]
 
                 loc_melted = team_monthly_loc.melt(
                     id_vars="Date",
@@ -1275,27 +1116,17 @@ elif selected_metrics == "Team Productivity Metrics":
             row = st.container()
             col1, col2 = row.columns([1, 0.2])
             with col2.popover("Modify", width="content"):
-                min_prs = st.number_input(
-                    "Minimum merged PRs", min_value=1, value=3, step=1
-                )
+                min_prs = st.number_input("Minimum merged PRs", min_value=1, value=3, step=1)
 
             with col1:
-                st.markdown(
-                    f"##### Monthly Active Contributors (>= {min_prs} Merged PRs)"
-                )
+                st.markdown(f"##### Monthly Active Contributors (>= {min_prs} Merged PRs)")
 
             # Calculate Active Contributors
             # Group by month and author to count PRs
-            author_monthly_prs = (
-                merged_prs_df.groupby(["merge_month", "author"])
-                .size()
-                .reset_index(name="pr_count")
-            )
+            author_monthly_prs = merged_prs_df.groupby(["merge_month", "author"]).size().reset_index(name="pr_count")
 
             # Filter for authors with >= min_prs in a month
-            active_authors_monthly = author_monthly_prs[
-                author_monthly_prs["pr_count"] >= min_prs
-            ]
+            active_authors_monthly = author_monthly_prs[author_monthly_prs["pr_count"] >= min_prs]
 
             # Count unique active authors per month
             active_contributors_stats = (
@@ -1305,9 +1136,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 .rename(columns={"merge_month": "Date"})
             )
 
-            st.caption(
-                f"Active contributors are users who have merged at least {min_prs} PRs in a given month."
-            )
+            st.caption(f"Active contributors are users who have merged at least {min_prs} PRs in a given month.")
             if not active_contributors_stats.empty:
                 fig_active = px.bar(
                     active_contributors_stats,
@@ -1326,22 +1155,14 @@ elif selected_metrics == "Team Productivity Metrics":
             )
 
             # Filter for team members only
-            team_prs_df = merged_prs_df[
-                merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)
-            ].copy()
+            team_prs_df = merged_prs_df[merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)].copy()
 
             if not team_prs_df.empty:
                 # Group by month and author
-                team_monthly_prs = (
-                    team_prs_df.groupby(["merge_month", "author"])
-                    .size()
-                    .reset_index(name="pr_count")
-                )
+                team_monthly_prs = team_prs_df.groupby(["merge_month", "author"]).size().reset_index(name="pr_count")
 
                 # Filter for authors with >= 3 PRs in a month
-                active_team_monthly = team_monthly_prs[
-                    team_monthly_prs["pr_count"] >= 3
-                ]
+                active_team_monthly = team_monthly_prs[team_monthly_prs["pr_count"] >= 3]
 
                 if not active_team_monthly.empty:
                     # Calculate average PRs per active contributor per month
@@ -1375,29 +1196,23 @@ elif selected_metrics == "Team Productivity Metrics":
                     # Show contributors when a bar is selected
                     if (
                         chart_selection
-                        and chart_selection.selection
-                        and chart_selection.selection.point_indices
+                        and chart_selection["selection"]
+                        and chart_selection["selection"]["point_indices"]
                     ):
-                        selected_idx = chart_selection.selection.point_indices[0]
-                        selected_month = avg_prs_per_month.iloc[selected_idx][
-                            "merge_month"
-                        ]
+                        selected_idx = chart_selection["selection"]["point_indices"][0]
+                        selected_month = avg_prs_per_month.iloc[selected_idx]["merge_month"]
 
                         # Get contributors for the selected month
                         month_contributors = active_team_monthly[
                             active_team_monthly["merge_month"] == selected_month
                         ].sort_values("pr_count", ascending=False)
 
-                        st.markdown(
-                            f"##### Active Contributors for {selected_month.strftime('%B %Y')}"
-                        )
+                        st.markdown(f"##### Active Contributors for {selected_month.strftime('%B %Y')}")
 
                         # Create a dataframe with contributor details
                         contributors_df = pd.DataFrame(
                             {
-                                "Contributor": month_contributors["author"].apply(
-                                    lambda x: f"https://github.com/{x}"
-                                ),
+                                "Contributor": month_contributors["author"].apply(lambda x: f"https://github.com/{x}"),
                                 "Merged PRs": month_contributors["pr_count"],
                             }
                         )
@@ -1405,17 +1220,13 @@ elif selected_metrics == "Team Productivity Metrics":
                         st.dataframe(
                             contributors_df,
                             column_config={
-                                "Contributor": st.column_config.LinkColumn(
-                                    display_text="github.com/([^/]+)"
-                                ),
+                                "Contributor": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
                                 "Merged PRs": st.column_config.NumberColumn(),
                             },
                             hide_index=True,
                         )
                 else:
-                    st.info(
-                        "No active core contributors found with >= 3 PRs in any month."
-                    )
+                    st.info("No active core contributors found with >= 3 PRs in any month.")
             else:
                 st.info("No team member PRs found for the selected period.")
 
@@ -1446,9 +1257,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 barmode="stack" if not show_median else "group",
             )
             st.plotly_chart(fig_comments, width="stretch")
-            st.caption(
-                "Note: These metrics include comments from bots and automated systems."
-            )
+            st.caption("Note: These metrics include comments from bots and automated systems.")
 
         with tab8:
             show_avg_reactions = st.toggle(
@@ -1459,20 +1268,14 @@ elif selected_metrics == "Team Productivity Metrics":
             )
 
             # Get issue data for reactions
-            issues_for_reactions = [
-                issue
-                for issue in get_all_github_issues()
-                if "pull_request" not in issue
-            ]
+            issues_for_reactions = [issue for issue in get_all_github_issues() if "pull_request" not in issue]
             reactions_issues_df = pd.DataFrame(issues_for_reactions)
 
             if not reactions_issues_df.empty:
-                reactions_issues_df["closed_at"] = pd.to_datetime(
-                    reactions_issues_df["closed_at"]
+                reactions_issues_df["closed_at"] = pd.to_datetime(reactions_issues_df["closed_at"])
+                reactions_issues_df["total_reactions"] = reactions_issues_df["reactions"].apply(
+                    operator.itemgetter("total_count")
                 )
-                reactions_issues_df["total_reactions"] = reactions_issues_df[
-                    "reactions"
-                ].apply(lambda x: x["total_count"])
 
                 # Filter to closed issues within the date range
                 closed_reactions_df = reactions_issues_df[
@@ -1483,9 +1286,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 if not closed_reactions_df.empty:
                     # Group by month
                     closed_reactions_df["close_month"] = (
-                        closed_reactions_df["closed_at"]
-                        .dt.to_period("M")
-                        .dt.to_timestamp()
+                        closed_reactions_df["closed_at"].dt.to_period("M").dt.to_timestamp()
                     )
 
                     monthly_reactions = (
@@ -1513,9 +1314,7 @@ elif selected_metrics == "Team Productivity Metrics":
                             .reset_index(name="pr_count")
                         )
                         active_contributors_reactions = (
-                            team_monthly_pr_counts_reactions[
-                                team_monthly_pr_counts_reactions["pr_count"] >= 3
-                            ]
+                            team_monthly_pr_counts_reactions[team_monthly_pr_counts_reactions["pr_count"] >= 3]
                             .groupby("merge_month")["author"]
                             .nunique()
                             .reset_index(name="active_count")
@@ -1528,15 +1327,10 @@ elif selected_metrics == "Team Productivity Metrics":
                             right_on="merge_month",
                             how="left",
                         )
-                        monthly_reactions["active_count"] = monthly_reactions[
-                            "active_count"
-                        ].fillna(1)
+                        monthly_reactions["active_count"] = monthly_reactions["active_count"].fillna(1)
 
                         # Calculate average per active contributor
-                        monthly_reactions["Total Reactions"] = (
-                            monthly_reactions["Total Reactions"]
-                            / monthly_reactions["active_count"]
-                        )
+                        monthly_reactions["Total Reactions"] /= monthly_reactions["active_count"]
                         chart_title = "Avg Monthly Reactions on Closed Issues per Active Core Contributor"
                         y_label = "Avg Reactions per Contributor"
                     else:
@@ -1557,41 +1351,30 @@ elif selected_metrics == "Team Productivity Metrics":
                         key="issue_reactions_chart",
                     )
 
-                    st.caption(
-                        "Click on a bar to view the issues closed in that month."
-                    )
+                    st.caption("Click on a bar to view the issues closed in that month.")
 
                     # Show issues when a bar is selected
                     if (
                         reactions_chart_selection
-                        and reactions_chart_selection.selection
-                        and reactions_chart_selection.selection.point_indices
+                        and reactions_chart_selection["selection"]
+                        and reactions_chart_selection["selection"]["point_indices"]
                     ):
-                        selected_reactions_idx = (
-                            reactions_chart_selection.selection.point_indices[0]
-                        )
-                        selected_reactions_month = monthly_reactions.iloc[
-                            selected_reactions_idx
-                        ]["Month"]
+                        selected_reactions_idx = reactions_chart_selection["selection"]["point_indices"][0]
+                        selected_reactions_month = monthly_reactions.iloc[selected_reactions_idx]["Month"]
 
                         # Filter issues for the selected month
                         month_issues = closed_reactions_df[
-                            closed_reactions_df["close_month"]
-                            == selected_reactions_month
+                            closed_reactions_df["close_month"] == selected_reactions_month
                         ].sort_values("total_reactions", ascending=False)
 
                         if not month_issues.empty:
-                            st.markdown(
-                                f"##### Issues closed in {selected_reactions_month.strftime('%B %Y')}"
-                            )
+                            st.markdown(f"##### Issues closed in {selected_reactions_month.strftime('%B %Y')}")
 
                             issues_detail_df = pd.DataFrame(
                                 {
                                     "Title": month_issues["title"],
                                     "Reactions": month_issues["total_reactions"],
-                                    "Type": month_issues["labels"].apply(
-                                        get_issue_type
-                                    ),
+                                    "Type": month_issues["labels"].apply(get_issue_type),
                                     "Closed on": month_issues["closed_at"].dt.date,
                                     "Link": month_issues["html_url"],
                                 }
@@ -1601,16 +1384,10 @@ elif selected_metrics == "Team Productivity Metrics":
                                 issues_detail_df,
                                 column_config={
                                     "Title": st.column_config.TextColumn(width="large"),
-                                    "Link": st.column_config.LinkColumn(
-                                        display_text="Open Issue"
-                                    ),
+                                    "Link": st.column_config.LinkColumn(display_text="Open Issue"),
                                     "Type": st.column_config.ListColumn(),
-                                    "Closed on": st.column_config.DateColumn(
-                                        format="MMM DD, YYYY"
-                                    ),
-                                    "Reactions": st.column_config.NumberColumn(
-                                        format="%d 🫶"
-                                    ),
+                                    "Closed on": st.column_config.DateColumn(format="MMM DD, YYYY"),
+                                    "Reactions": st.column_config.NumberColumn(format="%d 🫶"),
                                 },
                                 hide_index=True,
                             )
@@ -1633,9 +1410,7 @@ elif selected_metrics == "Team Productivity Metrics":
     # all_issues_df = pd.DataFrame([issue for issue in get_all_github_issues() if "pull_request" not in issue])
     # Let's do that here too.
 
-    all_issues_raw = [
-        issue for issue in get_all_github_issues() if "pull_request" not in issue
-    ]
+    all_issues_raw = [issue for issue in get_all_github_issues() if "pull_request" not in issue]
     all_issues_df = pd.DataFrame(all_issues_raw)
 
     if not all_issues_df.empty:
@@ -1643,14 +1418,11 @@ elif selected_metrics == "Team Productivity Metrics":
         all_issues_df["closed_at"] = pd.to_datetime(all_issues_df["closed_at"])
 
         # Filter by date for "Created" metrics
-        created_in_period = all_issues_df[
-            all_issues_df["created_at"].dt.date >= since_input
-        ]
+        created_in_period = all_issues_df[all_issues_df["created_at"].dt.date >= since_input]
 
         # Filter by date for "Closed" metrics
         closed_in_period = all_issues_df[
-            (all_issues_df["closed_at"].notna())
-            & (all_issues_df["closed_at"].dt.date >= since_input)
+            (all_issues_df["closed_at"].notna()) & (all_issues_df["closed_at"].dt.date >= since_input)
         ]
 
         total_created = len(created_in_period)
@@ -1663,21 +1435,15 @@ elif selected_metrics == "Team Productivity Metrics":
 
         # Calculate Time to Close for issues closed in the period
         closed_in_period = closed_in_period.copy()  # Avoid SettingWithCopyWarning
-        closed_in_period["time_to_close"] = (
-            closed_in_period["closed_at"] - closed_in_period["created_at"]
-        )
-        median_time_to_close = (
-            closed_in_period["time_to_close"].dt.total_seconds() / 3600 / 24
-        ).median()  # In days
+        closed_in_period["time_to_close"] = closed_in_period["closed_at"] - closed_in_period["created_at"]
+        median_time_to_close = (closed_in_period["time_to_close"].dt.total_seconds() / 3600 / 24).median()  # In days
 
         col1, col2, col3 = st.columns(3)
         col1.metric("Issues Created", total_created, border=True)
         col2.metric("Issues Closed", total_closed, border=True)
         col3.metric(
             "Median Time to Close",
-            f"{median_time_to_close:.1f} days"
-            if not pd.isna(median_time_to_close)
-            else "—",
+            f"{median_time_to_close:.1f} days" if not pd.isna(median_time_to_close) else "—",
             border=True,
         )
 
@@ -1702,9 +1468,7 @@ elif selected_metrics == "Team Productivity Metrics":
         )
 
         # Merge them
-        issue_trends = pd.merge(
-            created_counts, closed_counts, on="Month", how="outer"
-        ).fillna(0)
+        issue_trends = created_counts.merge(closed_counts, on="Month", how="outer").fillna(0)
         issue_trends["Month"] = issue_trends["Month"].dt.to_timestamp()
         issue_trends = issue_trends.sort_values("Month")
 
@@ -1731,26 +1495,18 @@ elif selected_metrics == "Team Productivity Metrics":
         created_by_type["Type"] = created_by_type["labels"].apply(
             lambda labels: "Bug"
             if any(label["name"] == "type:bug" for label in labels)
-            else (
-                "Feature"
-                if any(label["name"] == "type:enhancement" for label in labels)
-                else None
-            )
+            else ("Feature" if any(label["name"] == "type:enhancement" for label in labels) else None)
         )
         created_by_type = created_by_type.dropna(subset=["Type"])
 
         if not created_by_type.empty:
             created_by_type_monthly = (
-                created_by_type.groupby(
-                    [created_by_type["created_at"].dt.to_period("M"), "Type"]
-                )
+                created_by_type.groupby([created_by_type["created_at"].dt.to_period("M"), "Type"])
                 .size()
                 .reset_index(name="Count")
                 .rename(columns={"created_at": "Month"})
             )
-            created_by_type_monthly["Month"] = created_by_type_monthly[
-                "Month"
-            ].dt.to_timestamp()
+            created_by_type_monthly["Month"] = created_by_type_monthly["Month"].dt.to_timestamp()
 
             fig_created_by_type = px.bar(
                 created_by_type_monthly,
@@ -1769,7 +1525,7 @@ elif selected_metrics == "Team Productivity Metrics":
         priority_bugs = closed_in_period.copy()
 
         # Extract priority
-        def extract_priority(labels):
+        def extract_priority(labels: list) -> str | None:
             for label in labels:
                 if label["name"].startswith("priority:"):
                     return label["name"].split("priority:")[-1]
@@ -1778,18 +1534,12 @@ elif selected_metrics == "Team Productivity Metrics":
         priority_bugs["priority"] = priority_bugs["labels"].apply(extract_priority)
 
         # Filter for only rows with priority and is a bug
-        priority_bugs["is_bug"] = priority_bugs["labels"].apply(
-            lambda x: any(l["name"] == "type:bug" for l in x)
-        )
-        priority_bugs = priority_bugs[
-            (priority_bugs["priority"].notna()) & (priority_bugs["is_bug"])
-        ]
+        priority_bugs["is_bug"] = priority_bugs["labels"].apply(lambda x: any(lbl["name"] == "type:bug" for lbl in x))
+        priority_bugs = priority_bugs[(priority_bugs["priority"].notna()) & (priority_bugs["is_bug"])]
 
         if not priority_bugs.empty:
             # Calculate time to close in days
-            priority_bugs["time_to_close_days"] = (
-                priority_bugs["time_to_close"].dt.total_seconds() / 3600 / 24
-            )
+            priority_bugs["time_to_close_days"] = priority_bugs["time_to_close"].dt.total_seconds() / 3600 / 24
 
             # Sort order for priorities
             priority_order = ["P0", "P1", "P2", "P3", "P4"]
@@ -1807,9 +1557,7 @@ elif selected_metrics == "Team Productivity Metrics":
             st.plotly_chart(fig_priority, width="stretch")
 
             # Median Time to Close over Time
-            priority_bugs["close_month"] = (
-                priority_bugs["closed_at"].dt.to_period("M").dt.to_timestamp()
-            )
+            priority_bugs["close_month"] = priority_bugs["closed_at"].dt.to_period("M").dt.to_timestamp()
 
             monthly_priority_stats = (
                 priority_bugs.groupby(["close_month", "priority"])
@@ -1819,11 +1567,9 @@ elif selected_metrics == "Team Productivity Metrics":
             )
 
             # Calculate rolling average
-            monthly_priority_stats["rolling_median"] = monthly_priority_stats.groupby(
-                "priority"
-            )["median_time_to_close"].transform(
-                lambda x: x.rolling(window=3, min_periods=1).mean()
-            )
+            monthly_priority_stats["rolling_median"] = monthly_priority_stats.groupby("priority")[
+                "median_time_to_close"
+            ].transform(lambda x: x.rolling(window=3, min_periods=1).mean())
 
             fig_priority_over_time = px.line(
                 monthly_priority_stats,

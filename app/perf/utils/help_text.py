@@ -22,9 +22,7 @@ def get_help_text(metric_name: str) -> str:
         )
 
     if "_count" in metric_name:
-        doc_parts.append(
-            "Count indicates the total number of times this event occurred during the test."
-        )
+        doc_parts.append("Count indicates the total number of times this event occurred during the test.")
 
     if "_duration_ms" in metric_name:
         doc_parts.append(

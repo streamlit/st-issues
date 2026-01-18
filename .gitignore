@@ -44,7 +44,6 @@ __pycache__
 .ipynb_checkpoints
 .Python
 dist/
-.python-version
 .installed.cfg
 *.egg
 reqlib-metadata

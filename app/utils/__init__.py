@@ -1,11 +1,11 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 import streamlit as st
 
 
 def display_issue_data() -> bool:
-    """
-    Display issue data if available in session state.
+    """Display issue data if available in session state.
+
     Returns True if issue data was displayed, False otherwise.
     """
     if "issue_data" not in st.session_state:
@@ -16,14 +16,12 @@ def display_issue_data() -> bool:
             col1, col2 = st.columns([3, 1])
 
             with col1:
-                repo_info = st.text_input(
-                    "Repository", value="streamlit/streamlit", key="form_repo_info"
-                )
+                st.text_input("Repository", value="streamlit/streamlit", key="form_repo_info")
 
             with col2:
-                issue_number = st.text_input("Issue Number", key="form_issue_number")
+                st.text_input("Issue Number", key="form_issue_number")
 
-            submit_button = st.form_submit_button("Load Issue")
+            st.form_submit_button("Load Issue")
 
         return False
 
@@ -46,9 +44,7 @@ def display_issue_data() -> bool:
                 st.markdown(f"**Labels:** {', '.join(metadata.get('labels', []))}")
 
                 if metadata.get("html_url"):
-                    st.markdown(
-                        f"**URL:** [View on GitHub]({metadata.get('html_url')})"
-                    )
+                    st.markdown(f"**URL:** [View on GitHub]({metadata.get('html_url')})")
 
             # Display issue body
             if metadata.get("body"):
@@ -56,17 +52,10 @@ def display_issue_data() -> bool:
                 st.markdown(metadata.get("body"))
 
         # Display comments if available
-        if (
-            "processed_comments" in st.session_state
-            and st.session_state.processed_comments
-        ):
-            with st.expander(
-                f"Comments ({len(st.session_state.processed_comments)})", expanded=False
-            ):
+        if "processed_comments" in st.session_state and st.session_state.processed_comments:
+            with st.expander(f"Comments ({len(st.session_state.processed_comments)})", expanded=False):
                 for comment in st.session_state.processed_comments:
-                    st.markdown(
-                        f"**{comment.get('author', 'Unknown')}** - {comment.get('created_at', '')}"
-                    )
+                    st.markdown(f"**{comment.get('author', 'Unknown')}** - {comment.get('created_at', '')}")
                     st.markdown(comment.get("body", ""))
                     st.markdown("---")
 
@@ -75,9 +64,8 @@ def display_issue_data() -> bool:
     return False
 
 
-def display_agent_prompt(prompt_data: Dict[str, Any]) -> None:
-    """
-    Display the generated agent prompt with copy functionality.
+def display_agent_prompt(prompt_data: dict[str, Any]) -> None:
+    """Display the generated agent prompt with copy functionality.
 
     Args:
         prompt_data: Dictionary containing prompt and metadata
@@ -99,17 +87,14 @@ def display_agent_prompt(prompt_data: Dict[str, Any]) -> None:
         st.error("No prompt found in prompt data")
 
 
-def load_issue_from_metadata(
-    issue_metadata: Dict[str, Any], repo: str = "streamlit/streamlit"
-) -> None:
-    """
-    Load issue data from issue metadata (used for integration with interrupt rotation).
+def load_issue_from_metadata(issue_metadata: dict[str, Any], repo: str = "streamlit/streamlit") -> None:
+    """Load issue data from issue metadata (used for integration with interrupt rotation).
 
     Args:
         issue_metadata: Dictionary containing issue metadata
         repo: Repository in format "owner/repo"
     """
-    from .github_utils import (
+    from app.utils.github_utils import (
         extract_comment_data,
         extract_issue_metadata,
         get_issue_comments,
@@ -147,9 +132,7 @@ def load_issue_from_metadata(
             if comments_data:
                 st.session_state.comments_data = comments_data
                 # Extract relevant comment data
-                processed_comments = [
-                    extract_comment_data(comment) for comment in comments_data
-                ]
+                processed_comments = [extract_comment_data(comment) for comment in comments_data]
                 st.session_state.processed_comments = processed_comments
             else:
                 st.session_state.comments_data = []

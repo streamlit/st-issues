@@ -14,8 +14,7 @@
 
 
 def get_stable_test_name(filename: str) -> str:
-    """
-    Extracts a stable test name from a given test run filename.
+    """Extracts a stable test name from a given test run filename.
 
     Args:
         filename (str): The filename to process.
@@ -28,7 +27,8 @@ def get_stable_test_name(filename: str) -> str:
         format is invalid.
     """
     if not filename.endswith(".json"):
-        raise ValueError("Filename must end with '.json'")
+        msg = "Filename must end with '.json'"
+        raise ValueError(msg)
 
     try:
         # Remove the timestamp and the underscore
@@ -40,4 +40,5 @@ def get_stable_test_name(filename: str) -> str:
 
         return base_filename
     except IndexError:
-        raise ValueError("Invalid filename format")
+        msg = "Invalid filename format"
+        raise ValueError(msg)

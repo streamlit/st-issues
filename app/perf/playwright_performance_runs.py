@@ -1,5 +1,5 @@
 import concurrent.futures
-from typing import Optional
+import operator
 
 import pandas as pd
 import plotly.express as px
@@ -24,9 +24,7 @@ TITLE = "Streamlit Performance - Playwright"
 
 st.set_page_config(page_title=TITLE, layout="wide")
 
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("🎭 Performance - Playwright")
 
@@ -54,29 +52,23 @@ if token is None:
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_commits(
-    branch_name: str, until_date: Optional[str] = None, limit: int = 50
-):
-    return get_commit_hashes_for_branch_name(
-        branch_name, limit=limit, until_date=until_date
-    )
+def get_commits(branch_name: str, until_date: str | None = None, limit: int = 50) -> list[str]:
+    return get_commit_hashes_for_branch_name(branch_name, limit=limit, until_date=until_date)
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_everything_by_hash(hash: str, load_all_metrics: bool):
-    return get_artifact_results(hash, "playwright", load_all_metrics=load_all_metrics)
+def get_everything_by_hash(commit_hash: str, load_all_metrics: bool) -> tuple:
+    return get_artifact_results(commit_hash, "playwright", load_all_metrics=load_all_metrics)
 
 
 selected_test_param = st.query_params.get("test")
 show_mean_line = st.query_params.get("show_mean_line", "True").lower() == "true"
 show_boxplot = st.query_params.get("show_boxplot", "True").lower() == "true"
 load_all_metrics = st.query_params.get("load_all_metrics", "False").lower() == "true"
-y_domain_includes_zero = (
-    st.query_params.get("y_domain_includes_zero", "True").lower() == "true"
-)
+y_domain_includes_zero = st.query_params.get("y_domain_includes_zero", "True").lower() == "true"
 
 
-def on_query_param_change():
+def on_query_param_change() -> None:
     if "selected_test" in st.session_state:
         st.query_params.test = str(st.session_state.selected_test)
     if "show_mean_line" in st.session_state:
@@ -84,16 +76,10 @@ def on_query_param_change():
     if "show_boxplot" in st.session_state:
         st.query_params.show_boxplot = str(st.session_state.show_boxplot).lower()
     if "load_all_metrics" in st.session_state:
-        st.query_params.load_all_metrics = str(
-            st.session_state.load_all_metrics
-        ).lower()
+        st.query_params.load_all_metrics = str(st.session_state.load_all_metrics).lower()
     if "y_domain_includes_zero" in st.session_state:
-        st.query_params.y_domain_includes_zero = str(
-            st.session_state.y_domain_includes_zero
-        ).lower()
+        st.query_params.y_domain_includes_zero = str(st.session_state.y_domain_includes_zero).lower()
 
-
-all_tests: set[str] = set()
 
 with st.container(width="content"):
     selected_date = st.date_input(
@@ -103,19 +89,17 @@ with st.container(width="content"):
     )
 
 # Get the commits and process data first
-commit_hashes = get_commits(
-    "develop", until_date=selected_date.isoformat() if selected_date else None
-)
+initial_commit_hashes = get_commits("develop", until_date=selected_date.isoformat() if selected_date else None)
 
-run_results: list[dict] = []
-timestamps: list[str] = []
+run_results_list: list[dict] = []
+timestamps_list: list[str] = []
 
 # Download all the artifacts for the Playwright performance runs in parallel
 with concurrent.futures.ThreadPoolExecutor() as executor:
     # Create futures with their corresponding indices and hashes
     future_mapping = {
-        executor.submit(get_everything_by_hash, hash, load_all_metrics): (i, hash)
-        for i, hash in enumerate(commit_hashes)
+        executor.submit(get_everything_by_hash, h, load_all_metrics): (i, h)
+        for i, h in enumerate(initial_commit_hashes)
     }
 
     # Create a list to store results in correct order
@@ -123,42 +107,38 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
 
     # Process futures as they complete
     for future in concurrent.futures.as_completed(future_mapping):
-        idx, hash = future_mapping[future]
+        idx, h = future_mapping[future]
         results, timestamp = future.result()
 
-        if (
-            results == ""
-            and timestamp == ""
-            or results is None
-            or timestamp is None
-        ):
+        if (not results and not timestamp) or results is None or timestamp is None:
             continue
 
-        ordered_artifacts.append((idx, results, timestamp, hash))
+        ordered_artifacts.append((idx, results, timestamp, h))
 
 # Sort first by timestamp and maintain original order as secondary sort key
-ordered_artifacts.sort(key=lambda x: (x[2], x[0]))
+ordered_artifacts.sort(key=operator.itemgetter(2, 0))
 # Unpack sorted artifacts, discarding the index used for ordering
-_, run_results, timestamps, commit_hashes = (
-    zip(*ordered_artifacts) if ordered_artifacts else ([], [], [], [])
-)
+run_results_tuple: tuple = ()
+timestamps_tuple: tuple = ()
+commit_hashes_tuple: tuple = ()
+if ordered_artifacts:
+    _, run_results_tuple, timestamps_tuple, commit_hashes_tuple = zip(*ordered_artifacts, strict=False)
 
-all_tests = set()
-all_metric_names = set()
+all_tests: set[str] = set()
+all_metric_names: set[str] = set()
 
 processed_results: dict[str, dict] = {}
 
-for commit_hash, res in zip(commit_hashes, run_results):
-    res = find_and_remove_outliers(res)
-    processed_results[commit_hash] = res
+for commit_hash, run_res in zip(commit_hashes_tuple, run_results_tuple, strict=False):
+    processed_run = find_and_remove_outliers(run_res)
+    processed_results[commit_hash] = processed_run
 
-    for test_name in res.keys():
+    for test_name in processed_run:
         all_tests.add(test_name)
-        for metric_name in res[test_name].keys():
-            all_metric_names.add(f"{test_name}.{metric_name}")
+        all_metric_names.update(f"{test_name}.{metric_name}" for metric_name in processed_run[test_name])
 
 # Now set up the UI with the collected test names
-sorted_all_tests = sorted(list(all_tests))
+sorted_all_tests = sorted(all_tests)
 selected_test = (
     selected_test_param
     if selected_test_param in sorted_all_tests
@@ -169,11 +149,7 @@ with st.container(width="content"):
     selected_test = st.selectbox(
         "Select a test:",
         sorted_all_tests,
-        index=(
-            sorted_all_tests.index(selected_test)
-            if selected_test in sorted_all_tests
-            else 0
-        ),
+        index=(sorted_all_tests.index(selected_test) if selected_test in sorted_all_tests else 0),
         on_change=on_query_param_change,
         key="selected_test",
     )
@@ -208,30 +184,29 @@ with st.container(width="content"):
 st.divider()
 
 
-filtered_test_names = [
-    test_name for test_name in all_metric_names if selected_test in test_name
-]
+filtered_test_names = [test_name for test_name in all_metric_names if selected_test in test_name]
 filtered_test_names.sort(key=str.lower)
 
 grid = st.container(horizontal=True, gap="medium")
 
-for idx, metric_name in enumerate(filtered_test_names):
-    data = []
+for metric_name in filtered_test_names:
+    data: list[dict] = []
     total_points = len(processed_results)
-    for directory_idx, (_, results) in enumerate(processed_results.items()):
+    for directory_idx, (_commit_key, results) in enumerate(processed_results.items()):
         for test_name, tests in results.items():
-            if metric_name in [f"{test_name}.{t}" for t in tests.keys()]:
-                test_result = tests[metric_name.split(".")[1]]
+            if metric_name in [f"{test_name}.{t}" for t in tests]:
+                metric_key = metric_name.split(".")[1]
+                test_result = tests[metric_key]
 
-                for point in test_result:
-                    data.append(
-                        {
-                            "value": point,
-                            "index": directory_idx,  # No change needed - index now naturally goes from oldest to newest
-                            "timestamp": timestamps[directory_idx],
-                            "commit_hash": commit_hashes[directory_idx][:7],
-                        }
-                    )
+                data.extend(
+                    {
+                        "value": point,
+                        "index": directory_idx,  # No change needed - index now naturally goes from oldest to newest
+                        "timestamp": timestamps_tuple[directory_idx],
+                        "commit_hash": commit_hashes_tuple[directory_idx][:7],
+                    }
+                    for point in test_result
+                )
 
     if data:
 
@@ -247,9 +222,9 @@ for idx, metric_name in enumerate(filtered_test_names):
             return metric_name.replace("__", " ").replace("_", " ")
 
         df = pd.DataFrame(data)
-        metric_name = metric_name.split(".")[1]
-        metric_help_text = get_help_text(metric_name)
-        metric_name = format_metric_name(metric_name)
+        short_metric_name = metric_name.split(".")[1]
+        metric_help_text = get_help_text(short_metric_name)
+        display_metric_name = format_metric_name(short_metric_name)
 
         scatter_fig = px.scatter(
             df,
@@ -272,9 +247,7 @@ for idx, metric_name in enumerate(filtered_test_names):
             data_max = max(df["value"])
 
         # Add padding in both directions for better visualization
-        range_padding = (
-            (data_max - data_min) * 0.1 if data_max > data_min else data_max * 0.1
-        )
+        range_padding = (data_max - data_min) * 0.1 if data_max > data_min else data_max * 0.1
 
         y_min = data_min - range_padding
         y_max = data_max + range_padding
@@ -288,7 +261,7 @@ for idx, metric_name in enumerate(filtered_test_names):
                 scatter_fig.add_trace(trace)
 
         if show_boxplot:
-            boxplot_fig = px.box(df, x="index", y="value", title=metric_name)
+            boxplot_fig = px.box(df, x="index", y="value", title=display_metric_name)
             for trace in boxplot_fig.data:
                 scatter_fig.add_trace(trace)
 
@@ -296,16 +269,16 @@ for idx, metric_name in enumerate(filtered_test_names):
         # multiple charts per row and wrap naturally on smaller screens.
         tile = grid.container(border=False, width=500)
         tile.markdown(
-            f"**{metric_name}**",
+            f"**{display_metric_name}**",
             # help=metric_help_text,
         )
-        tile.plotly_chart(scatter_fig, key=metric_name, width="stretch")
+        tile.plotly_chart(scatter_fig, key=display_metric_name, width="stretch")
 
 
 st.divider()
 
 
-def force_refresh():
+def force_refresh() -> None:
     get_commits.clear()
 
 
@@ -314,10 +287,7 @@ with st.expander("Debug Info"):
     st.write("Commits for the develop branch:")
     st.dataframe(
         {
-            "Commit Hash": [
-                f"https://github.com/streamlit/streamlit/commit/{hash}"
-                for hash in commit_hashes
-            ],
+            "Commit Hash": [f"https://github.com/streamlit/streamlit/commit/{h}" for h in commit_hashes_tuple],
         },
         column_config={
             "Commit Hash": st.column_config.LinkColumn(

@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import json
-import os
-from typing import Dict, Iterable, List, Optional, Tuple, TypedDict
+import pathlib
+from collections.abc import Iterable
+from typing import Any, TypedDict
 
-from .types import (
+from app.perf.utils.types import (
     CalculatedPhases,
     CapturedTraces,
     LongAnimationFrame,
@@ -26,32 +27,32 @@ from .types import (
 
 
 def get_long_animation_frames(
-    file_as_dict: Dict[str, CapturedTraces],
-) -> Optional[List[LongAnimationFrame]]:
-    return file_as_dict["capturedTraces"].get("long-animation-frame")  # type: ignore
+    file_as_dict: dict[str, CapturedTraces],
+) -> list[LongAnimationFrame] | None:
+    # Access using get() since "long-animation-frame" is not a valid Python identifier
+    # but is the actual key in the JSON file. We need to cast because TypedDict can't
+    # have hyphenated keys as valid Python identifiers.
+    captured_traces = file_as_dict["capturedTraces"]
+    result = captured_traces.get("long-animation-frame")  # type: ignore[typeddict-item]
+    return result  # type: ignore[return-value]
 
 
-def get_react_profiles(
-    file_as_dict: Dict[str, CapturedTraces], profile_name: str
-) -> Profile:
+def get_react_profiles(file_as_dict: dict[str, CapturedTraces], profile_name: str) -> Profile:
     profiles = file_as_dict["capturedTraces"].get("profiles")
     if profiles is None:
         return {"entries": [], "totalWrittenEntries": 0}
     return profiles.get(profile_name, {"entries": [], "totalWrittenEntries": 0})
 
 
-def get_all_profile_names(file_as_dict: Dict[str, CapturedTraces]) -> List[str]:
+def get_all_profile_names(file_as_dict: dict[str, CapturedTraces]) -> list[str]:
     profiles = file_as_dict["capturedTraces"].get("profiles")
     if profiles is None:
         return []
     return list(profiles.keys())
 
 
-def calculate_phases(
-    file_as_dict: Dict[str, CapturedTraces], profile_name: str
-) -> CalculatedPhases:
-    """
-    Calculate phases for a specific profile from the given dictionary.
+def calculate_phases(file_as_dict: dict[str, CapturedTraces], profile_name: str) -> CalculatedPhases:
+    """Calculate phases for a specific profile from the given dictionary.
 
     Args:
         file_as_dict (Dict[str, CapturedTraces]): A dictionary containing JSON data.
@@ -76,10 +77,9 @@ def calculate_phases(
 
 
 def calculate_phases_for_all_profiles(
-    file_as_dict: Dict[str, CapturedTraces],
-) -> Dict[str, CalculatedPhases]:
-    """
-    Calculate phases for all profiles from the given dictionary.
+    file_as_dict: dict[str, CapturedTraces],
+) -> dict[str, CalculatedPhases]:
+    """Calculate phases for all profiles from the given dictionary.
 
     Args:
         file_as_dict (Dict[str, CapturedTraces]): A dictionary containing JSON data.
@@ -88,18 +88,14 @@ def calculate_phases_for_all_profiles(
         Dict[str, CalculatedPhases]: A dictionary containing phases for all profiles.
     """
     profile_names = get_all_profile_names(file_as_dict)
-    return {
-        profile_name: calculate_phases(file_as_dict, profile_name)
-        for profile_name in profile_names
-    }
+    return {profile_name: calculate_phases(file_as_dict, profile_name) for profile_name in profile_names}
 
 
-def extract_react_profiles(file_as_dict, profile_name: str):
-    """
-    Extract React profiles from the given file.
+def extract_react_profiles(file_as_dict: dict[str, Any], profile_name: str) -> dict[str, Any]:
+    """Extract React profiles from the given file.
 
     Args:
-        file: A file-like object containing JSON data.
+        file_as_dict: A dictionary containing JSON data.
         profile_name: The name of the profile to extract.
 
     Returns:
@@ -108,12 +104,11 @@ def extract_react_profiles(file_as_dict, profile_name: str):
     return file_as_dict["capturedTraces"].get("profiles", {}).get(profile_name, {})
 
 
-def get_phases(file_as_dict, profile_name: str):
-    """
-    Get phases for a specific profile from the given file.
+def get_phases(file_as_dict: dict[str, Any], profile_name: str) -> dict[str, Any]:
+    """Get phases for a specific profile from the given file.
 
     Args:
-        file: A file-like object containing JSON data.
+        file_as_dict: A dictionary containing JSON data.
         profile_name: The name of the profile to extract phases from.
 
     Returns:
@@ -124,7 +119,7 @@ def get_phases(file_as_dict, profile_name: str):
     if "entries" not in profiles:
         return {}
 
-    phases = {}
+    phases: dict[str, Any] = {}
     for profile in profiles["entries"]:
         if profile["phase"] not in phases:
             phases[profile["phase"]] = {
@@ -140,9 +135,8 @@ def get_phases(file_as_dict, profile_name: str):
     return phases
 
 
-def get_phases_for_all_profiles(file):
-    """
-    Get phases for all profiles from the given file.
+def get_phases_for_all_profiles(file: dict[str, Any]) -> dict[str, Any]:
+    """Get phases for all profiles from the given file.
 
     Args:
         file: A file-like object containing JSON data.
@@ -150,18 +144,16 @@ def get_phases_for_all_profiles(file):
     Returns:
         A dictionary containing phases for all profiles.
     """
-    profile_names = get_all_profile_names(file)
-    return {
-        profile_name: get_phases(file, profile_name) for profile_name in profile_names
-    }
+    profile_names = get_all_profile_names(file)  # type: ignore[arg-type]
+    return {profile_name: get_phases(file, profile_name) for profile_name in profile_names}
 
 
 def sum_long_animation_frames(
-    file_as_dict: Dict[str, CapturedTraces],
-    first_mount_time: Optional[float] = None,
+    file_as_dict: dict[str, CapturedTraces],
+    first_mount_time: float | None = None,
 ) -> float:
-    """
-    Sum the durations of all long animation frames from the given dictionary.
+    """Sum the durations of all long animation frames from the given dictionary.
+
     Only includes frames that occur after the first mount time if provided.
 
     We filter out frames that occur before the first mount because they appear to be
@@ -183,20 +175,13 @@ def sum_long_animation_frames(
 
     filtered_frames = long_animation_frames
     if first_mount_time is not None:
-        filtered_frames = [
-            frame
-            for frame in long_animation_frames
-            if frame.get("startTime", 0) >= first_mount_time
-        ]
+        filtered_frames = [frame for frame in long_animation_frames if frame.get("startTime", 0) >= first_mount_time]
 
-    return sum([frame["duration"] for frame in filtered_frames])
+    return sum(frame["duration"] for frame in filtered_frames)
 
 
-def count_entries_per_phase(
-    file_as_dict: Dict[str, CapturedTraces], profile_name: str
-) -> Dict[str, int]:
-    """
-    Count the number of entries per phase for a specific profile.
+def count_entries_per_phase(file_as_dict: dict[str, CapturedTraces], profile_name: str) -> dict[str, int]:
+    """Count the number of entries per phase for a specific profile.
 
     Args:
         file_as_dict (Dict[str, CapturedTraces]): A dictionary containing JSON data.
@@ -207,7 +192,7 @@ def count_entries_per_phase(
     """
     profiles = get_react_profiles(file_as_dict, profile_name)
 
-    phase_counts: Dict[str, int] = {}
+    phase_counts: dict[str, int] = {}
     for profile in profiles["entries"]:
         phase = profile["phase"]
         if phase not in phase_counts:
@@ -218,27 +203,26 @@ def count_entries_per_phase(
 
 
 class LoadFilesOutput(TypedDict):
-    filenames: List[str]
-    all_phases: List[Dict[str, CalculatedPhases]]
-    all_long_animation_frames: List[float]
-    all_metrics: List[List[Metric]]
-    first_mount_time: Optional[float]
+    filenames: list[str]
+    all_phases: list[dict[str, CalculatedPhases]]
+    all_long_animation_frames: list[float]
+    all_metrics: list[list[Metric]]
+    first_mount_time: float | None
 
 
 def load_files_from_dicts(
-    files: Iterable[Tuple[str, Dict]],
+    files: Iterable[tuple[str, dict[str, Any]]],
 ) -> LoadFilesOutput:
-    """
-    In-memory variant of `load_files()`.
+    """In-memory variant of `load_files()`.
 
     This accepts already-parsed JSON dicts (e.g. from an artifact zip) and returns
     the same output shape as `load_files()`, without any filesystem access.
     """
-    filenames: List[str] = []
-    all_phases: List[Dict[str, CalculatedPhases]] = []
-    all_long_animation_frames: List[float] = []
-    first_mount_time: Optional[float] = None
-    all_metrics: List[List[Metric]] = []
+    filenames: list[str] = []
+    all_phases: list[dict[str, CalculatedPhases]] = []
+    all_long_animation_frames: list[float] = []
+    first_mount_time: float | None = None
+    all_metrics: list[list[Metric]] = []
 
     for filename, file_content in files:
         phases = calculate_phases_for_all_profiles(file_content)
@@ -249,14 +233,11 @@ def load_files_from_dicts(
             for entry in profile_data.get("entries", []):
                 if entry["phase"] == "mount":
                     entry_time = entry.get("startTime", None)
-                    if entry_time is not None:
-                        if first_mount_time is None or entry_time < first_mount_time:
-                            first_mount_time = entry_time
+                    if entry_time is not None and (first_mount_time is None or entry_time < first_mount_time):
+                        first_mount_time = entry_time
 
         # Now sum animation frames with the mount time filter
-        long_animation_frames_sum = sum_long_animation_frames(
-            file_content, first_mount_time
-        )
+        long_animation_frames_sum = sum_long_animation_frames(file_content, first_mount_time)
 
         filenames.append(filename)
         all_phases.append(phases)
@@ -275,8 +256,7 @@ def load_files_from_dicts(
 def load_files(
     directory_path: str,
 ) -> LoadFilesOutput:
-    """
-    Load files from the directory and extract relevant data.
+    """Load files from the directory and extract relevant data.
 
     The function first determines the earliest mount time across all profiles,
     which serves as a baseline to filter out spurious long animation frames.
@@ -294,8 +274,9 @@ def load_files(
             - all_metrics: Tracked metrics for each file
             - first_mount_time: Timestamp of the earliest mount event
     """
-    if not os.path.exists(directory_path):
-        raise FileNotFoundError(f"The directory {directory_path} does not exist.")
+    if not pathlib.Path(directory_path).exists():
+        msg = f"The directory {directory_path} does not exist."
+        raise FileNotFoundError(msg)
 
     filenames = []
     all_phases = []
@@ -303,10 +284,9 @@ def load_files(
     first_mount_time = None
     all_metrics = []
 
-    for filename in os.listdir(directory_path):
-        file_path = os.path.join(directory_path, filename)
-        if os.path.isfile(file_path) and filename.endswith("json"):
-            with open(file_path, "r", encoding="utf-8") as file:
+    for file_path in pathlib.Path(directory_path).iterdir():
+        if file_path.is_file() and file_path.name.endswith("json"):
+            with file_path.open("r", encoding="utf-8") as file:
                 file_content = json.load(file)
 
             phases = calculate_phases_for_all_profiles(file_content)
@@ -317,19 +297,13 @@ def load_files(
                 for entry in profile_data.get("entries", []):
                     if entry["phase"] == "mount":
                         entry_time = entry.get("startTime", None)
-                        if entry_time is not None:
-                            if (
-                                first_mount_time is None
-                                or entry_time < first_mount_time
-                            ):
-                                first_mount_time = entry_time
+                        if entry_time is not None and (first_mount_time is None or entry_time < first_mount_time):
+                            first_mount_time = entry_time
 
             # Now sum animation frames with the mount time filter
-            long_animation_frames_sum = sum_long_animation_frames(
-                file_content, first_mount_time
-            )
+            long_animation_frames_sum = sum_long_animation_frames(file_content, first_mount_time)
 
-            filenames.append(filename)
+            filenames.append(file_path.name)
             all_phases.append(phases)
             all_metrics.append(file_content["metrics"])
             all_long_animation_frames.append(long_animation_frames_sum)

@@ -11,16 +11,12 @@ from app.utils.github_utils import fetch_artifacts, fetch_workflow_runs
 
 st.set_page_config(page_title="Wheel Size", page_icon="🛞")
 
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("🛞 Wheel Size")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
-st.caption(
-    "This page visualizes the size of wheel files created in the PR preview workflow."
-)
+st.caption("This page visualizes the size of wheel files created in the PR preview workflow.")
 
 # Sidebar controls
 time_period = st.sidebar.selectbox(
@@ -40,6 +36,7 @@ workflow_runs_limit = st.sidebar.slider(
 
 
 # Convert time period to date
+since_date: datetime | None
 if time_period == "Last 7 days":
     since_date = datetime.now() - timedelta(days=7)
 elif time_period == "Last 30 days":
@@ -52,9 +49,7 @@ else:
 
 # Fetch workflow runs
 with st.spinner("Fetching data..."):
-    workflow_runs = fetch_workflow_runs(
-        "pr-preview.yml", limit=workflow_runs_limit, since=since_date
-    )
+    workflow_runs = fetch_workflow_runs("pr-preview.yml", limit=workflow_runs_limit, since=since_date)
 
     if not workflow_runs:
         st.warning("No workflow runs found for the specified criteria.")
@@ -73,14 +68,10 @@ with st.spinner("Fetching data..."):
                         "run_id": run["id"],
                         "commit_sha": run["head_sha"][:7],
                         "commit_url": f"https://github.com/streamlit/streamlit/commit/{run['head_sha']}",
-                        "created_at": datetime.strptime(
-                            run["created_at"], "%Y-%m-%dT%H:%M:%SZ"
-                        ),
+                        "created_at": datetime.strptime(run["created_at"], "%Y-%m-%dT%H:%M:%SZ"),
                         "size_bytes": artifact["size_in_bytes"],
                         "size_mb": artifact["size_in_bytes"] / (1024 * 1024),
-                        "size_human": humanize.naturalsize(
-                            artifact["size_in_bytes"], binary=True
-                        ),
+                        "size_human": humanize.naturalsize(artifact["size_in_bytes"], binary=True),
                         "artifact_url": artifact["archive_download_url"],
                         "run_url": run["html_url"],
                     }
@@ -99,9 +90,7 @@ with st.spinner("Fetching data..."):
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric(
-        "Average Size", humanize.naturalsize(df["size_bytes"].mean(), binary=True)
-    )
+    st.metric("Average Size", humanize.naturalsize(df["size_bytes"].mean(), binary=True))
 with col2:
     st.metric("Minimum Size", humanize.naturalsize(df["size_bytes"].min(), binary=True))
 with col3:
@@ -153,9 +142,7 @@ if len(df) > 1:
     df_sorted = df.sort_values("created_at").reset_index(drop=True)
     df_sorted["prev_size"] = df_sorted["size_bytes"].shift(1)
     df_sorted["size_change"] = df_sorted["size_bytes"] - df_sorted["prev_size"]
-    df_sorted["size_change_percent"] = (
-        df_sorted["size_change"] / df_sorted["prev_size"]
-    ) * 100
+    df_sorted["size_change_percent"] = (df_sorted["size_change"] / df_sorted["prev_size"]) * 100
 
     # Filter out the first row (which has NaN for changes)
     df_changes = df_sorted.dropna(subset=["size_change"]).copy()
@@ -163,9 +150,7 @@ if len(df) > 1:
     if not df_changes.empty:
         # Now that NaNs are removed, compute human-readable size changes
         df_changes["size_change_human"] = df_changes["size_change"].apply(
-            lambda x: f"+{humanize.naturalsize(x, binary=True)}"
-            if x > 0
-            else humanize.naturalsize(x, binary=True)
+            lambda x: f"+{humanize.naturalsize(x, binary=True)}" if x > 0 else humanize.naturalsize(x, binary=True)
         )
         # Sort by absolute size change
         df_changes = df_changes.sort_values("size_change", key=abs, ascending=False)
@@ -190,9 +175,7 @@ if len(df) > 1:
         st.plotly_chart(fig_changes, width="stretch")
 
         # Show a table of significant changes
-        significant_changes = df_changes[
-            abs(df_changes["size_change_percent"]) > 0.5
-        ].copy()
+        significant_changes = df_changes[abs(df_changes["size_change_percent"]) > 0.5].copy()
 
         if not significant_changes.empty:
             st.caption("Significant size changes (>0.5%)")
@@ -210,18 +193,12 @@ if len(df) > 1:
                 ],
                 width="stretch",
                 column_config={
-                    "created_at": st.column_config.DatetimeColumn(
-                        "Date", format="MMM DD, YYYY"
-                    ),
+                    "created_at": st.column_config.DatetimeColumn("Date", format="MMM DD, YYYY"),
                     "commit_sha": st.column_config.TextColumn("Commit"),
                     "size_human": st.column_config.TextColumn("Size"),
                     "size_change_human": st.column_config.TextColumn("Change"),
-                    "size_change_percent": st.column_config.NumberColumn(
-                        "Change (%)", format="%.2f%%"
-                    ),
-                    "commit_url": st.column_config.LinkColumn(
-                        "Commit", display_text="View Commit"
-                    ),
+                    "size_change_percent": st.column_config.NumberColumn("Change (%)", format="%.2f%%"),
+                    "commit_url": st.column_config.LinkColumn("Commit", display_text="View Commit"),
                 },
                 hide_index=True,
             )

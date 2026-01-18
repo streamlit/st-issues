@@ -3,7 +3,6 @@ import tempfile
 from io import BytesIO
 from mimetypes import guess_type
 from pathlib import Path
-from typing import Optional
 from zipfile import ZipFile
 
 import httpx
@@ -19,7 +18,7 @@ SMOKESHOW_MAX_CONCURRENT_UPLOADS = 20
 
 
 @st.cache_data(show_spinner=False)
-def extract_and_upload_coverage_report(artifact_content: bytes) -> Optional[str]:
+def extract_and_upload_coverage_report(artifact_content: bytes) -> str | None:
     """Extract coverage HTML report from artifact and upload to smokeshow."""
     # Create a temporary directory to extract files
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -43,7 +42,8 @@ async def upload_to_smokeshow(directory_path: Path) -> str:
     """Upload a directory to smokeshow and return the URL."""
     auth_key = st.secrets.get("smokeshow_auth_key")
     if not auth_key:
-        raise ValueError("Smokeshow auth key not found in secrets")
+        msg = "Smokeshow auth key not found in secrets"
+        raise ValueError(msg)
 
     transport = httpx.AsyncHTTPTransport(retries=SMOKESHOW_REQUEST_RETRIES)
     async with httpx.AsyncClient(
@@ -56,28 +56,25 @@ async def upload_to_smokeshow(directory_path: Path) -> str:
                 headers={"Authorisation": auth_key, "User-Agent": SMOKESHOW_USER_AGENT},
             )
         except httpx.HTTPError as err:
-            raise ValueError(f"Error creating ephemeral site {err}")
+            msg = f"Error creating ephemeral site {err}"
+            raise ValueError(msg)
 
         if r.status_code != 200:
-            raise ValueError(
-                f"Error creating ephemeral site {r.status_code}, response:\n{r.text}"
-            )
+            msg = f"Error creating ephemeral site {r.status_code}, response:\n{r.text}"
+            raise ValueError(msg)
 
         obj = r.json()
         secret_key: str = obj["secret_key"]
         upload_root: str = obj["url"]
 
         # Create a list of files to upload
-        files_to_upload = []
-        for p in directory_path.glob("**/*"):
-            if p.is_file():
-                files_to_upload.append((p, p.relative_to(directory_path)))
+        files_to_upload = [(p, p.relative_to(directory_path)) for p in directory_path.glob("**/*") if p.is_file()]  # noqa: ASYNC240
 
         # Create a semaphore to limit concurrent uploads to 60
         semaphore = asyncio.Semaphore(SMOKESHOW_MAX_CONCURRENT_UPLOADS)
 
         # Define a wrapper function that uses the semaphore
-        async def upload_with_semaphore(file_path, rel_path):
+        async def upload_with_semaphore(file_path: Path, rel_path: Path) -> None:
             async with semaphore:
                 await _upload_file(
                     client,
@@ -90,8 +87,7 @@ async def upload_to_smokeshow(directory_path: Path) -> str:
 
         # Create and schedule all tasks
         tasks = [
-            asyncio.create_task(upload_with_semaphore(file_path, rel_path))
-            for file_path, rel_path in files_to_upload
+            asyncio.create_task(upload_with_semaphore(file_path, rel_path)) for file_path, rel_path in files_to_upload
         ]
 
         try:
@@ -109,10 +105,9 @@ async def _upload_file(
     upload_root: str,
     file_path: Path,
     rel_path: Path,
-    timeout: int,
+    timeout: int,  # noqa: ASYNC109
 ) -> None:
     """Upload a single file to smokeshow."""
-
     url_path = str(rel_path)
 
     headers = {"Authorisation": secret_key, "User-Agent": SMOKESHOW_USER_AGENT}
@@ -124,7 +119,7 @@ async def _upload_file(
     try:
         response = await client.post(
             upload_root + url_path,
-            content=file_path.read_bytes(),
+            content=file_path.read_bytes(),  # noqa: ASYNC240
             headers=headers,
             timeout=timeout,
         )

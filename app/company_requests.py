@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 import requests
@@ -14,9 +14,7 @@ st.set_page_config(
 )
 
 st.title("🏢 Company Requests")
-st.caption(
-    "Analyze which companies engaged with a GitHub issue through reactions and comments."
-)
+st.caption("Analyze which companies engaged with a GitHub issue through reactions and comments.")
 
 # Input field
 issue_input = st.text_input(
@@ -33,12 +31,7 @@ if issue_input:
     if "github.com/streamlit/streamlit/issues/" in issue_input:
         try:
             # Extract issue number from URL
-            issue_number = (
-                issue_input.split("/issues/")[-1]
-                .split("/")[0]
-                .split("?")[0]
-                .split("#")[0]
-            )
+            issue_number = issue_input.split("/issues/")[-1].split("/")[0].split("?")[0].split("#")[0]
         except (IndexError, ValueError):
             st.error("Invalid GitHub URL format")
             st.stop()
@@ -72,7 +65,7 @@ if issue_number:
 
     # Fetch reactions
     @st.cache_data(ttl=60 * 60, show_spinner=False)
-    def fetch_issue_reactions(issue_number: int) -> List[Dict[str, Any]]:
+    def fetch_issue_reactions(issue_number: int) -> list[dict[str, Any]]:
         """Fetch all reactions for an issue."""
         reactions = []
         page = 1
@@ -102,7 +95,7 @@ if issue_number:
         return reactions
 
     @st.cache_data(ttl=60 * 60, show_spinner=False)
-    def fetch_user_info(username: str) -> Optional[Dict[str, Any]]:
+    def fetch_user_info(username: str) -> dict[str, Any] | None:
         """Fetch detailed user information including company."""
         try:
             response = requests.get(
@@ -114,7 +107,7 @@ if issue_number:
             if response.status_code == 200:
                 return response.json()
             return None
-        except:
+        except Exception:
             return None
 
     # Collect all engagement data
@@ -203,7 +196,7 @@ if issue_number:
         # Use first avatar and profile in case they differ
         df_grouped = df.groupby(["Username", "Company"], as_index=False).agg(
             {
-                "Engagement": lambda x: ", ".join(x),
+                "Engagement": ", ".join,
                 "Avatar": "first",
                 "Profile": "first",
             }
@@ -217,12 +210,8 @@ if issue_number:
 
         # Update metrics to reflect filtered data
         unique_users = df_grouped["Username"].nunique()
-        total_reactions = len(
-            df[(df["Engagement"] != "Comment") & (df["Company"] != "—")]
-        )
-        total_comments = len(
-            df[(df["Engagement"] == "Comment") & (df["Company"] != "—")]
-        )
+        total_reactions = len(df[(df["Engagement"] != "Comment") & (df["Company"] != "—")])
+        total_comments = len(df[(df["Engagement"] == "Comment") & (df["Company"] != "—")])
         companies = df_grouped["Company"].nunique()
 
         with col1:
@@ -267,15 +256,13 @@ if issue_number:
         # Reaction breakdown
         if total_reactions > 0:
             st.subheader("Reaction Breakdown")
-            reaction_counts = df[df["Engagement"] != "Comment"][
-                "Engagement"
-            ].value_counts()
+            reaction_counts = df[df["Engagement"] != "Comment"]["Engagement"].value_counts()
 
             # Create columns for reaction display
             cols = st.columns(len(reaction_counts))
-            for i, (reaction, count) in enumerate(reaction_counts.items()):
+            for i, (reaction_name, count) in enumerate(reaction_counts.items()):
                 with cols[i]:
-                    st.metric(reaction, count)
+                    st.metric(str(reaction_name), count)
 
         # Company breakdown
         if companies > 0:

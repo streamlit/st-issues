@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
-from typing import Any, Dict, Optional, Tuple
+import pathlib
+from typing import Any
 
 from app.perf.utils.perf_github_artifacts import (
     extract_run_id_from_url,
@@ -18,57 +18,45 @@ from app.utils.github_utils import (
 )
 
 
-def _get_performance_artifact_zip_bytes_for_run(run_id: str) -> Optional[bytes]:
+def _get_performance_artifact_zip_bytes_for_run(run_id: str) -> bytes | None:
     artifacts = fetch_artifacts(int(run_id))
     if not artifacts:
         return None
 
     performance_artifact = get_artifact_by_name(artifacts, "playwright_performance_results")
     if not performance_artifact:
-        performance_artifact = get_artifact_by_name(
-            artifacts, "performance_results_", starts_with=True
-        )
+        performance_artifact = get_artifact_by_name(artifacts, "performance_results_", starts_with=True)
     if not performance_artifact:
         return None
 
     return download_artifact(performance_artifact["archive_download_url"])
 
 
-def _extract_playwright_results(
-    zip_bytes: bytes, *, load_all_metrics: bool
-) -> ProcessTestDirectoryOutput:
+def _extract_playwright_results(zip_bytes: bytes, *, load_all_metrics: bool) -> ProcessTestDirectoryOutput:
     names = zip_namelist(zip_bytes)
-    has_playwright_dir = any(
-        n.startswith("playwright/") and n.endswith(".json") and not n.endswith("/")
-        for n in names
-    )
+    has_playwright_dir = any(n.startswith("playwright/") and n.endswith(".json") and not n.endswith("/") for n in names)
     if has_playwright_dir:
         files_iter = (
-            (os.path.basename(name), payload)
+            (pathlib.Path(name).name, payload)
             for name, payload in iter_json_from_zip_bytes(zip_bytes, prefix="playwright/")
         )
     else:
         # Legacy: no subfolders -> treat root JSON files as Playwright traces.
         files_iter = (
-            (os.path.basename(name), payload)
-            for name, payload in iter_json_from_zip_bytes(zip_bytes, root_only=True)
+            (pathlib.Path(name).name, payload) for name, payload in iter_json_from_zip_bytes(zip_bytes, root_only=True)
         )
 
     return process_test_results_files(files_iter, load_all_metrics=load_all_metrics)
 
 
-def _extract_lighthouse_scores(zip_bytes: bytes) -> Dict[str, float]:
-    """
-    Extract Lighthouse performance scores from a performance artifact zip.
+def _extract_lighthouse_scores(zip_bytes: bytes) -> dict[str, float]:
+    """Extract Lighthouse performance scores from a performance artifact zip.
 
     Returns mapping of app key (matching prior `read_json_files` naming) -> score (0..1).
     """
-    scores: Dict[str, float] = {}
+    scores: dict[str, float] = {}
     names = zip_namelist(zip_bytes)
-    has_lighthouse_dir = any(
-        n.startswith("lighthouse/") and n.endswith(".json") and not n.endswith("/")
-        for n in names
-    )
+    has_lighthouse_dir = any(n.startswith("lighthouse/") and n.endswith(".json") and not n.endswith("/") for n in names)
 
     json_iter = (
         iter_json_from_zip_bytes(zip_bytes, prefix="lighthouse/")
@@ -81,7 +69,7 @@ def _extract_lighthouse_scores(zip_bytes: bytes) -> Dict[str, float]:
             continue
         try:
             score = payload["categories"]["performance"]["score"]
-        except Exception:
+        except Exception:  # noqa: S112
             continue
 
         # Keep the same (slightly odd) key derivation behavior as the prior disk-based parser.
@@ -99,17 +87,12 @@ def _extract_lighthouse_scores(zip_bytes: bytes) -> Dict[str, float]:
     return scores
 
 
-def _extract_pytest_benchmark_json(zip_bytes: bytes) -> Optional[Dict[str, Any]]:
+def _extract_pytest_benchmark_json(zip_bytes: bytes) -> dict[str, Any] | None:
     names = zip_namelist(zip_bytes)
-    has_pytest_dir = any(
-        n.startswith("pytest/") and n.endswith(".json") and not n.endswith("/")
-        for n in names
-    )
+    has_pytest_dir = any(n.startswith("pytest/") and n.endswith(".json") and not n.endswith("/") for n in names)
 
     json_iter = (
-        iter_json_from_zip_bytes(zip_bytes, prefix="pytest/")
-        if has_pytest_dir
-        else iter_json_from_zip_bytes(zip_bytes)
+        iter_json_from_zip_bytes(zip_bytes, prefix="pytest/") if has_pytest_dir else iter_json_from_zip_bytes(zip_bytes)
     )
 
     for _, payload in json_iter:
@@ -119,13 +102,12 @@ def _extract_pytest_benchmark_json(zip_bytes: bytes) -> Optional[Dict[str, Any]]
 
 
 def get_artifact_results(
-    hash: str, artifact_type: str, *, load_all_metrics: bool = False
-) -> Tuple[Any, Optional[str]]:
-    """
-    Retrieve the artifact results for a given commit hash from GitHub.
+    commit_hash: str, artifact_type: str, *, load_all_metrics: bool = False
+) -> tuple[Any, str | None]:
+    """Retrieve the artifact results for a given commit hash from GitHub.
 
     Args:
-        hash (str): The commit hash.
+        commit_hash (str): The commit hash.
         artifact_type (str): The type of artifact to retrieve.
         load_all_metrics (bool): Only relevant for Playwright artifacts; includes tracked metrics.
 
@@ -134,7 +116,7 @@ def get_artifact_results(
                Returns (None, None) if no artifact is found or the build is not completed.
                Returns ("", "") if the artifact run status is not completed.
     """
-    build_data = get_build_from_github(hash)
+    build_data = get_build_from_github(commit_hash)
 
     if build_data is None:
         return None, None

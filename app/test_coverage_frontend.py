@@ -1,8 +1,8 @@
 import json
-import os
+import pathlib
 from datetime import datetime, timedelta
 from io import BytesIO
-from typing import Any, Dict, Optional
+from typing import Any
 from zipfile import ZipFile
 
 import pandas as pd
@@ -27,7 +27,7 @@ st.set_page_config(page_title="Code Coverage (Frontend)", page_icon="☂️", la
 
 
 @st.cache_data(show_spinner=False)
-def deploy_coverage_report(run_id: int) -> Optional[str]:
+def deploy_coverage_report(run_id: int) -> str | None:
     """Deploy the HTML coverage report to smokeshow."""
     # Fetch artifacts
     artifacts = fetch_artifacts(run_id)
@@ -54,7 +54,7 @@ def deploy_coverage_report(run_id: int) -> Optional[str]:
 
 # Function to download, extract, upload and display the HTML coverage report
 @st.dialog("Coverage Report", width="large")
-def display_coverage_report_dialog(run_id: int):
+def display_coverage_report_dialog(run_id: int) -> None:
     """Download, extract, upload and display the HTML coverage report in an iframe."""
     # Download the artifact
     with st.spinner("Downloading and deploying the coverage report..."):
@@ -72,9 +72,7 @@ query_params = st.query_params
 pr_number = query_params.get("pr")
 
 # Page title and description
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("☂️ Test Coverage (Frontend)")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
@@ -126,8 +124,8 @@ else:
         since_date = None
 
 
-def parse_vitest_coverage_json(coverage_file):
-    """Parse a Vitest JSON summary report file and return the data"""
+def parse_vitest_coverage_json(coverage_file: Any) -> tuple[dict, dict] | tuple[None, None]:
+    """Parse a Vitest JSON summary report file and return the data."""
     try:
         # Parse the JSON data
         coverage_data = json.load(coverage_file)
@@ -149,7 +147,7 @@ def parse_vitest_coverage_json(coverage_file):
                 clean_path = file_path[len(prefix_to_remove) :]
 
             # Extract the file name from the path
-            file_name = os.path.basename(clean_path)
+            file_name = pathlib.Path(clean_path).name
 
             # Extract relevant metrics
             lines_total = file_data["lines"]["total"]
@@ -182,17 +180,15 @@ def parse_vitest_coverage_json(coverage_file):
         return coverage_info, coverage_data.get("total", {})
 
     except json.JSONDecodeError:
-        st.error(
-            "Invalid JSON file. Please ensure you're uploading a valid Vitest JSON summary report."
-        )
+        st.error("Invalid JSON file. Please ensure you're uploading a valid Vitest JSON summary report.")
         return None, None
     except Exception as e:
-        st.error(f"Error processing coverage data: {str(e)}")
+        st.error(f"Error processing coverage data: {e!s}")
         return None, None
 
 
 @st.cache_data(show_spinner=False)
-def get_coverage_data_from_artifact(run_id: int) -> Optional[Dict[str, Any]]:
+def get_coverage_data_from_artifact(run_id: int) -> dict[str, Any] | None:
     """Get coverage data from the artifact of a workflow run."""
     artifacts = fetch_artifacts(run_id)
 
@@ -241,7 +237,7 @@ def get_coverage_data_from_artifact(run_id: int) -> Optional[Dict[str, Any]]:
 
 
 @st.cache_data(show_spinner=False)
-def get_html_report_url(run_id: int) -> Optional[str]:
+def get_html_report_url(run_id: int) -> str | None:
     """Get the download URL for the HTML coverage report artifact."""
     artifacts = fetch_artifacts(run_id)
 
@@ -260,8 +256,8 @@ def get_html_report_url(run_id: int) -> Optional[str]:
 
 
 def display_coverage_details(
-    coverage_data, total_data, html_report_url=None, run_id=None
-):
+    coverage_data: dict, total_data: dict, html_report_url: str | None = None, run_id: int | None = None
+) -> None:
     """Display detailed coverage information."""
     # Convert coverage data to DataFrame for easier manipulation
     coverage_df = pd.DataFrame(
@@ -424,9 +420,8 @@ def display_coverage_details(
             url=html_report_url,
             width="stretch",
         )
-    if run_id:
-        if col2.button(":material/preview: View PR Report", width="stretch"):
-            display_coverage_report_dialog(run_id=run_id)
+    if run_id and col2.button(":material/preview: View PR Report", width="stretch"):
+        display_coverage_report_dialog(run_id=run_id)
 
     # Create visualizations for file coverage
     if len(coverage_df) > 0:
@@ -434,16 +429,10 @@ def display_coverage_details(
         st.subheader("Coverage Treemap")
 
         # Extract package (top-level directory) and directory structure
-        coverage_df["Package"] = coverage_df["Path"].apply(
-            lambda x: x.split("/")[0] if "/" in x else "root"
-        )
+        coverage_df["Package"] = coverage_df["Path"].apply(lambda x: x.split("/")[0] if "/" in x else "root")
 
         # Extract directory structure (last directory component)
-        coverage_df["Directory"] = coverage_df["Path"].apply(
-            lambda x: os.path.dirname(x).replace("\\", "/").split("/")[-1]
-            if os.path.dirname(x)
-            else "root"
-        )
+        coverage_df["Directory"] = coverage_df["Path"].apply(lambda x: pathlib.Path(x).parent.name or "root")
 
         fig = px.treemap(
             coverage_df,
@@ -468,9 +457,7 @@ def display_coverage_details(
         display_df = coverage_df.sort_values("Lines Coverage %", ascending=True)
         if len(coverage_df) > 20:
             display_df = display_df.head(20)
-            st.info(
-                "Showing only the 20 files with the lowest coverage. Use the table above to see all files."
-            )
+            st.info("Showing only the 20 files with the lowest coverage. Use the table above to see all files.")
 
         fig = px.bar(
             display_df,
@@ -523,7 +510,7 @@ def display_coverage_details(
         st.plotly_chart(fig, width="stretch")
 
 
-def get_latest_develop_coverage() -> Optional[Dict[str, Any]]:
+def get_latest_develop_coverage() -> dict[str, Any] | None:
     """Get coverage data for the latest successful workflow run on develop."""
     # Fetch the latest successful workflow run on develop
     latest_runs = fetch_workflow_runs("js-tests.yml", limit=1)
@@ -556,7 +543,7 @@ def get_latest_develop_coverage() -> Optional[Dict[str, Any]]:
     }
 
 
-def get_pr_coverage(pr_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def get_pr_coverage(pr_info: dict[str, Any]) -> dict[str, Any] | None:
     """Get coverage data for a PR's head commit."""
     head_sha = pr_info["head"]["sha"]
     # Fetch workflow runs for this commit
@@ -592,20 +579,14 @@ def get_pr_coverage(pr_info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
-def display_pr_coverage_comparison(
-    pr_coverage: Dict[str, Any], develop_coverage: Dict[str, Any]
-):
+def display_pr_coverage_comparison(pr_coverage: dict[str, Any], develop_coverage: dict[str, Any]) -> None:
     """Display a comparison of PR coverage against develop branch coverage."""
     st.subheader("PR Coverage Comparison")
 
     # Calculate coverage changes
     lines_coverage_change = pr_coverage["lines_pct"] - develop_coverage["lines_pct"]
-    functions_coverage_change = (
-        pr_coverage["functions_pct"] - develop_coverage["functions_pct"]
-    )
-    branches_coverage_change = (
-        pr_coverage["branches_pct"] - develop_coverage["branches_pct"]
-    )
+    functions_coverage_change = pr_coverage["functions_pct"] - develop_coverage["functions_pct"]
+    branches_coverage_change = pr_coverage["branches_pct"] - develop_coverage["branches_pct"]
 
     # Determine if changes are positive or negative
     lines_delta = "+" if lines_coverage_change >= 0 else ""
@@ -682,22 +663,22 @@ if pr_number is not None:
     if not pr_info:
         st.error(f"Could not fetch information for PR #{pr_number}")
         st.stop()
-
-    # Get coverage for PR and develop
-    with st.spinner("Fetching PR coverage data..."):
-        pr_coverage = get_pr_coverage(pr_info)
-
-    with st.spinner("Fetching develop branch coverage data..."):
-        develop_coverage = get_latest_develop_coverage()
-
-    if pr_coverage and develop_coverage:
-        # Display the comparison
-        display_pr_coverage_comparison(pr_coverage, develop_coverage)
-        # Stop execution to not show the regular app content
-        st.stop()
     else:
-        st.error("Could not fetch coverage data for comparison")
-        st.stop()
+        # Get coverage for PR and develop
+        with st.spinner("Fetching PR coverage data..."):
+            pr_coverage = get_pr_coverage(pr_info)
+
+        with st.spinner("Fetching develop branch coverage data..."):
+            develop_coverage = get_latest_develop_coverage()
+
+        if pr_coverage and develop_coverage:
+            # Display the comparison
+            display_pr_coverage_comparison(pr_coverage, develop_coverage)
+            # Stop execution to not show the regular app content
+            st.stop()
+        else:
+            st.error("Could not fetch coverage data for comparison")
+            st.stop()
 
 # Check if a file was uploaded
 if uploaded_file:
@@ -718,9 +699,7 @@ if uploaded_file:
 with st.spinner("Fetching data..."):
     # If no file was uploaded or parsing failed, continue with GitHub data
     # Fetch workflow runs
-    workflow_runs = fetch_workflow_runs(
-        "js-tests.yml", limit=workflow_runs_limit, since=since_date
-    )
+    workflow_runs = fetch_workflow_runs("js-tests.yml", limit=workflow_runs_limit, since=since_date)
 
     if not workflow_runs:
         st.warning("No workflow runs found for the specified criteria.")
@@ -745,9 +724,7 @@ with st.spinner("Fetching data..."):
                     "run_id": run["id"],
                     "commit_sha": run["head_sha"][:7],
                     "commit_url": f"https://github.com/streamlit/streamlit/commit/{run['head_sha']}",
-                    "created_at": datetime.strptime(
-                        run["created_at"], "%Y-%m-%dT%H:%M:%SZ"
-                    ),
+                    "created_at": datetime.strptime(run["created_at"], "%Y-%m-%dT%H:%M:%SZ"),
                     "lines_pct": coverage_data["lines_pct"],
                     "functions_pct": coverage_data["functions_pct"],
                     "branches_pct": coverage_data["branches_pct"],
@@ -906,9 +883,7 @@ st.plotly_chart(fig_metrics, width="stretch", theme="streamlit")
 # Create a table with the data
 st.subheader("Coverage History")
 
-st.caption(
-    ":material/keyboard_arrow_down: Select a row to view the detailed coverage information for that run."
-)
+st.caption(":material/keyboard_arrow_down: Select a row to view the detailed coverage information for that run.")
 # Create a dataframe for the coverage history with row selection
 coverage_history_df = df[
     [
@@ -930,9 +905,7 @@ coverage_history_df = coverage_history_df.sort_values("created_at", ascending=Fa
 coverage_history_df["lines_coverage_change"] = coverage_history_df["lines_pct"].diff(-1)
 
 # Add HTML report URLs to the dataframe
-coverage_history_df["html_report_url"] = coverage_history_df["run_id"].apply(
-    get_html_report_url
-)
+coverage_history_df["html_report_url"] = coverage_history_df["run_id"].apply(get_html_report_url)
 
 # Display the dataframe with row selection enabled
 df_selection = st.dataframe(
@@ -999,9 +972,9 @@ df_selection = st.dataframe(
 )
 
 # Check if a row was selected from the dataframe
-if df_selection.selection.rows:
+if df_selection["selection"]["rows"]:
     # Get the selected row index
-    selected_row_index = df_selection.selection.rows[0]
+    selected_row_index = df_selection["selection"]["rows"][0]
     selected_row = coverage_history_df.iloc[selected_row_index]
 
     selected_run_id = selected_row["run_id"]
@@ -1017,9 +990,7 @@ if df_selection.selection.rows:
 
     if coverage_json_artifact:
         # Download the artifact
-        artifact_content = download_artifact(
-            coverage_json_artifact["archive_download_url"]
-        )
+        artifact_content = download_artifact(coverage_json_artifact["archive_download_url"])
 
         if artifact_content:
             # Extract the coverage JSON file from the zip
@@ -1027,15 +998,11 @@ if df_selection.selection.rows:
                 with ZipFile(BytesIO(artifact_content)) as zip_file:
                     file_list = zip_file.namelist()
                     # Find a JSON file that contains coverage data
-                    json_file = next(
-                        (f for f in file_list if f.endswith(".json")), None
-                    )
+                    json_file = next((f for f in file_list if f.endswith(".json")), None)
 
                     if json_file:
                         with zip_file.open(json_file) as coverage_file:
-                            coverage_data, total_data = parse_vitest_coverage_json(
-                                coverage_file
-                            )
+                            coverage_data, total_data = parse_vitest_coverage_json(coverage_file)
 
                             if coverage_data and total_data:
                                 # Display detailed coverage information
@@ -1046,9 +1013,7 @@ if df_selection.selection.rows:
                                     selected_run_id,
                                 )
                             else:
-                                st.error(
-                                    "Failed to parse coverage data from the artifact."
-                                )
+                                st.error("Failed to parse coverage data from the artifact.")
             except Exception as e:
                 st.error(f"Error extracting coverage data: {e}")
         else:

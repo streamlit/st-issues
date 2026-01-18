@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from typing import TYPE_CHECKING
 
 import streamlit as st
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 
 def segmented_tabs(
@@ -13,15 +16,17 @@ def segmented_tabs(
     default: str | None = None,
     label: str = "Tab",
 ) -> str:
-    """
-    Render a segmented-control tab switcher and persist the selection in:
+    """Render a segmented-control tab switcher and persist the selection.
+
+    Persists the selection in:
     - st.session_state[key]
-    - st.query_params[query_param]
+    - st.query_params[query_param].
 
     Returns the selected option (always one of `options`).
     """
     if not options:
-        raise ValueError("segmented_tabs: `options` must not be empty")
+        msg = "segmented_tabs: `options` must not be empty"
+        raise ValueError(msg)
 
     options_list = list(options)
     default_value = default if default in options_list else options_list[0]
@@ -52,5 +57,3 @@ def segmented_tabs(
 def ensure_one_of(value: str | None, allowed: Iterable[str], fallback: str) -> str:
     allowed_set = set(allowed)
     return value if value in allowed_set else fallback
-
-

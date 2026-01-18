@@ -34,16 +34,16 @@ with st.form(key="github_form"):
         st.session_state.run_id = run_id
 
 
-if st.session_state.run_id is None or st.session_state.run_id == "":
+if not st.session_state.run_id:
     st.write("No GitHub Run ID provided")
     st.stop()
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_and_extract_performance_for_run(run_id):
+def get_and_extract_performance_for_run(run_id: str | int) -> dict:
     artifacts = {"artifacts": fetch_artifacts(int(run_id))}
 
-    performance_scores = {}
+    performance_scores: dict[str, dict] = {}
 
     for artifact in artifacts["artifacts"]:
         if artifact["name"].startswith("performance_lighthouse"):

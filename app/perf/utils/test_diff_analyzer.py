@@ -14,25 +14,26 @@
 
 import sys
 import warnings
-from typing import Dict, Iterable, List, TypedDict
+from collections.abc import Iterable
+from typing import Any, TypedDict
 
-from scipy import stats  # type: ignore
+from scipy import stats
 
-from .perf_traces import LoadFilesOutput, load_files, load_files_from_dicts
-from .test_run_utils import get_stable_test_name
-from .types import CalculatedPhases
+from app.perf.utils.perf_traces import LoadFilesOutput, load_files, load_files_from_dicts
+from app.perf.utils.test_run_utils import get_stable_test_name
+from app.perf.utils.types import CalculatedPhases
 
-ProcessTestDirectoryOutput = Dict[str, Dict[str, List[float]]]
+ProcessTestDirectoryOutput = dict[str, dict[str, list[float]]]
 
 
 class TestMetrics(TypedDict):
     t_stat: float
     p_value: float
-    baseline_metrics: List[float]
-    treatment_metrics: List[float]
+    baseline_metrics: list[float]
+    treatment_metrics: list[float]
 
 
-StatisticalDiff = Dict[str, Dict[str, TestMetrics]]
+StatisticalDiff = dict[str, dict[str, TestMetrics]]
 
 
 class AnalyzedTestDiffResults(TypedDict):
@@ -42,15 +43,14 @@ class AnalyzedTestDiffResults(TypedDict):
 
 
 def _extract_react_profile_metrics(
-    all_phases: List[Dict[str, CalculatedPhases]],
+    all_phases: list[dict[str, CalculatedPhases]],
     index: int,
     react_profile_key: str,
     phase: str,
     results_per_test: ProcessTestDirectoryOutput,
     stable_test_name: str,
 ) -> None:
-    """
-    Extracts metrics from the test phases and updates the results dictionary.
+    """Extracts metrics from the test phases and updates the results dictionary.
 
     Args:
         all_phases (List[Dict[str, CalculatedPhases]]): All phases data.
@@ -60,44 +60,41 @@ def _extract_react_profile_metrics(
         results_per_test (ProcessTestDirectoryOutput): Dictionary to store the results.
         stable_test_name (str): Stable test name.
     """
-    metrics = all_phases[index][react_profile_key][phase].keys()
+    phase_data = all_phases[index][react_profile_key][phase]
+    metrics = phase_data.keys()
     for metric in metrics:
         key = f"{react_profile_key}__{phase}__{metric}"
         if key not in results_per_test[stable_test_name]:
             results_per_test[stable_test_name][key] = []
-        results_per_test[stable_test_name][key].append(
-            all_phases[index][react_profile_key][phase][metric]  # type: ignore
-        )
+        # Access by variable key - cast to handle TypedDict limitations
+        metric_value: float | int = phase_data[metric]  # type: ignore[literal-required]
+        results_per_test[stable_test_name][key].append(metric_value)
 
 
-def process_test_results_directory(
-    directory: str, load_all_metrics: bool = False
-) -> ProcessTestDirectoryOutput:
-    """
-    Processes the directory of test result information by returning a dictionary
-    where the key is the test name and the value is a dictionary of metrics.
+def process_test_results_directory(directory: str, load_all_metrics: bool = False) -> ProcessTestDirectoryOutput:
+    """Process the directory of test result information.
+
+    Returns a dictionary where the key is the test name and the value is a
+    dictionary of metrics.
 
     Args:
-        directory (str): The directory.
+        directory (str): The directory path to process.
+        load_all_metrics (bool): Whether to load all metrics or just a subset.
 
     Returns:
-        ProcessTestDirectoryOutput: A dictionary where the key is the test name and the value is a dictionary of metrics.
+        ProcessTestDirectoryOutput: A dictionary where the key is the test name
+            and the value is a dictionary of metrics.
     """
-
     load_files_output = load_files(directory)
-    return process_test_results_load_files_output(
-        load_files_output, load_all_metrics=load_all_metrics
-    )
+    return process_test_results_load_files_output(load_files_output, load_all_metrics=load_all_metrics)
 
 
 def process_test_results_files(
-    files: Iterable[tuple[str, dict]], load_all_metrics: bool = False
+    files: Iterable[tuple[str, dict[str, Any]]], load_all_metrics: bool = False
 ) -> ProcessTestDirectoryOutput:
     """In-memory variant of `process_test_results_directory()`."""
     load_files_output = load_files_from_dicts(files)
-    return process_test_results_load_files_output(
-        load_files_output, load_all_metrics=load_all_metrics
-    )
+    return process_test_results_load_files_output(load_files_output, load_all_metrics=load_all_metrics)
 
 
 def process_test_results_load_files_output(
@@ -118,15 +115,10 @@ def process_test_results_load_files_output(
             results_per_test[stable_test_name] = {}
 
         # Step 2: Add metrics from the Chrome DevTools Protocol data
-        if (
-            "long_animation_frames_duration_ms"
-            not in results_per_test[stable_test_name]
-        ):
+        if "long_animation_frames_duration_ms" not in results_per_test[stable_test_name]:
             results_per_test[stable_test_name]["long_animation_frames_duration_ms"] = []
 
-        results_per_test[stable_test_name]["long_animation_frames_duration_ms"].append(
-            all_long_animation_frames[index]
-        )
+        results_per_test[stable_test_name]["long_animation_frames_duration_ms"].append(all_long_animation_frames[index])
 
         # Step 3: Add metrics from the React Profiler data
         react_profiles_keys = all_phases[index].keys()
@@ -156,9 +148,8 @@ def process_test_results_load_files_output(
     return results_per_test
 
 
-def find_outlier_indices(data: List[float]) -> List[int]:
-    """
-    Finds the indices of the outliers in the data.
+def find_outlier_indices(data: list[float]) -> list[int]:
+    """Finds the indices of the outliers in the data.
 
     Args:
         data (List[float]): The data.
@@ -178,8 +169,7 @@ def find_outlier_indices(data: List[float]) -> List[int]:
 def find_and_remove_outliers(
     results_per_test: ProcessTestDirectoryOutput,
 ) -> ProcessTestDirectoryOutput:
-    """
-    Finds and removes outliers from the test results.
+    """Finds and removes outliers from the test results.
 
     Args:
         results_per_test (ProcessTestDirectoryOutput): The test results.
@@ -187,18 +177,16 @@ def find_and_remove_outliers(
     Returns:
         ProcessTestDirectoryOutput: The test results with outliers removed.
     """
-    for test_name in results_per_test.keys():
+    for test_name in results_per_test:
         test_outliers = set()
-        for metric_name, metric_data in results_per_test[test_name].items():
+        for metric_data in results_per_test[test_name].values():
             outliers = find_outlier_indices(metric_data)
             test_outliers.update(outliers)
 
         if test_outliers:
             for metric_name, metric_data in results_per_test[test_name].items():
                 results_per_test[test_name][metric_name] = [
-                    metric_data[index]
-                    for index in range(len(metric_data))
-                    if index not in test_outliers
+                    metric_data[index] for index in range(len(metric_data)) if index not in test_outliers
                 ]
 
     return results_per_test
@@ -208,8 +196,7 @@ def calculate_statistical_diff(
     baseline_results: ProcessTestDirectoryOutput,
     treatment_results: ProcessTestDirectoryOutput,
 ) -> StatisticalDiff:
-    """
-    Determines the differences between baseline and treatment test results.
+    """Determines the differences between baseline and treatment test results.
 
     Args:
         baseline_results (ProcessTestDirectoryOutput): Baseline test results.
@@ -230,25 +217,19 @@ def calculate_statistical_diff(
             continue
 
         if test_name not in baseline_results:
-            print(
-                f"Test: `{test_name}` not found in baseline results. Assuming this is a new test."
-            )
+            print(f"Test: `{test_name}` not found in baseline results. Assuming this is a new test.")
             continue
 
         # It is possible for there to be different keys in the baseline vs
         # treatment results due to legitimate changes in the test or source. We
         # only want to compare the keys that are common between both.
-        keys_intersection = set(baseline_results[test_name].keys()).intersection(
-            treatment_results[test_name].keys()
-        )
+        keys_intersection = set(baseline_results[test_name].keys()).intersection(treatment_results[test_name].keys())
 
         for metric_name in keys_intersection:
             baseline_metrics = baseline_results[test_name][metric_name]
             treatment_metrics = treatment_results[test_name][metric_name]
 
-            t_stat, p_value = stats.ttest_ind(
-                baseline_metrics, treatment_metrics, nan_policy="raise"
-            )
+            t_stat, p_value = stats.ttest_ind(baseline_metrics, treatment_metrics, nan_policy="raise")
 
             if test_name not in results:
                 results[test_name] = {}
@@ -263,11 +244,8 @@ def calculate_statistical_diff(
     return results
 
 
-def get_analyzed_test_diff_results(
-    statistical_diff: StatisticalDiff, alpha: float = 0.05
-) -> AnalyzedTestDiffResults:
-    """
-    Analyzes the test difference results to count regressions, improvements, and no changes.
+def get_analyzed_test_diff_results(statistical_diff: StatisticalDiff, alpha: float = 0.05) -> AnalyzedTestDiffResults:
+    """Analyzes the test difference results to count regressions, improvements, and no changes.
 
     Args:
         statistical_diff (StatisticalDiff): Test difference results.
@@ -288,21 +266,15 @@ def get_analyzed_test_diff_results(
             if p_value < alpha:
                 if t_stat < 0:
                     regression_count += 1
-                    print(
-                        f"❌ Test: `{test_file}` Metric: {metric_name} has statistically significant regression."
-                    )
+                    print(f"❌ Test: `{test_file}` Metric: {metric_name} has statistically significant regression.")
                 else:
                     improvement_count += 1
-                    print(
-                        f"✅ Test: `{test_file}` Metric: {metric_name} has statistically significant improvement."
-                    )
+                    print(f"✅ Test: `{test_file}` Metric: {metric_name} has statistically significant improvement.")
                 print("Baseline Metrics:", metric_results["baseline_metrics"])
                 print("Treatment Metrics:", metric_results["treatment_metrics"])
             else:
                 no_change_count += 1
-                print(
-                    f"🟰 Test: `{test_file}` Metric: {metric_name} has no statistically significant change."
-                )
+                print(f"🟰 Test: `{test_file}` Metric: {metric_name} has no statistically significant change.")
 
     return {
         "regression_count": regression_count,
@@ -312,8 +284,7 @@ def get_analyzed_test_diff_results(
 
 
 def main(baseline_dir: str, treatment_dir: str) -> AnalyzedTestDiffResults:
-    """
-    Main function to process test results and analyze differences.
+    """Main function to process test results and analyze differences.
 
     Args:
         baseline_dir (str): Directory containing baseline test results.
@@ -325,9 +296,7 @@ def main(baseline_dir: str, treatment_dir: str) -> AnalyzedTestDiffResults:
     baseline_processed = process_test_results_directory(baseline_dir)
     treatment_processed = process_test_results_directory(treatment_dir)
 
-    statistical_diff = calculate_statistical_diff(
-        baseline_processed, treatment_processed
-    )
+    statistical_diff = calculate_statistical_diff(baseline_processed, treatment_processed)
 
     return get_analyzed_test_diff_results(statistical_diff)
 
@@ -339,7 +308,5 @@ if __name__ == "__main__":
     analyzed_test_diff_results = main(baseline_dir, treatment_dir)
 
     if analyzed_test_diff_results["regression_count"] > 0:
-        print(
-            "There are performance regressions. Please view output above for details."
-        )
+        print("There are performance regressions. Please view output above for details.")
         sys.exit(1)

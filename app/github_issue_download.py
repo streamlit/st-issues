@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import io
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Literal, cast
 
 import pandas as pd
 import streamlit as st
@@ -21,43 +21,37 @@ st.caption(
 )
 
 
+IssueState = Literal["open", "closed", "all"]
+
+
 @st.cache_data(show_spinner=False)
-def _fetch_issue_data(state: str) -> List[Dict[str, object]]:
+def _fetch_issue_data(state: IssueState) -> list[dict[str, object]]:
     """Retrieve raw issue payloads for the configured repository."""
     return get_all_github_issues(state=state)
 
 
 def _format_issue_record(
-    issue: Dict[str, object],
+    issue: dict[str, object],
     include_pull_requests: bool = False,
-) -> Optional[Dict[str, object]]:
+) -> dict[str, object] | None:
     """Transform a GitHub issue payload into a flat record suitable for CSV export."""
     if not include_pull_requests and "pull_request" in issue:
         return None
 
-    user_info = issue.get("user") or {}
-    milestone_info = issue.get("milestone") or {}
-    reactions_info = issue.get("reactions") or {}
-    assignees_info: Iterable[Dict[str, object]] = issue.get("assignees") or []
-    labels_info: Iterable[Dict[str, object]] = issue.get("labels") or []
+    user_info = cast("dict[str, Any]", issue.get("user") or {})
+    milestone = issue.get("milestone")
+    milestone_title = cast("dict[str, Any]", milestone).get("title") if isinstance(milestone, dict) else None
+    reactions_info = cast("dict[str, Any]", issue.get("reactions") or {})
+    assignees_list = cast("list[Any]", issue.get("assignees") or [])
+    labels_list = cast("list[Any]", issue.get("labels") or [])
 
-    labels = [
-        str(label.get("name", "")).strip()
-        for label in labels_info
-        if isinstance(label, dict)
-    ]
+    labels = [str(label.get("name", "")).strip() for label in labels_list if isinstance(label, dict)]
 
-    assignees = [
-        str(assignee.get("login", "")).strip()
-        for assignee in assignees_info
-        if isinstance(assignee, dict)
-    ]
+    assignees = [str(assignee.get("login", "")).strip() for assignee in assignees_list if isinstance(assignee, dict)]
 
-    body = issue.get("body")
-    if body is None:
-        body = ""
+    body = str(issue.get("body") or "")
 
-    record: Dict[str, object] = {
+    record: dict[str, object] = {
         "id": issue.get("id"),
         "node_id": issue.get("node_id"),
         "number": issue.get("number"),
@@ -73,7 +67,7 @@ def _format_issue_record(
         "label_count": len(labels),
         "assignees": ", ".join(assignee for assignee in assignees if assignee),
         "assignee_count": len(assignees),
-        "milestone": milestone_info.get("title") if milestone_info else None,
+        "milestone": milestone_title,
         "is_locked": issue.get("locked", False),
         "comments": issue.get("comments"),
         "reactions_total": reactions_info.get("total_count"),
@@ -107,9 +101,10 @@ with st.form("issue_download_form"):
 
 if submit:
     with st.spinner("Fetching issues from GitHub…"):
-        raw_issues = _fetch_issue_data(issue_state)
+        # Cast is safe because selectbox options are limited to these values
+        raw_issues = _fetch_issue_data(issue_state)  # type: ignore[arg-type]
 
-    records: List[Dict[str, object]] = []
+    records: list[dict[str, object]] = []
     for issue in raw_issues:
         record = _format_issue_record(issue, include_pull_requests=include_prs)
         if record:
@@ -119,12 +114,12 @@ if submit:
         st.warning("No issues matched the selected criteria.")
         st.session_state["issues_df"] = None
     else:
-        issues_df = pd.DataFrame.from_records(records)
-        st.session_state["issues_df"] = issues_df
+        loaded_df = pd.DataFrame.from_records(records)
+        st.session_state["issues_df"] = loaded_df
         st.session_state["issues_state"] = issue_state
         st.success(f"Loaded {len(records)} issues.")
 
-issues_df: Optional[pd.DataFrame] = st.session_state.get("issues_df")
+issues_df: pd.DataFrame | None = st.session_state.get("issues_df")
 if issues_df is not None and not issues_df.empty:
     csv_buffer = io.StringIO()
     issues_df.to_csv(csv_buffer, index=False)
@@ -137,5 +132,5 @@ if issues_df is not None and not issues_df.empty:
     )
 
     with st.expander("Preview (first 20 issues without body)"):
-        preview_columns = [col for col in issues_df.columns if col not in {"body"}]
+        preview_columns = [col for col in issues_df.columns if col != "body"]
         st.dataframe(issues_df.loc[:, preview_columns].head(20), width="stretch")

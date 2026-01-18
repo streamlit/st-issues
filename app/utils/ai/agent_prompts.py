@@ -1,13 +1,12 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from .template_loader import render_template
+from app.utils.ai.template_loader import render_template
 
 
 def generate_debugging_prompt(
-    issue_title: str, issue_body: str, comments: Optional[List[Dict[str, Any]]] = None
-) -> Dict[str, str]:
-    """
-    Generates a prompt for an AI Agent to help identify the root cause of a bug.
+    issue_title: str, issue_body: str, comments: list[dict[str, Any]] | None = None
+) -> dict[str, str]:
+    """Generates a prompt for an AI Agent to help identify the root cause of a bug.
 
     Args:
         issue_title: The title of the GitHub issue
@@ -20,11 +19,7 @@ def generate_debugging_prompt(
     # Filter out bot comments if comments are provided
     filtered_comments = None
     if comments:
-        filtered_comments = [
-            comment
-            for comment in comments
-            if comment.get("author") != "github-actions[bot]"
-        ]
+        filtered_comments = [comment for comment in comments if comment.get("author") != "github-actions[bot]"]
         # Only pass non-empty filtered comments to template
         if not filtered_comments:
             filtered_comments = None
@@ -41,10 +36,9 @@ def generate_debugging_prompt(
 
 
 def generate_workaround_prompt(
-    issue_title: str, issue_body: str, comments: Optional[List[Dict[str, Any]]] = None
-) -> Dict[str, str]:
-    """
-    Generates a prompt for an AI Agent to help suggest workarounds for Streamlit issues.
+    issue_title: str, issue_body: str, comments: list[dict[str, Any]] | None = None
+) -> dict[str, str]:
+    """Generates a prompt for an AI Agent to help suggest workarounds for Streamlit issues.
 
     Args:
         issue_title: The title of the GitHub issue
@@ -57,11 +51,7 @@ def generate_workaround_prompt(
     # Filter out bot comments if comments are provided
     filtered_comments = None
     if comments:
-        filtered_comments = [
-            comment
-            for comment in comments
-            if comment.get("author") != "github-actions[bot]"
-        ]
+        filtered_comments = [comment for comment in comments if comment.get("author") != "github-actions[bot]"]
         # Only pass non-empty filtered comments to template
         if not filtered_comments:
             filtered_comments = None

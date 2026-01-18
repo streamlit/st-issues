@@ -1,10 +1,10 @@
-"""
-Template loader utility for AI prompt templates.
+"""Template loader utility for AI prompt templates.
+
 Provides a centralized way to load and render Jinja2 templates for LLM prompts.
 """
 
 from pathlib import Path
-from typing import Any, Optional, List
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, Template
 
@@ -12,9 +12,8 @@ from jinja2 import Environment, FileSystemLoader, Template
 class TemplateLoader:
     """Manages loading and rendering of Jinja2 templates for AI prompts."""
 
-    def __init__(self, template_dir: Optional[Path] = None):
-        """
-        Initialize the template loader.
+    def __init__(self, template_dir: Path | None = None) -> None:
+        """Initialize the template loader.
 
         Args:
             template_dir: Path to the templates directory. If None, uses the default location.
@@ -27,14 +26,13 @@ class TemplateLoader:
         self.template_dir = template_dir
         self.env = Environment(
             loader=FileSystemLoader(str(template_dir)),
-            autoescape=False,
+            autoescape=False,  # noqa: S701
             trim_blocks=True,
             lstrip_blocks=True,
         )
 
     def get_template(self, template_name: str) -> Template:
-        """
-        Get a template by name.
+        """Get a template by name.
 
         Args:
             template_name: Name of the template file (e.g., 'debugging_prompt.j2')
@@ -48,8 +46,7 @@ class TemplateLoader:
         return self.env.get_template(template_name)
 
     def render(self, template_name: str, **context: Any) -> str:
-        """
-        Render a template with the given context.
+        """Render a template with the given context.
 
         Args:
             template_name: Name of the template file
@@ -63,25 +60,23 @@ class TemplateLoader:
 
 
 # Create a singleton instance for convenience
-_default_loader: Optional[TemplateLoader] = None
+_default_loader: TemplateLoader | None = None
 
 
 def get_template_loader() -> TemplateLoader:
-    """
-    Get the default template loader instance.
+    """Get the default template loader instance.
 
     Returns:
         The default template loader
     """
-    global _default_loader
+    global _default_loader  # noqa: PLW0603
     if _default_loader is None:
         _default_loader = TemplateLoader()
     return _default_loader
 
 
 def render_template(template_name: str, **context: Any) -> str:
-    """
-    Convenience function to render a template using the default loader.
+    """Convenience function to render a template using the default loader.
 
     Args:
         template_name: Name of the template file

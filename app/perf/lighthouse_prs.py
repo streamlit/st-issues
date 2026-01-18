@@ -17,20 +17,16 @@ if token is None:
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def get_all_prs():
+def get_all_prs() -> list:
     prs = get_all_github_prs(state="open")
-    return [
-        pr
-        for pr in prs
-        if any(lbl.get("name") == "perf:lighthouse" for lbl in pr.get("labels", []))
-    ]
+    return [pr for pr in prs if any(lbl.get("name") == "perf:lighthouse" for lbl in pr.get("labels", []))]
 
 
 all_prs = get_all_prs()
 
 
 @st.cache_data(ttl=60 * 60 * 12)
-def cached_get_workflow_run_id(pr_ref):
+def cached_get_workflow_run_id(pr_ref: str) -> int | None:
     return get_workflow_run_id(pr_ref, "Performance - Lighthouse")
 
 

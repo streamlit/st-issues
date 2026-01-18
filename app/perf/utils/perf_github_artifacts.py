@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -11,7 +11,7 @@ from app.utils.github_utils import get_headers, iter_json_from_zip_bytes
 
 
 def append_to_performance_scores(
-    performance_scores: Dict[str, Dict[str, float]],
+    performance_scores: dict[str, dict[str, float]],
     timestamp: str,
     app_name: str,
     score: float,
@@ -22,16 +22,15 @@ def append_to_performance_scores(
 
 
 def process_artifact(
-    performance_scores: Dict[str, Dict[str, float]],
-    artifact: Dict[str, Any],
-) -> Dict[str, Dict[str, float]]:
-    """
-    Process a Lighthouse artifact in-memory (no filesystem extraction).
-    """
+    performance_scores: dict[str, dict[str, float]],
+    artifact: dict[str, Any],
+) -> dict[str, dict[str, float]]:
+    """Process a Lighthouse artifact in-memory (no filesystem extraction)."""
     archive_url = artifact["archive_download_url"]
     content = download_artifact_bytes(archive_url)
     if content is None:
-        raise RuntimeError(f"Failed to download artifact: {artifact.get('name')}")
+        msg = f"Failed to download artifact: {artifact.get('name')}"
+        raise RuntimeError(msg)
 
     timestamp = artifact.get("created_at") or ""
     for member_name, payload in iter_json_from_zip_bytes(content):
@@ -39,7 +38,7 @@ def process_artifact(
             continue
         try:
             score = payload["categories"]["performance"]["score"]
-        except Exception:
+        except Exception:  # noqa: S112
             continue
 
         parts = member_name.split("_-_")
@@ -58,13 +57,11 @@ def process_artifact(
 def get_commit_hashes_for_branch_name(
     branch_name: str,
     limit: int = 50,
-    until_date: Optional[str] = None,
-) -> List[str]:
-    """
-    Get the commit hashes for a specific branch name.
-    """
+    until_date: str | None = None,
+) -> list[str]:
+    """Get the commit hashes for a specific branch name."""
     url = "https://api.github.com/repos/streamlit/streamlit/commits"
-    params: Dict[str, Any] = {"sha": branch_name, "per_page": limit}
+    params: dict[str, Any] = {"sha": branch_name, "per_page": limit}
     if until_date:
         params["until"] = f"{until_date}T23:59:59Z"
 
@@ -74,24 +71,18 @@ def get_commit_hashes_for_branch_name(
     return [commit["sha"] for commit in commits]
 
 
-def get_check_run_by_name(
-    workflow_runs: List[Dict[str, Any]], name: str
-) -> Optional[Dict[str, Any]]:
+def get_check_run_by_name(workflow_runs: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
     return next((run for run in workflow_runs if run["name"] == name), None)
 
 
-def get_shortest_check_run_by_name(
-    workflow_runs: List[Dict[str, Any]], name: str
-) -> Optional[Dict[str, Any]]:
+def get_shortest_check_run_by_name(workflow_runs: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
     shortest_check_run = None
     shortest_duration = float("inf")
 
     for check_run in workflow_runs:
         if check_run["name"] == name and check_run["status"] == "completed":
             started_at = datetime.strptime(check_run["started_at"], "%Y-%m-%dT%H:%M:%SZ")
-            completed_at = datetime.strptime(
-                check_run["completed_at"], "%Y-%m-%dT%H:%M:%SZ"
-            )
+            completed_at = datetime.strptime(check_run["completed_at"], "%Y-%m-%dT%H:%M:%SZ")
             duration = (completed_at - started_at).total_seconds()
             if duration < shortest_duration:
                 shortest_duration = duration
@@ -100,9 +91,9 @@ def get_shortest_check_run_by_name(
     return shortest_check_run
 
 
-def get_build_from_github(commit_hash: str) -> Optional[Dict[str, Any]]:
-    """
-    Get workflow runs from GitHub for a specific commit hash.
+def get_build_from_github(commit_hash: str) -> dict[str, Any] | None:
+    """Get workflow runs from GitHub for a specific commit hash.
+
     Returns a simplified structure expected by perf pages.
     """
     try:
@@ -131,21 +122,17 @@ def get_build_from_github(commit_hash: str) -> Optional[Dict[str, Any]]:
 
 
 def get_playwright_performance_artifact(
-    build_data: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
+    build_data: dict[str, Any],
+) -> dict[str, Any] | None:
     performance_run = get_check_run_by_name(build_data["workflow_runs"], "Performance Suite")
 
     # NOTE: As of 1/17/2025 we have a single Performance suite in CI. Before
     # this, we had a few other scattered job names. Keep these for legacy.
     if not performance_run:
-        performance_run = get_check_run_by_name(
-            build_data["workflow_runs"], "playwright-performance"
-        )
+        performance_run = get_check_run_by_name(build_data["workflow_runs"], "playwright-performance")
 
     if not performance_run:
-        performance_run = get_shortest_check_run_by_name(
-            build_data["workflow_runs"], "playwright-e2e-tests"
-        )
+        performance_run = get_shortest_check_run_by_name(build_data["workflow_runs"], "playwright-e2e-tests")
 
     if not performance_run:
         print("Error finding performance check run")
@@ -154,9 +141,9 @@ def get_playwright_performance_artifact(
     return performance_run
 
 
-def get_workflow_run_id(ref: str, workflow_name: str) -> Optional[int]:
-    """
-    Get the workflow run ID for a specific branch and workflow display name.
+def get_workflow_run_id(ref: str, workflow_name: str) -> int | None:
+    """Get the workflow run ID for a specific branch and workflow display name.
+
     This intentionally matches the prior perf behavior (filtering Actions runs by
     branch + name) while using shared auth headers from `app.utils.github_utils`.
     """
@@ -171,15 +158,14 @@ def get_workflow_run_id(ref: str, workflow_name: str) -> Optional[int]:
     return None
 
 
-def extract_run_id_from_url(url: str) -> Optional[str]:
+def extract_run_id_from_url(url: str) -> str | None:
     match = re.search(r"/runs/(\d+)", url)
     return match.group(1) if match else None
 
 
 def get_artifact_by_name(
-    artifacts: List[Dict[str, Any]], name: str, starts_with: bool = False
-) -> Optional[Dict[str, Any]]:
+    artifacts: list[dict[str, Any]], name: str, starts_with: bool = False
+) -> dict[str, Any] | None:
     if starts_with:
         return next((a for a in artifacts if a["name"].startswith(name)), None)
     return next((a for a in artifacts if a["name"] == name), None)
-

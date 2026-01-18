@@ -1,18 +1,17 @@
-"""
-Agent prompt dialog functionality for AI-powered issue analysis.
+"""Agent prompt dialog functionality for AI-powered issue analysis.
+
 Contains the UI dialog for generating debugging and workaround prompts.
 """
 
 import streamlit as st
 
 from app.utils import display_agent_prompt, load_issue_from_metadata
-from app.utils.ai.agent_prompts import generate_debugging_prompt
-from app.utils.ai.agent_prompts import generate_workaround_prompt
+from app.utils.ai.agent_prompts import generate_debugging_prompt, generate_workaround_prompt
 from app.utils.github_utils import extract_issue_number
 
 
 @st.dialog("🤖 Generate Agent Prompt", width="large")
-def show_agent_prompt_dialog():
+def show_agent_prompt_dialog() -> None:
     """Dialog for generating agent prompts from selected issue."""
     if "selected_issue_url" not in st.session_state:
         st.error("No issue selected.")
@@ -45,9 +44,7 @@ def show_agent_prompt_dialog():
 
     # Display issue info
     metadata = st.session_state.issue_metadata
-    st.info(
-        f"**{repo} Issue #{metadata.get('number')}:** {metadata.get('title', 'N/A')}"
-    )
+    st.info(f"**{repo} Issue #{metadata.get('number')}:** {metadata.get('title', 'N/A')}")
 
     # Prompt configuration
     col1, col2 = st.columns([2, 1])

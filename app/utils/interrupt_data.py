@@ -1,5 +1,5 @@
-"""
-Data fetching functions for the interrupt rotation dashboard.
+"""Data fetching functions for the interrupt rotation dashboard.
+
 Contains all GitHub-specific business logic for analyzing issues, PRs, and CI metrics.
 """
 
@@ -10,7 +10,6 @@ import pathlib
 from collections import Counter
 from datetime import date, datetime, timedelta
 from io import BytesIO
-from typing import Tuple
 from zipfile import ZipFile
 
 import pandas as pd
@@ -30,23 +29,17 @@ from app.utils.github_utils import (
 # Path to the issues folder
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.parent.resolve()
-PATH_TO_ISSUES = (
-    pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
-)
+PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 
 
-@st.cache_data(
-    ttl=60 * 60 * 6, show_spinner="Fetching python test coverage..."
-)  # cache for 6 hours
-def get_python_test_coverage_metrics(since_date: date) -> Tuple[float, float]:
+@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching python test coverage...")  # cache for 6 hours
+def get_python_test_coverage_metrics(since_date: date) -> tuple[float, float]:
     """Get the python test coverage and the change over a period."""
     runs_in_period = fetch_workflow_runs("python-tests.yml", since=since_date)
 
     def get_coverage(run_id: int) -> float:
         artifacts = fetch_artifacts(run_id)
-        artifact = next(
-            (a for a in artifacts if a["name"] == "combined_coverage_json"), None
-        )
+        artifact = next((a for a in artifacts if a["name"] == "combined_coverage_json"), None)
         if not artifact:
             return 0.0
         content = download_artifact(artifact["archive_download_url"])
@@ -76,18 +69,14 @@ def get_python_test_coverage_metrics(since_date: date) -> Tuple[float, float]:
     return latest_coverage, latest_coverage - oldest_coverage
 
 
-@st.cache_data(
-    ttl=60 * 60 * 6, show_spinner="Fetching frontend test coverage..."
-)  # cache for 6 hours
-def get_frontend_test_coverage_metrics(since_date: date) -> Tuple[float, float]:
+@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching frontend test coverage...")  # cache for 6 hours
+def get_frontend_test_coverage_metrics(since_date: date) -> tuple[float, float]:
     """Get the frontend test coverage and the change over a period."""
     runs_in_period = fetch_workflow_runs("js-tests.yml", since=since_date)
 
     def get_coverage(run_id: int) -> float:
         artifacts = fetch_artifacts(run_id)
-        artifact = next(
-            (a for a in artifacts if a["name"] == "vitest_coverage_json"), None
-        )
+        artifact = next((a for a in artifacts if a["name"] == "vitest_coverage_json"), None)
         if not artifact:
             return 0.0
         content = download_artifact(artifact["archive_download_url"])
@@ -120,10 +109,8 @@ def get_frontend_test_coverage_metrics(since_date: date) -> Tuple[float, float]:
     return latest_coverage, latest_coverage - oldest_coverage
 
 
-@st.cache_data(
-    ttl=60 * 60 * 6, show_spinner="Fetching wheel size..."
-)  # cache for 6 hours
-def get_wheel_size_metrics(since_date: date) -> Tuple[int, int]:
+@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching wheel size...")  # cache for 6 hours
+def get_wheel_size_metrics(since_date: date) -> tuple[int, int]:
     """Get the wheel size and the change over a period."""
     runs_in_period = fetch_workflow_runs("pr-preview.yml", since=since_date)
 
@@ -151,21 +138,17 @@ def get_wheel_size_metrics(since_date: date) -> Tuple[int, int]:
     return latest_size, latest_size - oldest_size
 
 
-@st.cache_data(
-    ttl=60 * 60 * 6, show_spinner="Fetching bundle size metrics..."
-)  # cache for 6 hours
-def get_bundle_size_metrics(since_date: date) -> Tuple[int, int, int, int]:
-    """
-    Get the total and entry gzip size and the change over a period.
-    Returns: (total_gzip, total_gzip_change, entry_gzip, entry_gzip_change)
+@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching bundle size metrics...")  # cache for 6 hours
+def get_bundle_size_metrics(since_date: date) -> tuple[int, int, int, int]:
+    """Get the total and entry gzip size and the change over a period.
+
+    Returns: (total_gzip, total_gzip_change, entry_gzip, entry_gzip_change).
     """
     runs_in_period = fetch_workflow_runs("pr-preview.yml", since=since_date)
 
-    def get_sizes(run_id: int) -> Tuple[int, int]:
+    def get_sizes(run_id: int) -> tuple[int, int]:
         artifacts = fetch_artifacts(run_id)
-        artifact = next(
-            (a for a in artifacts if a["name"] == "bundle_analysis_json"), None
-        )
+        artifact = next((a for a in artifacts if a["name"] == "bundle_analysis_json"), None)
 
         if not artifact:
             return 0, 0
@@ -217,7 +200,7 @@ def get_bundle_size_metrics(since_date: date) -> Tuple[int, int, int, int]:
     )
 
 
-def get_bug_metrics(since_date: date) -> Tuple[int, int]:
+def get_bug_metrics(since_date: date) -> tuple[int, int]:
     """Get the total number of open bugs and closed bugs in the period.
 
     Returns:
@@ -237,7 +220,7 @@ def get_bug_metrics(since_date: date) -> Tuple[int, int]:
         if i["state"] == "open":
             open_bugs += 1
         elif i.get("closed_at"):
-            closed_at = datetime.fromisoformat(i["closed_at"].replace("Z", "+00:00"))
+            closed_at = datetime.fromisoformat(i["closed_at"])
             if closed_at.date() >= since_date:
                 closed_bugs_in_period += 1
 
@@ -279,12 +262,7 @@ def get_missing_labels_issues() -> pd.DataFrame:
             continue
         labels = {label["name"] for label in i["labels"]}
 
-        if not any(
-            label.startswith("feature:")
-            or label.startswith("area:")
-            or label == "type:kudos"
-            for label in labels
-        ):
+        if not any(label.startswith(("feature:", "area:")) or label == "type:kudos" for label in labels):
             missing_label_issues.append(
                 {
                     "Title": i["title"],
@@ -357,9 +335,7 @@ def get_prs_needing_product_approval() -> pd.DataFrame:
         has_required_labels = "change:feature" in labels and "impact:users" in labels
 
         has_status_labels = (
-            "status:needs-product-approval" in labels
-            or "status:product-approved" in labels
-            or "do-not-merge" in labels
+            "status:needs-product-approval" in labels or "status:product-approved" in labels or "do-not-merge" in labels
         )
 
         if has_required_labels and not has_status_labels:
@@ -413,9 +389,7 @@ def get_community_prs_ready_for_review() -> pd.DataFrame:
             {
                 "Title": pr["title"],
                 "URL": pr["html_url"],
-                "Assignees": [
-                    assignee["login"] for assignee in pr.get("assignees", [])
-                ],
+                "Assignees": [assignee["login"] for assignee in pr.get("assignees", [])],
                 "Created": pr["created_at"],
                 "Updated": pr["updated_at"],
                 "Labels": list(labels),
@@ -455,20 +429,14 @@ def get_p0_p1_bugs() -> pd.DataFrame:
         if "pull_request" in i:
             continue
         labels = {label["name"] for label in i["labels"]}
-        if "type:bug" in labels and any(
-            label in ["priority:P0", "priority:P1"] for label in labels
-        ):
-            priority = next(
-                (label for label in labels if label.startswith("priority:P")), "Unknown"
-            )
+        if "type:bug" in labels and any(label in {"priority:P0", "priority:P1"} for label in labels):
+            priority = next((label for label in labels if label.startswith("priority:P")), "Unknown")
             high_priority_bugs.append(
                 {
                     "Title": i["title"],
                     "URL": i["html_url"],
                     "Created": i["created_at"],
-                    "Assignees": [
-                        assignee["login"] for assignee in i.get("assignees", [])
-                    ],
+                    "Assignees": [assignee["login"] for assignee in i.get("assignees", [])],
                     "Priority": priority,
                     "Labels": list(labels),
                     "Author": i["user"]["login"],
@@ -485,12 +453,12 @@ def get_confirmed_bugs_without_repro_script(since_date: date) -> pd.DataFrame:
         if "pull_request" in i:
             continue
 
-        created_at = datetime.fromisoformat(i["created_at"].replace("Z", "+00:00"))
+        created_at = datetime.fromisoformat(i["created_at"])
         if created_at.date() < since_date:
             continue
 
         labels = {label["name"] for label in i["labels"]}
-        if (
+        if (  # noqa: SIM102
             "type:bug" in labels
             and "status:confirmed" in labels
             # Multipage app bugs are not easy to reproduce
@@ -516,9 +484,7 @@ def get_flaky_tests(since_date: date, min_failures: int = 10) -> pd.DataFrame:
     example_run: dict[str, str] = {}
     last_failure_date: dict[str, date] = {}
 
-    workflow_runs = fetch_workflow_runs(
-        "playwright.yml", since=since_date, status="success", branch=None, limit=200
-    )
+    workflow_runs = fetch_workflow_runs("playwright.yml", since=since_date, status="success", branch=None, limit=200)
 
     for run in workflow_runs:
         check_run_ids = fetch_workflow_runs_ids(run["check_suite_id"])
@@ -535,9 +501,7 @@ def get_flaky_tests(since_date: date, min_failures: int = 10) -> pd.DataFrame:
                         example_run[test_name] = run["html_url"]
 
                     if test_name not in last_failure_date:
-                        last_failure_date[test_name] = date.fromisoformat(
-                            run["created_at"][:10]
-                        )
+                        last_failure_date[test_name] = date.fromisoformat(run["created_at"][:10])
 
     data = [
         {
@@ -548,8 +512,7 @@ def get_flaky_tests(since_date: date, min_failures: int = 10) -> pd.DataFrame:
         }
         for test, count in flaky_tests_counter.items()
         # Should be atleast min_failures and the last failure should be in the last 4 days
-        if count >= min_failures
-        and last_failure_date[test] > date.today() - timedelta(days=4)
+        if count >= min_failures and last_failure_date[test] > date.today() - timedelta(days=4)
     ]
     return pd.DataFrame(data)
 

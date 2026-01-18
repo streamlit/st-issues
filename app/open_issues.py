@@ -1,8 +1,8 @@
 import json
+import operator
 import pathlib
 import urllib.request
 from datetime import date, datetime
-from typing import Dict, List
 from urllib.parse import quote
 
 import altair as alt
@@ -14,9 +14,7 @@ from app.utils.github_utils import get_all_github_issues, get_headers
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
-PATH_TO_ISSUES = (
-    pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
-)
+PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 
 st.set_page_config(
     page_title="Open Issues",
@@ -68,15 +66,13 @@ def get_issue_reactions(issue_number: int) -> pd.DataFrame:
 
     reactions_df = pd.json_normalize(reactions)
     if not reactions_df.empty:
-        reactions_df = reactions_df[
-            ["created_at", "content", "user.login", "user.id", "user.avatar_url"]
-        ]
+        reactions_df = reactions_df[["created_at", "content", "user.login", "user.id", "user.avatar_url"]]
         reactions_df["issue_number"] = issue_number
     return reactions_df
 
 
-def get_all_reactions(issue_numbers: list):
-    reactions_dfs = list()
+def get_all_reactions(issue_numbers: list) -> pd.DataFrame:
+    reactions_dfs = []
     progress_bar = st.progress(0, text="🤯 Crawling reactions...")
     total_issues = len(issue_numbers)
     for i, issue_number in enumerate(issue_numbers):
@@ -103,47 +99,35 @@ show_statistics = st.sidebar.checkbox("Show issue statistics", value=False)
 show_reactions_growth = st.sidebar.checkbox("Show reactions growth", value=False)
 
 if show_reactions_growth:
-    reaction_growth_period = st.sidebar.selectbox(
-        "Reaction growth period", options=GROWTH_PERIODS.keys(), index=1
-    )
+    reaction_growth_period = st.sidebar.selectbox("Reaction growth period", options=GROWTH_PERIODS.keys(), index=1)
 
 # Ignore Pull Requests
-all_issues = [
-    issue
-    for issue in get_all_github_issues(state="open")
-    if "pull_request" not in issue
-]
-all_labels = set()
+all_issues = [issue for issue in get_all_github_issues(state="open") if "pull_request" not in issue]
+all_labels: set[str] = set()
 
 for issue in all_issues:
-    for label in issue["labels"]:
-        all_labels.add(label["name"])
+    all_labels.update(label["name"] for label in issue["labels"])
 
 
-def initial_query_params(key: str) -> List[str]:
-    """
+def initial_query_params(key: str) -> list[str]:
+    """Sync url params to session state on first load.
+
     When page is first loaded, or if current params are empty, sync url params to
     session state. Afterwards, just return local copy.
     """
-    if (
-        "initial_query_params_labels" not in st.session_state
-        or not st.session_state["initial_query_params_labels"]
-    ):
+    if "initial_query_params_labels" not in st.session_state or not st.session_state["initial_query_params_labels"]:
         st.session_state["initial_query_params_labels"] = st.query_params.get_all(key)
     return st.session_state["initial_query_params_labels"]
 
 
 default_filters = initial_query_params("label")
 
-for label in default_filters:
-    if label not in all_labels:
-        st.warning(f"Label `{label}` does not exist")
-        print(default_filters, flush=True)
-        default_filters.remove(label)
+labels_to_remove = [label for label in default_filters if label not in all_labels]
+for label in labels_to_remove:
+    st.warning(f"Label `{label}` does not exist")
+    default_filters.remove(label)
 
-filter_labels = st.sidebar.multiselect(
-    "Filter by label", list(all_labels), default=default_filters
-)
+filter_labels = st.sidebar.multiselect("Filter by label", list(all_labels), default=default_filters)
 
 print("Show issues with labels:", filter_labels, flush=True)
 
@@ -152,7 +136,7 @@ st.query_params["label"] = filter_labels
 filtered_issues = []
 for issue in all_issues:
     filtered_out = False
-    issue_labels: List[str] = [label["name"] for label in issue["labels"]]
+    issue_labels: list[str] = [label["name"] for label in issue["labels"]]
 
     for filter_label in filter_labels:
         if filter_label not in issue_labels:
@@ -174,30 +158,23 @@ REACTION_EMOJI = {
 }
 
 
-def reactions_to_str(reactions):
-    return " ".join(
-        [
-            f"{reactions[name]} {emoji}"
-            for name, emoji in REACTION_EMOJI.items()
-            if reactions[name] > 0
-        ]
-    )
+def reactions_to_str(reactions: dict) -> str:
+    return " ".join([f"{reactions[name]} {emoji}" for name, emoji in REACTION_EMOJI.items() if reactions[name] > 0])
 
 
-def labels_to_type(labels: List[str]):
+def labels_to_type(labels: list[str]) -> str:
     if "type:enhancement" in labels:
         return "✨"
-    elif "type:bug" in labels:
+    if "type:bug" in labels:
         return "🚨"
-    elif "type:docs" in labels:
+    if "type:docs" in labels:
         return "📚"
-    elif "type:kudos" in labels:
+    if "type:kudos" in labels:
         return "🙏"
-    else:
-        return "❓"
+    return "❓"
 
 
-def get_reproducible_example(issue_number: int):
+def get_reproducible_example(issue_number: int) -> str | None:
     issue_folder_name = f"gh-{issue_number}"
     if PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir():
         return "/?issue=" + issue_folder_name
@@ -226,7 +203,7 @@ def get_view_counts(issue_numbers_series: pd.Series) -> pd.Series:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
             }
             request = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(request) as response:
+            with urllib.request.urlopen(request) as response:  # noqa: S310
                 if not response or response.status != 200:
                     print("Failed to fetch issue view counts", flush=True)
                     continue
@@ -235,11 +212,7 @@ def get_view_counts(issue_numbers_series: pd.Series) -> pd.Series:
 
                 # Add view counts from this batch to the mapping
                 view_counts.update(
-                    {
-                        int(key.split("-")[-1]): data.get(key, {}).get("views", None)
-                        or None
-                        for key in data.keys()
-                    }
+                    {int(key.split("-")[-1]): data.get(key, {}).get("views", None) or None for key in data}
                 )
         except Exception:
             print("Failed to fetch issue view counts", flush=True)
@@ -249,50 +222,34 @@ def get_view_counts(issue_numbers_series: pd.Series) -> pd.Series:
     return issue_numbers_series.map(view_counts)
 
 
-df = pd.DataFrame.from_dict(filtered_issues)
+df = pd.DataFrame(filtered_issues)
 if df.empty:
     st.markdown("No issues found")
 else:
-    df["labels"] = df["labels"].map(
-        lambda x: [label["name"] if label else "" for label in x]
-    )
+    df["labels"] = df["labels"].map(lambda x: [label["name"] if label else "" for label in x])
     df["type"] = df["labels"].map(labels_to_type)
     df["reproducible_example"] = df["number"].map(get_reproducible_example)
     df["title"] = df["type"] + df["title"]
     df["reaction_types"] = df["reactions"].map(reactions_to_str)
-    df["total_reactions"] = (
-        df["reactions"].map(lambda x: x["total_count"]) + df["comments"]
-    )
-    df["author_avatar"] = df["user"].map(lambda x: x["avatar_url"])
+    df["total_reactions"] = df["reactions"].map(operator.itemgetter("total_count")) + df["comments"]
+    df["author_avatar"] = df["user"].map(operator.itemgetter("avatar_url"))
     df["assignee_avatar"] = df["assignee"].map(lambda x: x["avatar_url"] if x else None)
     df["views"] = get_view_counts(df["number"])
 
     if show_reactions_growth:
         # --- NEW LOGIC FOR REACTION GROWTH ---
-        issue_numbers_for_growth = (
-            df[df["total_reactions"] >= 15]["number"].unique().tolist()
-        )
+        issue_numbers_for_growth = df[df["total_reactions"] >= 15]["number"].unique().tolist()
         all_reactions_df = get_all_reactions(issue_numbers_for_growth)
 
         if not all_reactions_df.empty:
             start_date = GROWTH_PERIODS[reaction_growth_period]
-            all_reactions_df["created_at"] = pd.to_datetime(
-                all_reactions_df["created_at"]
-            )
+            all_reactions_df["created_at"] = pd.to_datetime(all_reactions_df["created_at"])
 
-            recent_reactions = all_reactions_df[
-                all_reactions_df["created_at"].dt.date >= start_date
-            ]
+            recent_reactions = all_reactions_df[all_reactions_df["created_at"].dt.date >= start_date]
 
-            reaction_growth = (
-                recent_reactions.groupby("issue_number")
-                .size()
-                .to_frame("reaction_growth")
-            )
+            reaction_growth = recent_reactions.groupby("issue_number").size().to_frame("reaction_growth")
 
-            df = df.merge(
-                reaction_growth, left_on="number", right_on="issue_number", how="left"
-            )
+            df = df.merge(reaction_growth, left_on="number", right_on="issue_number", how="left")
             df["reaction_growth"] = df["reaction_growth"].fillna(0).astype(int)
         else:
             df["reaction_growth"] = 0
@@ -331,23 +288,17 @@ else:
     column_config = {
         "title": st.column_config.TextColumn("Title", width=300),
         "type": "Type",
-        "updated_at": st.column_config.DatetimeColumn(
-            "Last Updated", format="distance"
-        ),
+        "updated_at": st.column_config.DatetimeColumn("Last Updated", format="distance"),
         "created_at": st.column_config.DatetimeColumn("Created at", format="distance"),
         "author_avatar": st.column_config.ImageColumn("Author"),
-        "total_reactions": st.column_config.NumberColumn(
-            "Reactions", format="%d 🫶", help="Total number of reactions"
-        ),
+        "total_reactions": st.column_config.NumberColumn("Reactions", format="%d 🫶", help="Total number of reactions"),
         "assignee_avatar": st.column_config.ImageColumn("Assignee"),
         "reaction_types": "Reactions Types",
         "labels": "Labels",
         "state": "State",
         "comments": st.column_config.NumberColumn("Comments", format="%d 💬"),
         "html_url": st.column_config.LinkColumn("Url", display_text="Open Issue"),
-        "reproducible_example": st.column_config.LinkColumn(
-            "Reproducible Example", width="medium"
-        ),
+        "reproducible_example": st.column_config.LinkColumn("Reproducible Example", width="medium"),
         "views": st.column_config.NumberColumn("Views", format="%d 👁️", width=100),
     }
 
@@ -360,7 +311,7 @@ else:
 
     st.dataframe(
         df[columns_to_display],
-        column_config=column_config,
+        column_config=column_config,  # type: ignore[arg-type]
         hide_index=True,
     )
 
@@ -376,12 +327,7 @@ else:
             if not df.empty:
                 # Fix: Convert created_at to datetime and handle timezone properly
                 df["age_days"] = df["created_at"].apply(
-                    lambda x: (
-                        datetime.now(
-                            datetime.fromisoformat(x.replace("Z", "+00:00")).tzinfo
-                        )
-                        - datetime.fromisoformat(x.replace("Z", "+00:00"))
-                    ).days
+                    lambda x: (datetime.now(datetime.fromisoformat(x).tzinfo) - datetime.fromisoformat(x)).days
                 )
 
                 st.metric("Average age (days)", round(df["age_days"].mean(), 1))
@@ -394,9 +340,7 @@ else:
                     "Average reactions per issue",
                     round(df["total_reactions"].mean(), 1),
                 )
-                st.metric(
-                    "Most reactions on an issue", int(df["total_reactions"].max())
-                )
+                st.metric("Most reactions on an issue", int(df["total_reactions"].max()))
 
         with col3:
             if "views" in df.columns and not df["views"].isna().all():
@@ -406,7 +350,7 @@ else:
         # Categorized statistics (similar to Streamlit Issues Summary)
         if not df.empty and "labels" in df.columns:
             # Create category dictionaries
-            categories: Dict[str, Dict[str, int]] = {
+            categories: dict[str, dict[str, int]] = {
                 "priority": {},
                 "status": {},
                 "feature": {},
@@ -415,16 +359,14 @@ else:
             }
 
             # Count issues by category
-            for _, issue in df.iterrows():
-                issue_counted = {cat: False for cat in categories.keys()}
+            for _, row in df.iterrows():
+                issue_counted = dict.fromkeys(categories.keys(), False)
 
-                for label in issue["labels"]:
+                for label in row["labels"]:
                     if ":" in label:
                         category, value = label.split(":", 1)
                         if category in categories:
-                            categories[category][value] = (
-                                categories[category].get(value, 0) + 1
-                            )
+                            categories[category][value] = categories[category].get(value, 0) + 1
                             issue_counted[category] = True
                     elif label.startswith("type:"):
                         # Handle type labels separately
@@ -433,11 +375,9 @@ else:
                         issue_counted["type"] = True
 
                 # Count issues without specific category labels
-                for cat in categories.keys():
+                for cat, cat_data in categories.items():
                     if not issue_counted[cat]:
-                        categories[cat]["(not specified)"] = (
-                            categories[cat].get("(not specified)", 0) + 1
-                        )
+                        cat_data["(not specified)"] = cat_data.get("(not specified)", 0) + 1
 
             # Display category charts
             st.subheader("Issues by Category")
@@ -446,7 +386,7 @@ else:
             tabs = st.tabs(["Priority", "Status", "Feature", "Area", "Type"])
 
             # Helper function to create horizontal bar chart
-            def create_horizontal_bar_chart(data_df, title, x_field, y_field):
+            def create_horizontal_bar_chart(data_df: pd.DataFrame, title: str, x_field: str, y_field: str) -> alt.Chart:
                 # Set minimum bar height and spacing
                 bar_height = 15  # Minimum height for each bar in pixels
                 bar_padding = 1  # Padding between bars (proportion of bar height)
@@ -471,9 +411,7 @@ else:
                             axis=alt.Axis(labelLimit=200),  # Allow longer labels
                         ),
                         tooltip=[y_field, x_field],
-                        color=alt.Color(
-                            f"{x_field}:Q", legend=None, scale=alt.Scale(scheme="blues")
-                        ),
+                        color=alt.Color(f"{x_field}:Q", legend=None, scale=alt.Scale(scheme="blues")),
                     )
                     .properties(height=chart_height)
                     .configure_axis(labelFontSize=12, titleFontSize=14)
@@ -490,15 +428,11 @@ else:
                         columns=["Priority", "Count"],
                     )
                     # Filter out "(not specified)" entries
-                    priority_df = priority_df[
-                        priority_df["Priority"] != "(not specified)"
-                    ]
+                    priority_df = priority_df[priority_df["Priority"] != "(not specified)"]
                     if not priority_df.empty:
                         priority_df = priority_df.sort_values("Count", ascending=False)
                         st.altair_chart(
-                            create_horizontal_bar_chart(
-                                priority_df, "Priority", "Count", "Priority"
-                            ),
+                            create_horizontal_bar_chart(priority_df, "Priority", "Count", "Priority"),
                             width="stretch",
                         )
                     else:
@@ -509,17 +443,13 @@ else:
             # Status tab
             with tabs[1]:
                 if categories["status"]:
-                    status_df = pd.DataFrame(
-                        list(categories["status"].items()), columns=["Status", "Count"]
-                    )
+                    status_df = pd.DataFrame(list(categories["status"].items()), columns=["Status", "Count"])
                     # Filter out "(not specified)" entries
                     status_df = status_df[status_df["Status"] != "(not specified)"]
                     if not status_df.empty:
                         status_df = status_df.sort_values("Count", ascending=False)
                         st.altair_chart(
-                            create_horizontal_bar_chart(
-                                status_df, "Status", "Count", "Status"
-                            ),
+                            create_horizontal_bar_chart(status_df, "Status", "Count", "Status"),
                             width="stretch",
                         )
                     else:
@@ -539,9 +469,7 @@ else:
                     if not feature_df.empty:
                         feature_df = feature_df.sort_values("Count", ascending=False)
                         st.altair_chart(
-                            create_horizontal_bar_chart(
-                                feature_df, "Feature", "Count", "Feature"
-                            ),
+                            create_horizontal_bar_chart(feature_df, "Feature", "Count", "Feature"),
                             width="stretch",
                         )
                     else:
@@ -552,17 +480,13 @@ else:
             # Area tab
             with tabs[3]:
                 if categories["area"]:
-                    area_df = pd.DataFrame(
-                        list(categories["area"].items()), columns=["Area", "Count"]
-                    )
+                    area_df = pd.DataFrame(list(categories["area"].items()), columns=["Area", "Count"])
                     # Filter out "(not specified)" entries
                     area_df = area_df[area_df["Area"] != "(not specified)"]
                     if not area_df.empty:
                         area_df = area_df.sort_values("Count", ascending=False)
                         st.altair_chart(
-                            create_horizontal_bar_chart(
-                                area_df, "Area", "Count", "Area"
-                            ),
+                            create_horizontal_bar_chart(area_df, "Area", "Count", "Area"),
                             width="stretch",
                         )
                     else:
@@ -573,17 +497,13 @@ else:
             # Type tab
             with tabs[4]:
                 if categories["type"]:
-                    type_df = pd.DataFrame(
-                        list(categories["type"].items()), columns=["Type", "Count"]
-                    )
+                    type_df = pd.DataFrame(list(categories["type"].items()), columns=["Type", "Count"])
                     # Filter out "(not specified)" entries
                     type_df = type_df[type_df["Type"] != "(not specified)"]
                     if not type_df.empty:
                         type_df = type_df.sort_values("Count", ascending=False)
                         st.altair_chart(
-                            create_horizontal_bar_chart(
-                                type_df, "Type", "Count", "Type"
-                            ),
+                            create_horizontal_bar_chart(type_df, "Type", "Count", "Type"),
                             width="stretch",
                         )
                     else:

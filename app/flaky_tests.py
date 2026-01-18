@@ -16,21 +16,15 @@ from app.utils.github_utils import (
 
 st.set_page_config(page_title="Flaky Tests", page_icon="🧫")
 
-title_row = st.container(
-    horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"
-)
+title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("🧫 Flaky Tests")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
 
-workflow_runs_limit = st.sidebar.slider(
-    "Number of workflow runs", min_value=100, max_value=1000, value=200, step=100
-)
+workflow_runs_limit = st.sidebar.slider("Number of workflow runs", min_value=100, max_value=1000, value=200, step=100)
 
-rolling_window_size = st.sidebar.slider(
-    "Flaky trend window size", min_value=5, max_value=50, value=25, step=5
-)
+rolling_window_size = st.sidebar.slider("Flaky trend window size", min_value=5, max_value=50, value=25, step=5)
 
 hide_expected_flaky_tests = st.sidebar.checkbox(
     "Hide expected flaky tests",
@@ -44,10 +38,7 @@ def is_expected_flaky(test_full_name: str) -> bool:
 
     The match uses startswith to allow both whole-script and single-test prefixes.
     """
-    for expected_prefix in EXPECTED_FLAKY_TESTS:
-        if test_full_name.startswith(expected_prefix):
-            return True
-    return False
+    return any(test_full_name.startswith(expected_prefix) for expected_prefix in EXPECTED_FLAKY_TESTS)
 
 
 # Fetch workflow runs
@@ -58,15 +49,12 @@ first_failure_date: dict[str, date] = {}
 first_date = date.today()
 
 
-workflow_runs = fetch_workflow_runs(
-    "playwright.yml", limit=workflow_runs_limit, branch=None, status="success"
-)
+workflow_runs = fetch_workflow_runs("playwright.yml", limit=workflow_runs_limit, branch=None, status="success")
 with st.spinner("Fetching workflow annotations..."):
     for workflow_run in workflow_runs:
         check_suite_id = workflow_run["check_suite_id"]
         workflow_date = date.fromisoformat(workflow_run["created_at"][:10])
-        if workflow_date < first_date:
-            first_date = workflow_date
+        first_date = min(first_date, workflow_date)
 
         check_runs_ids = fetch_workflow_runs_ids(check_suite_id)
         for check_run_id in check_runs_ids:
@@ -83,9 +71,7 @@ with st.spinner("Fetching workflow annotations..."):
                         example_run[test_name] = workflow_run["html_url"]
                     if test_name not in last_failure_date:
                         last_failure_date[test_name] = workflow_date
-                    if test_name not in first_failure_date:
-                        first_failure_date[test_name] = workflow_date
-                    elif workflow_date < first_failure_date[test_name]:
+                    if test_name not in first_failure_date or workflow_date < first_failure_date[test_name]:
                         first_failure_date[test_name] = workflow_date
 
 flaky_tests_df = pd.DataFrame(flaky_tests.items(), columns=["Test Name", "Failures"])
@@ -94,8 +80,7 @@ flaky_tests_df = flaky_tests_df.set_index("Test Name")
 flaky_tests_df = flaky_tests_df.sort_values("Failures", ascending=False)
 flaky_tests_df["Latest Run"] = flaky_tests_df.index.map(example_run)
 flaky_tests_df["Test Script"] = flaky_tests_df.index.map(
-    lambda x: "https://github.com/streamlit/streamlit/blob/develop/e2e_playwright/"
-    + x.split(":")[0]
+    lambda x: "https://github.com/streamlit/streamlit/blob/develop/e2e_playwright/" + x.split(":")[0]
 )
 flaky_tests_df["Last Failure Date"] = flaky_tests_df.index.map(last_failure_date)
 flaky_tests_df["First Failure Date"] = flaky_tests_df.index.map(first_failure_date)
@@ -131,17 +116,13 @@ if total_successful_runs > 0:
 else:
     flaky_tests_df["Workflow Failure Probability"] = float("nan")
 
-overall_failure_prob = (
-    1 - (1 - flaky_tests_df["Workflow Failure Probability"].fillna(0)).prod()
-)
+overall_failure_prob: float = 1 - (1 - flaky_tests_df["Workflow Failure Probability"].fillna(0).astype(float)).prod()  # type: ignore[operator,assignment]
 
 
 total_flaky_failures = int(flaky_tests_df["Failures"].sum())
 top5_reduction_pct = 0.0
 if total_flaky_failures > 0:
-    top5_reduction_pct = round(
-        flaky_tests_df[:5]["Failures"].sum() / total_flaky_failures * 100, 2
-    )
+    top5_reduction_pct = round(flaky_tests_df[:5]["Failures"].sum() / total_flaky_failures * 100, 2)
 
 st.caption(
     f"**{total_flaky_failures} flaky reruns** in the "
@@ -156,12 +137,8 @@ st.dataframe(
     width="stretch",
     column_config={
         "Test Name": st.column_config.TextColumn(width="large"),
-        "Last Failure Date": st.column_config.DatetimeColumn(
-            "Last Failure Date", format="distance"
-        ),
-        "First Failure Date": st.column_config.DatetimeColumn(
-            "First Failure Date", format="distance"
-        ),
+        "Last Failure Date": st.column_config.DatetimeColumn("Last Failure Date", format="distance"),
+        "First Failure Date": st.column_config.DatetimeColumn("First Failure Date", format="distance"),
         "Latest Run": st.column_config.LinkColumn(display_text="Open"),
         "Test Script": st.column_config.LinkColumn(display_text="Open"),
         "Workflow Failure Probability": st.column_config.ProgressColumn(
@@ -176,7 +153,7 @@ st.divider()
 # Process workflow runs to determine which ones needed reruns
 workflow_data = []
 for workflow_run in workflow_runs:
-    run_date = datetime.fromisoformat(workflow_run["created_at"].replace("Z", "+00:00"))
+    run_date = datetime.fromisoformat(workflow_run["created_at"])
     check_suite_id = workflow_run["check_suite_id"]
 
     # Check if this workflow run had any annotations (indicating reruns)
@@ -198,13 +175,9 @@ for workflow_run in workflow_runs:
                         break
             if had_reruns:
                 break
-        else:
-            if any(
-                annotation["path"].startswith("e2e_playwright/")
-                for annotation in annotations_list
-            ):
-                had_reruns = True
-                break
+        elif any(annotation["path"].startswith("e2e_playwright/") for annotation in annotations_list):
+            had_reruns = True
+            break
 
     workflow_data.append(
         {
@@ -219,11 +192,7 @@ workflow_df = workflow_df.sort_values("date")
 
 # Calculate rolling average
 workflow_df["had_reruns_int"] = workflow_df["had_reruns"].astype(int)
-workflow_df["rolling_avg"] = (
-    workflow_df["had_reruns_int"]
-    .rolling(window=rolling_window_size, min_periods=10)
-    .mean()
-)
+workflow_df["rolling_avg"] = workflow_df["had_reruns_int"].rolling(window=rolling_window_size, min_periods=10).mean()
 
 # Aggregate by day - take the last value for each day
 workflow_daily_df = workflow_df.groupby("date").last().reset_index()
@@ -247,9 +216,7 @@ if not workflow_df.empty:
             ),
             tooltip=[
                 alt.Tooltip("date:T", title="Date", format="%Y-%m-%d"),
-                alt.Tooltip(
-                    "rolling_avg:Q", title="Ratio with Test Reruns", format=".1%"
-                ),
+                alt.Tooltip("rolling_avg:Q", title="Ratio with Test Reruns", format=".1%"),
             ],
         )
         .properties(
@@ -267,9 +234,7 @@ if not workflow_df.empty:
             strokeWidth=1,
             color="red",
         )
-        .encode(
-            y="y:Q", tooltip=[alt.Tooltip("y:Q", title="Overall Average", format=".1%")]
-        )
+        .encode(y="y:Q", tooltip=[alt.Tooltip("y:Q", title="Overall Average", format=".1%")])
     )
 
     # Combine the charts

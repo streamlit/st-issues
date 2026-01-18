@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import datetime
+from typing import Any
 
 
-def make_gantt_entry(now, measurement, task_name, location):
-    """
-    Create a Gantt chart entry.
+def make_gantt_entry(
+    now: datetime.datetime, measurement: dict[str, Any], task_name: str, location: str
+) -> dict[str, Any]:
+    """Create a Gantt chart entry.
 
     Args:
         now: The current datetime.
@@ -29,9 +31,7 @@ def make_gantt_entry(now, measurement, task_name, location):
         A dictionary representing a Gantt chart entry.
     """
     start_time = now + datetime.timedelta(milliseconds=measurement["startTime"])
-    finish_time = now + datetime.timedelta(
-        milliseconds=measurement["startTime"] + measurement["duration"]
-    )
+    finish_time = now + datetime.timedelta(milliseconds=measurement["startTime"] + measurement["duration"])
 
     return {
         "Task": task_name,
