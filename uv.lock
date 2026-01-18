@@ -1847,6 +1847,81 @@ wheels = [
 ]
 
 [[package]]
+name = "st-issues"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "altair" },
+    { name = "coverage" },
+    { name = "git-fame" },
+    { name = "httpx" },
+    { name = "humanize" },
+    { name = "jinja2" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "plotly" },
+    { name = "polars" },
+    { name = "psutil" },
+    { name = "pydeck" },
+    { name = "pytz" },
+    { name = "scipy" },
+    { name = "seaborn" },
+    { name = "streamlit", extra = ["starlette"] },
+    { name = "streamlit-aggrid" },
+    { name = "streamlit-extras" },
+    { name = "streamlit-folium" },
+    { name = "streamlit-pdf" },
+    { name = "vega-datasets" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pandas-stubs" },
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "watchdog" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "altair", specifier = ">=5" },
+    { name = "coverage" },
+    { name = "git-fame" },
+    { name = "httpx" },
+    { name = "humanize" },
+    { name = "jinja2" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "plotly" },
+    { name = "polars" },
+    { name = "psutil" },
+    { name = "pydeck" },
+    { name = "pytz" },
+    { name = "scipy" },
+    { name = "seaborn" },
+    { name = "streamlit", extras = ["starlette"], specifier = ">=1.53.0" },
+    { name = "streamlit-aggrid" },
+    { name = "streamlit-extras" },
+    { name = "streamlit-folium" },
+    { name = "streamlit-pdf" },
+    { name = "vega-datasets" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.15" },
+    { name = "pandas-stubs" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "ruff", specifier = ">=0.14.13" },
+    { name = "ty", specifier = ">=0.0.12" },
+    { name = "watchdog" },
+]
+
+[[package]]
 name = "st-theme"
 version = "1.2.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1921,81 +1996,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/47/18/2b1e99ca2c803d920bbc1beb6a7c60a954f587e23a861dd44b57d00744d7/streamlit_aggrid-1.2.1.post2.tar.gz", hash = "sha256:ad186998894af9356d7fa1d6de9f324a376714583cccc31d87c8c003334089fc", size = 5669190, upload-time = "2025-12-29T14:00:34.187Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1a/dc/baec10d371834ca2fbf26a71289d73be79e031c734a9830d7cc2879aeb83/streamlit_aggrid-1.2.1.post2-py3-none-any.whl", hash = "sha256:a812274e69bc6dcdebdd390c2eca7d0502e90420b869d4abf9d74ca3af47bc51", size = 5732799, upload-time = "2025-12-29T14:00:30.524Z" },
-]
-
-[[package]]
-name = "streamlit-app"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "altair" },
-    { name = "coverage" },
-    { name = "git-fame" },
-    { name = "httpx" },
-    { name = "humanize" },
-    { name = "jinja2" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "plotly" },
-    { name = "polars" },
-    { name = "psutil" },
-    { name = "pydeck" },
-    { name = "pytz" },
-    { name = "scipy" },
-    { name = "seaborn" },
-    { name = "streamlit", extra = ["starlette"] },
-    { name = "streamlit-aggrid" },
-    { name = "streamlit-extras" },
-    { name = "streamlit-folium" },
-    { name = "streamlit-pdf" },
-    { name = "vega-datasets" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pandas-stubs" },
-    { name = "pytest" },
-    { name = "ruff" },
-    { name = "ty" },
-    { name = "watchdog" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "altair", specifier = ">=5" },
-    { name = "coverage" },
-    { name = "git-fame" },
-    { name = "httpx" },
-    { name = "humanize" },
-    { name = "jinja2" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "plotly" },
-    { name = "polars" },
-    { name = "psutil" },
-    { name = "pydeck" },
-    { name = "pytz" },
-    { name = "scipy" },
-    { name = "seaborn" },
-    { name = "streamlit", extras = ["starlette"], specifier = ">=1.53.0" },
-    { name = "streamlit-aggrid" },
-    { name = "streamlit-extras" },
-    { name = "streamlit-folium" },
-    { name = "streamlit-pdf" },
-    { name = "vega-datasets" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.15" },
-    { name = "pandas-stubs" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "ruff", specifier = ">=0.14.13" },
-    { name = "ty", specifier = ">=0.0.12" },
-    { name = "watchdog" },
 ]
 
 [[package]]

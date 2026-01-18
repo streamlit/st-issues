@@ -1,7 +1,7 @@
 [project]
-name = "streamlit-app"
+name = "st-issues"
 version = "0.1.0"
-description = "A modern Streamlit application"
+description = "Various tools to help with the Streamlit library development."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -35,6 +35,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+# =============================================================================
+# UV configuration
+# =============================================================================
+[tool.uv]
+default-groups = ["dev"]
 
 # =============================================================================
 # Development dependencies
