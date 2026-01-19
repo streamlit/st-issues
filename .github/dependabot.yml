@@ -7,7 +7,9 @@ updates:
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+
     open-pull-requests-limit: 3
 
     cooldown:
@@ -23,6 +25,9 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+
+    cooldown:
+      default-days: 5
 
     labels:
       - "dependencies"
