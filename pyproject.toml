@@ -85,7 +85,6 @@ ignore = [
   "FBT",
   # Ignored rules (sorted alphabetically):
   "ANN401",  # Allow Any type in annotations.
-  "B904",    # Allow raise without from in exception handlers.
   "COM812",  # Trailing comma missing. Not recommended with formatter.
   "COM819",  # Trailing comma prohibited. Not recommended with formatter.
   "D100",    # Missing docstring in public module.

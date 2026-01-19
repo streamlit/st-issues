@@ -57,7 +57,7 @@ async def upload_to_smokeshow(directory_path: Path) -> str:
             )
         except httpx.HTTPError as err:
             msg = f"Error creating ephemeral site {err}"
-            raise ValueError(msg)
+            raise ValueError(msg) from err
 
         if r.status_code != 200:
             msg = f"Error creating ephemeral site {r.status_code}, response:\n{r.text}"

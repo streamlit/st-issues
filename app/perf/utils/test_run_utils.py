@@ -39,6 +39,6 @@ def get_stable_test_name(filename: str) -> str:
         base_filename = base_filename.replace(".json", "")
 
         return base_filename
-    except IndexError:
+    except IndexError as err:
         msg = "Invalid filename format"
-        raise ValueError(msg)
+        raise ValueError(msg) from err
