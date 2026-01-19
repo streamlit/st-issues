@@ -83,43 +83,42 @@ ignore = [
   "CPY", # Checks for copyright statement.
   "DOC", # Checks for correct docstring format.
   "FBT",
-  # Ignored rules:
-  "ANN401",  # Checks that `any` is not used as an annotation.
-  "B904",    # Checks for raise statements in exception handlers that lack a from clause.
-  "COM812",  # Checks for absence of trailing commas. Not recommended with formatter.
-  "COM819",  # Checks for presence of prohibited trailing commas. Not recommended with formatter.
-  "D104",    # Checks for missing docstring in public package.
-  "D107",    # Checks for missing docstring in __init__.
-  "FIX002",  # Checks todo comments.
-  "FURB152", # Checks for math constants that could use math module.
-  "PD009",   # Checks for usage of pd.DataFrame.iat.
-  "PLC0415", # Enforces imports to be at the top-level of the file.
-  "PLC2701", # Checks for imports of private names.
-  "PLR0904", # Checks for classes with too many public methods.
-  "PLR0911", # Checks for functions with too many return statements.
-  "PLR0912", # Checks for functions with too many branches.
-  "PLR0913", # Checks for functions with too many arguments.
-  "PLR0914", # Checks for functions with too many local variables.
-  "PLR0915", # Checks for functions with too many statements.
-  "PLR0916", # Checks for too many boolean expressions in if statements.
-  "PLR0917", # Checks for functions with too many positional arguments.
-  "PLR1702", # Checks for functions with too many nested blocks.
-  "PLR2004", # Checks for numerical values that could be put into a constant.
-  "PLR6301", # Checks for methods that do not use self.
-  "RET504",  # Checks for assignments that immediately precede a return of the assigned variable (too opinionated).
-  "RUF052",  # Checks for dummy variables that are used.
-  "RUF067",  # Checks for non empty __init__ modules.
-  "SIM117",  # Enforces single with statement with multiple contexts.
-  "TD002",   # Checks for missing author in TODO comment.
-  "TD003",   # Checks for missing issue link in TODO comment.
-  "ERA001",  # Checks for commented out code.
-  "TRY300",
-  "E501",    # Line too long - ignore for user-facing strings, markdown, and help text.
-  "T201",
-  # To include:
-  "D103",
-  "D100",
-  "D101",
+  # Ignored rules (sorted alphabetically):
+  "ANN401",  # Allow Any type in annotations.
+  "B904",    # Allow raise without from in exception handlers.
+  "COM812",  # Trailing comma missing. Not recommended with formatter.
+  "COM819",  # Trailing comma prohibited. Not recommended with formatter.
+  "D100",    # Missing docstring in public module.
+  "D101",    # Missing docstring in public class.
+  "D103",    # Missing docstring in public function.
+  "D104",    # Missing docstring in public package.
+  "D107",    # Missing docstring in __init__.
+  "E501",    # Line too long. Ignored for user-facing strings and help text.
+  "ERA001",  # Commented out code.
+  "FIX002",  # Disallow TODO comments.
+  "FURB152", # Math constants should use math module.
+  "PD009",   # Use of pd.DataFrame.iat.
+  "PLC0415", # Imports not at top-level.
+  "PLC2701", # Import of private name.
+  "PLR0904", # Too many public methods.
+  "PLR0911", # Too many return statements.
+  "PLR0912", # Too many branches.
+  "PLR0913", # Too many arguments.
+  "PLR0914", # Too many local variables.
+  "PLR0915", # Too many statements.
+  "PLR0916", # Too many boolean expressions.
+  "PLR0917", # Too many positional arguments.
+  "PLR1702", # Too many nested blocks.
+  "PLR2004", # Magic value used in comparison.
+  "PLR6301", # Method could be function (no self usage).
+  "RET504",  # Unnecessary assignment before return.
+  "RUF052",  # Dummy variable accessed.
+  "RUF067",  # Non-empty __init__ module.
+  "SIM117",  # Multiple with statements should be combined.
+  "T201",    # Print statement found.
+  "TD002",   # Missing author in TODO.
+  "TD003",   # Missing issue link in TODO.
+  "TRY300",  # Consider else block instead of return in try.
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -141,6 +140,7 @@ extend-safe-fixes = ["TC002", "TC003"]
 known-first-party = ["app"]
 
 [tool.ruff.lint.pydocstyle]
+# Use the Google style for docstrings.
 convention = "google"
 
 [tool.ruff.lint.flake8-unused-arguments]
@@ -182,7 +182,7 @@ ignore_errors = true
 
 
 # =============================================================================
-# ty configuration (type checking - alternative to mypy)
+# ty configuration (type checking)
 # =============================================================================
 [tool.ty.src]
 # Only check the app directory, exclude archive and issues (example files)
