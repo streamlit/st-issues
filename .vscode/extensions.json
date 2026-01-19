@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "ms-python.mypy-type-checker",
+    "ms-python.python",
+    "ms-python.debugpy",
+    "charliermarsh.ruff",
+    "EditorConfig.EditorConfig",
+    "astral-sh.ty"
+  ]
+}

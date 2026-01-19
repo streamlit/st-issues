@@ -1,0 +1,73 @@
+{
+  // =============================================================================
+  // Python Language Server
+  // =============================================================================
+  // Use ty as the primary language server (completions, hover, go-to-definition)
+  // Disable the built-in Python language server to avoid conflicts
+  "python.languageServer": "None",
+  // Auto-activate virtual environment in terminal
+  "python.terminal.activateEnvInCurrentTerminal": true,
+
+  // =============================================================================
+  // ty Settings (Language Server + Type Checking)
+  // =============================================================================
+  // ty reads config from [tool.ty] in pyproject.toml automatically
+
+  // =============================================================================
+  // Ruff Settings (Linting + Formatting)
+  // =============================================================================
+  // Ruff reads config from [tool.ruff] in pyproject.toml automatically
+  "ruff.nativeServer": true,
+  "ruff.organizeImports": true,
+  "ruff.fixAll": true,
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+
+  // =============================================================================
+  // mypy Settings (Type Checking)
+  // =============================================================================
+  // mypy reads config from [tool.mypy] in pyproject.toml automatically
+  "mypy-type-checker.args": ["--config-file=${workspaceFolder}/pyproject.toml"],
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "mypy-type-checker.preferDaemon": false,
+
+  // =============================================================================
+  // Editor Settings
+  // =============================================================================
+  // Match line length from pyproject.toml
+  "editor.rulers": [120],
+  // Ensure clean file endings (works for all file types, not just Python)
+  "files.trimTrailingWhitespace": true,
+  "files.trimFinalNewlines": true,
+  "files.insertFinalNewline": true,
+  // Preserve trailing whitespace in Markdown (double-space = line break)
+  "[markdown]": {
+    "files.trimTrailingWhitespace": false
+  },
+
+  // =============================================================================
+  // File Exclusions
+  // =============================================================================
+  // Match the excludes from ruff config in pyproject.toml
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/.pytest_cache": true,
+  },
+  "search.exclude": {
+    "uv.lock": true
+  },
+
+  // =============================================================================
+  // Testing
+  // =============================================================================
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests"]
+}
