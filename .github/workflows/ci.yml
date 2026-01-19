@@ -1,0 +1,25 @@
+name: Run linting, type checking, and formatting checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run checks (make check)
+        run: make check
+
+      - name: Run pre-commit on all files
+        run: uv run pre-commit run --all-files
