@@ -1,17 +1,14 @@
-.PHONY: install app lint lint-fix format typecheck clean pre-commit pre-commit-install help
+.PHONY: install app check fix pre-commit clean help
 
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  make install           - Install dependencies"
-	@echo "  make app               - Run the Streamlit issue explorer"
-	@echo "  make lint              - Check code with ruff"
-	@echo "  make lint-fix          - Auto-fix linting issues"
-	@echo "  make format            - Format code with ruff"
-	@echo "  make typecheck         - Run mypy and ty type checking"
-	@echo "  make pre-commit        - Run all pre-commit hooks"
-	@echo "  make pre-commit-install - Install pre-commit git hooks"
-	@echo "  make clean             - Remove cache and build artifacts"
+	@echo "  make install    - Install dependencies and pre-commit hooks"
+	@echo "  make app        - Run the Streamlit app"
+	@echo "  make check      - Run linting, pre-commit, and type checking"
+	@echo "  make fix        - Auto-fix lint issues and format code"
+	@echo "  make pre-commit - Run all pre-commit hooks on all files"
+	@echo "  make clean      - Remove cache and build artifacts"
 
 install:
 	uv sync
