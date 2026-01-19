@@ -1,5 +1,5 @@
 [client]
-showErrorDetails = true
+showErrorDetails = "full"
 
 [logger]
 enableRich = true
