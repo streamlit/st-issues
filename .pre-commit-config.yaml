@@ -23,3 +23,6 @@ repos:
       - id: check-toml
       - id: check-added-large-files
       - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-case-conflict
+      - id: fix-byte-order-marker
