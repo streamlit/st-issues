@@ -23,18 +23,21 @@ pre-commit:
 app:
 	uv run streamlit run 🚧_Streamlit_Issue_Explorer.py
 
-lint:
-	uv run ruff check .
-
-lint-fix:
-	uv run ruff check --fix .
-
-format:
-	uv run ruff format .
-
-typecheck:
+check:
+	# Lint with ruff:
+	uv run ruff check
+	# Run pre-commit hooks on changed files:
+	uv run pre-commit run
+	# Type check with ty:
 	uv run ty check
+	# Type check with mypy:
 	uv run mypy
+
+fix:
+	# Apply lint fixes with ruff but dont fail:
+	uv run ruff check --fix
+	# Format code with ruff:
+	uv run ruff format
 
 clean:
 	rm -rf .venv __pycache__ .pytest_cache .mypy_cache .ruff_cache
