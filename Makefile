@@ -23,8 +23,8 @@ app:
 check:
 	# Lint with ruff:
 	uv run ruff check
-	# Run pre-commit hooks on changed files:
-	uv run pre-commit run
+	# Check formatting:
+	uv run ruff format --check
 	# Type check with ty:
 	uv run ty check
 	# Type check with mypy:
@@ -35,6 +35,8 @@ fix:
 	uv run ruff check --fix
 	# Format code with ruff:
 	uv run ruff format
+	# Run pre-commit hooks to apply fixes (ignore exit code):
+	uv run pre-commit run || true
 
 clean:
 	rm -rf .venv __pycache__ .pytest_cache .mypy_cache .ruff_cache
