@@ -48,7 +48,8 @@
   "files.insertFinalNewline": true,
   // Preserve trailing whitespace in Markdown (double-space = line break)
   "[markdown]": {
-    "files.trimTrailingWhitespace": false
+    "files.trimTrailingWhitespace": false,
+    "editor.wordWrap": "on"
   },
 
   // =============================================================================
@@ -60,6 +61,7 @@
     "**/.mypy_cache": true,
     "**/.ruff_cache": true,
     "**/.pytest_cache": true,
+    "**/.venv": true,
   },
   "search.exclude": {
     "uv.lock": true
