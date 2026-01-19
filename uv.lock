@@ -1966,12 +1966,12 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.15" },
+    { name = "mypy", specifier = "==1.19.1" },
     { name = "pandas-stubs" },
-    { name = "pre-commit", specifier = ">=4.0" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "ruff", specifier = ">=0.14.13" },
-    { name = "ty", specifier = ">=0.0.12" },
+    { name = "pre-commit", specifier = ">=4.5.1" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "ruff", specifier = "==0.14.13" },
+    { name = "ty", specifier = "==0.0.12" },
     { name = "watchdog" },
 ]
 
