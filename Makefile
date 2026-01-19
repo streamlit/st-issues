@@ -1,4 +1,4 @@
-.PHONY: install app check fix pre-commit clean help
+.PHONY: install app check fix clean help
 
 # Default target
 help:
@@ -7,15 +7,11 @@ help:
 	@echo "  make app        - Run the Streamlit app"
 	@echo "  make check      - Run linting, pre-commit, and type checking"
 	@echo "  make fix        - Auto-fix lint issues and format code"
-	@echo "  make pre-commit - Run all pre-commit hooks on all files"
 	@echo "  make clean      - Remove cache and build artifacts"
 
 install:
 	uv sync
 	uv run pre-commit install
-
-pre-commit:
-	uv run pre-commit run --all-files
 
 app:
 	uv run streamlit run 🚧_Streamlit_Issue_Explorer.py
@@ -23,7 +19,7 @@ app:
 check:
 	# Lint with ruff:
 	uv run ruff check
-	# Check formatting:
+	# Check formatting (run `make fix` if this fails):
 	uv run ruff format --check
 	# Type check with ty:
 	uv run ty check
@@ -32,9 +28,9 @@ check:
 
 fix:
 	# Apply lint fixes with ruff but dont fail:
-	uv run ruff check --fix
+	uv run ruff check --fix || true
 	# Format code with ruff:
-	uv run ruff format
+	uv run ruff format || true
 	# Run pre-commit hooks to apply fixes (ignore exit code):
 	uv run pre-commit run || true
 

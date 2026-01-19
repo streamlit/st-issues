@@ -26,6 +26,5 @@ Other available commands:
 make help       # Show all available commands
 make check      # Run linting, pre-commit, and type checking
 make fix        # Auto-fix lint issues and format code
-make pre-commit # Run all pre-commit hooks on all files
 make clean      # Remove cache and build artifacts
 ```
