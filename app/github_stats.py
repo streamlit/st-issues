@@ -362,6 +362,12 @@ if selected_metrics == "Contribution Metrics":
                 .reset_index(drop=True)
             )
 
+            # Add percentage of total
+            total_community_prs = len(community_prs_df)
+            community_reviewer_counts["% of Total"] = (
+                community_reviewer_counts["PRs Reviewed"] / total_community_prs * 100
+            ).round(1)
+
             # Add links
             community_reviewer_counts["Show PRs"] = community_reviewer_counts["reviewers"].apply(
                 lambda x: f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
@@ -374,6 +380,7 @@ if selected_metrics == "Contribution Metrics":
                 community_reviewer_counts.head(20),
                 column_config={
                     "reviewers": st.column_config.LinkColumn("GitHub User", display_text="github.com/([^/]+)"),
+                    "% of Total": st.column_config.NumberColumn(format="%.1f%%"),
                     "Show PRs": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
                 },
                 hide_index=True,

@@ -93,3 +93,6 @@ hs_err_pid*
 *.swo
 temp/*
 .DS_Store
+
+# Directory for temporary files (can be used by agents):
+work-tmp
