@@ -1143,14 +1143,57 @@ elif selected_metrics == "Team Productivity Metrics":
                 .rename(columns={"merge_month": "Date"})
             )
 
-            st.caption(f"Active contributors are users who have merged at least {min_prs} PRs in a given month.")
+            st.caption(
+                f"Active contributors are users who have merged at least {min_prs} PRs in a given month. "
+                "Click on a bar to see the contributors for that month."
+            )
             if not active_contributors_stats.empty:
                 fig_active = px.bar(
                     active_contributors_stats,
                     x="Date",
                     y="Active Contributors",
                 )
-                st.plotly_chart(fig_active, width="stretch")
+                active_chart_selection = st.plotly_chart(
+                    fig_active,
+                    use_container_width=True,
+                    on_select="rerun",
+                    key="active_contributors_chart",
+                )
+
+                # Show contributors when a bar is selected
+                if (
+                    active_chart_selection
+                    and active_chart_selection["selection"]
+                    and active_chart_selection["selection"]["point_indices"]
+                ):
+                    selected_active_idx = active_chart_selection["selection"]["point_indices"][0]
+                    selected_active_month = active_contributors_stats.iloc[selected_active_idx]["Date"]
+
+                    # Get contributors for the selected month
+                    month_active_contributors = active_authors_monthly[
+                        active_authors_monthly["merge_month"] == selected_active_month
+                    ].sort_values("pr_count", ascending=False)
+
+                    st.markdown(f"##### Active Contributors for {selected_active_month.strftime('%B %Y')}")
+
+                    # Create a dataframe with contributor details
+                    active_contributors_df = pd.DataFrame(
+                        {
+                            "Contributor": month_active_contributors["author"].apply(
+                                lambda x: f"https://github.com/{x}"
+                            ),
+                            "Merged PRs": month_active_contributors["pr_count"],
+                        }
+                    )
+
+                    st.dataframe(
+                        active_contributors_df,
+                        column_config={
+                            "Contributor": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
+                            "Merged PRs": st.column_config.NumberColumn(),
+                        },
+                        hide_index=True,
+                    )
             else:
                 st.info("No active contributors found for the selected period.")
 
