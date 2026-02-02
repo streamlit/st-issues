@@ -111,7 +111,10 @@ def reset_selection_on_page_change(page_key: str) -> None:
         return
 
     for key in list(st.session_state.keys()):
-        if key == SELECTION_SHA_KEY or key.startswith(PER_CHART_SELECTION_PREFIX):
+        if key == SELECTION_SHA_KEY:
+            st.session_state.pop(key, None)
+            continue
+        if isinstance(key, str) and key.startswith(PER_CHART_SELECTION_PREFIX):
             st.session_state.pop(key, None)
 
     st.session_state[SELECTION_PAGE_KEY] = page_key
