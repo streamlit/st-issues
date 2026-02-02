@@ -6,8 +6,16 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from app.perf import lighthouse_interpreting_results, lighthouse_writing_a_test
+from app.perf import (
+    lighthouse_interpreting_results,
+    lighthouse_writing_a_test,
+)
 from app.perf.utils.artifacts import get_artifact_results
+from app.perf.utils.commit_details import (
+    render_selected_commit_sidebar,
+    reset_selection_on_page_change,
+    update_selected_commit_from_selection,
+)
 from app.perf.utils.perf_github_artifacts import (
     append_to_performance_scores,
     get_commit_hashes_for_branch_name,
@@ -42,6 +50,9 @@ if token is None:
     st.error("No GitHub token provided")
     st.stop()
 
+reset_selection_on_page_change("perf_lighthouse_runs")
+render_selected_commit_sidebar()
+
 
 @st.cache_data(ttl=60 * 60 * 12)
 def get_commits(branch_name: str, limit: int = 20) -> list[str]:
@@ -56,31 +67,31 @@ def get_lighthouse_results(commit_hash: str) -> tuple:
 commit_hashes = get_commits("develop")
 
 directories: list[str] = []
-timestamps: list[str] = []
-scores_by_run: list[dict[str, float]] = []
+run_results: list[tuple[str, str, dict[str, float]]] = []
 
 # Download all the artifacts for the performance runs in parallel
 with concurrent.futures.ThreadPoolExecutor() as executor:
-    futures = [executor.submit(get_lighthouse_results, commit_hash) for commit_hash in commit_hashes]
-    for future in concurrent.futures.as_completed(futures):
-        result = future.result()
-
-        scores, timestamp = result
+    future_mapping = {
+        executor.submit(get_lighthouse_results, commit_hash): commit_hash for commit_hash in commit_hashes
+    }
+    for future in concurrent.futures.as_completed(future_mapping):
+        commit_hash = future_mapping[future]
+        scores, timestamp = future.result()
 
         if not scores or not timestamp:
             continue
 
-        scores_by_run.append(scores)
-        timestamps.append(timestamp)
+        run_results.append((timestamp, commit_hash, scores))
 
 # Guard: no data found
-if not scores_by_run:
+if not run_results:
     st.info("No Lighthouse artifacts found for the selected commits.")
     st.stop()
 
 # Sort scores and timestamps based on timestamps
-sorted_scores_timestamps = sorted(zip(scores_by_run, timestamps, strict=False), key=operator.itemgetter(1))
-scores_by_run_sorted, timestamps_sorted = zip(*sorted_scores_timestamps, strict=False)
+sorted_runs = sorted(run_results, key=operator.itemgetter(0))
+timestamps_sorted, commit_hashes_sorted, scores_by_run_sorted = zip(*sorted_runs, strict=False)
+commit_hash_by_timestamp = {timestamp: commit_hash for timestamp, commit_hash, _scores in sorted_runs}
 
 performance_scores: dict[str, dict] = {}
 
@@ -93,6 +104,7 @@ for idx, scores in enumerate(scores_by_run_sorted):
 data = []
 for datetime_str, apps in performance_scores.items():
     parsed_datetime = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
+    commit_hash = commit_hash_by_timestamp.get(datetime_str, "")
     for app_name, score in apps.items():
         if score is None:
             continue
@@ -102,6 +114,8 @@ for datetime_str, apps in performance_scores.items():
                 "datetime": parsed_datetime,
                 "app_name": app_name,
                 "score": score * 100,
+                "commit_hash": commit_hash[:7] if commit_hash else "",
+                "commit_sha_full": commit_hash,
             }
         )
 
@@ -131,7 +145,7 @@ chart = (
         ),
         y=alt.Y("score:Q", scale=alt.Scale(domain=[0, 100])),
         color="app_name:N",
-        tooltip=["datetime:T", "score:Q", "app_name:N"],
+        tooltip=["datetime:T", "score:Q", "app_name:N", "commit_hash:N"],
     )
     .properties(title="Lighthouse Scores Over Time")
 )
@@ -147,11 +161,17 @@ rolling_mean_line = (
         ),
         y=alt.Y("rolling_mean:Q"),
         color="app_name:N",
-        tooltip=["datetime:T", "rolling_mean:Q", "app_name:N"],
+        tooltip=["datetime:T", "rolling_mean:Q", "app_name:N", "commit_hash:N"],
     )
 )
 
-st.altair_chart(chart + rolling_mean_line, width="stretch")
+selection = st.altair_chart(
+    rolling_mean_line + chart,
+    width="stretch",
+    on_select="rerun",
+    selection_mode="points",
+)
+update_selected_commit_from_selection(selection, selection_key="lighthouse-runs")
 
 with st.expander("Raw Data"):
     st.dataframe(df)

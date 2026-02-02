@@ -11,6 +11,11 @@ from app.perf import (
     playwright_writing_a_test,
 )
 from app.perf.utils.artifacts import get_artifact_results
+from app.perf.utils.commit_details import (
+    render_selected_commit_sidebar,
+    reset_selection_on_page_change,
+    update_selected_commit_from_selection,
+)
 from app.perf.utils.help_text import get_help_text
 from app.perf.utils.perf_github_artifacts import (
     get_commit_hashes_for_branch_name,
@@ -49,6 +54,9 @@ token = st.secrets["github"]["token"]
 if token is None:
     st.error("No GitHub token provided")
     st.stop()
+
+reset_selection_on_page_change("perf_playwright_runs")
+render_selected_commit_sidebar()
 
 
 @st.cache_data(ttl=60 * 60 * 12)
@@ -204,6 +212,7 @@ for metric_name in filtered_test_names:
                         "index": directory_idx,  # No change needed - index now naturally goes from oldest to newest
                         "timestamp": timestamps_tuple[directory_idx],
                         "commit_hash": commit_hashes_tuple[directory_idx][:7],
+                        "commit_sha_full": commit_hashes_tuple[directory_idx],
                     }
                     for point in test_result
                 )
@@ -235,9 +244,10 @@ for metric_name in filtered_test_names:
                 "timestamp",
                 "commit_hash",
             ],  # Display commit hash in hover data
+            custom_data=["commit_sha_full"],
         )
         scatter_fig.update_traces(marker=dict(symbol="circle", opacity=0.6))
-        mean_df = df.groupby("index").agg({"value": "mean"}).reset_index()
+        mean_df = df.groupby("index").agg({"value": "mean", "commit_sha_full": "first"}).reset_index()
 
         if y_domain_includes_zero:
             data_min = min([min(df["value"]), 0])
@@ -252,18 +262,34 @@ for metric_name in filtered_test_names:
         y_min = data_min - range_padding
         y_max = data_max + range_padding
 
-        scatter_fig.update_layout(yaxis_range=[y_min, y_max])
+        scatter_fig.update_layout(yaxis_range=[y_min, y_max], clickmode="event+select")
 
         if show_mean_line:
-            line_fig = px.line(mean_df, x="index", y="value")
+            line_fig = px.line(mean_df, x="index", y="value", custom_data=["commit_sha_full"])
 
             for trace in line_fig.data:
                 scatter_fig.add_trace(trace)
 
         if show_boxplot:
-            boxplot_fig = px.box(df, x="index", y="value", title=display_metric_name)
+            boxplot_fig = px.box(df, x="index", y="value", title=display_metric_name, custom_data=["commit_sha_full"])
             for trace in boxplot_fig.data:
                 scatter_fig.add_trace(trace)
+
+        box_traces: list = []
+        line_traces: list = []
+        marker_traces: list = []
+        other_traces: list = []
+        for trace in scatter_fig.data:
+            mode = getattr(trace, "mode", "") or ""
+            if trace.type == "box":
+                box_traces.append(trace)
+            elif trace.type == "scatter" and "markers" in mode:
+                marker_traces.append(trace)
+            elif trace.type == "scatter" and "lines" in mode:
+                line_traces.append(trace)
+            else:
+                other_traces.append(trace)
+        scatter_fig.data = tuple(box_traces + line_traces + other_traces + marker_traces)
 
         # Use a fixed-width tile so the horizontal flex container can lay out
         # multiple charts per row and wrap naturally on smaller screens.
@@ -272,7 +298,14 @@ for metric_name in filtered_test_names:
             f"**{display_metric_name}**",
             # help=metric_help_text,
         )
-        tile.plotly_chart(scatter_fig, key=display_metric_name, width="stretch")
+        selection = tile.plotly_chart(
+            scatter_fig,
+            key=f"playwright-{metric_name}",
+            width="stretch",
+            on_select="rerun",
+            selection_mode="points",
+        )
+        update_selected_commit_from_selection(selection, selection_key=f"playwright-{metric_name}")
 
 
 st.divider()
