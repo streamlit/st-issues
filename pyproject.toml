@@ -5,7 +5,7 @@ description = "Various tools to help with the Streamlit library development."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-  "streamlit[starlette]>=1.53.0",
+  "streamlit[starlette,performance]>=1.53.0",
   "pandas",
   "numpy",
   "plotly",
