@@ -1149,7 +1149,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 for month_key in active_contributors_json:
                     active_contributors_json[month_key] = sorted(active_contributors_json[month_key])
 
-                with col2.popover(":material/data_object: JSON", width="large"):
+                with col2.popover(":material/data_object: JSON"):
                     st.json(active_contributors_json, expanded=True)
 
             st.caption(
