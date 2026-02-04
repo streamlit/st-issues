@@ -1128,26 +1128,44 @@ elif selected_metrics == "Team Productivity Metrics":
             with col1:
                 st.markdown(f"##### Monthly Active Contributors (>= {min_prs} Merged PRs)")
 
-            # Calculate Active Contributors
+            # Calculate Active Contributors first (needed for both the chart and the JSON export)
             # Group by month and author to count PRs
             author_monthly_prs = merged_prs_df.groupby(["merge_month", "author"]).size().reset_index(name="pr_count")
 
             # Filter for authors with >= min_prs in a month
             active_authors_monthly = author_monthly_prs[author_monthly_prs["pr_count"] >= min_prs]
 
-            # Count unique active authors per month
-            active_contributors_stats = (
-                active_authors_monthly.groupby("merge_month")["author"]
-                .nunique()
-                .reset_index(name="Active Contributors")
-                .rename(columns={"merge_month": "Date"})
-            )
+            # Build JSON for active contributors by month
+            if not active_authors_monthly.empty:
+                active_contributors_json = {}
+                for _, row_data in active_authors_monthly.iterrows():
+                    month_key = row_data["merge_month"].strftime("%Y-%m")
+                    if month_key not in active_contributors_json:
+                        active_contributors_json[month_key] = []
+                    active_contributors_json[month_key].append(row_data["author"])
+
+                # Sort by month (descending) and sort contributors within each month
+                active_contributors_json = dict(sorted(active_contributors_json.items(), reverse=True))
+                for month_key in active_contributors_json:
+                    active_contributors_json[month_key] = sorted(active_contributors_json[month_key])
+
+                with col2.popover(":material/data_object: JSON", width="large"):
+                    st.json(active_contributors_json, expanded=True)
 
             st.caption(
                 f"Active contributors are users who have merged at least {min_prs} PRs in a given month. "
                 "Click on a bar to see the contributors for that month."
             )
-            if not active_contributors_stats.empty:
+
+            if not active_authors_monthly.empty:
+                # Count unique active authors per month
+                active_contributors_stats = (
+                    active_authors_monthly.groupby("merge_month")["author"]
+                    .nunique()
+                    .reset_index(name="Active Contributors")
+                    .rename(columns={"merge_month": "Date"})
+                )
+
                 fig_active = px.bar(
                     active_contributors_stats,
                     x="Date",
