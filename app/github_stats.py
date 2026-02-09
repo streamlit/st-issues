@@ -1137,7 +1137,7 @@ elif selected_metrics == "Team Productivity Metrics":
 
             # Build JSON for active contributors by month
             if not active_authors_monthly.empty:
-                active_contributors_json = {}
+                active_contributors_json: dict[str, list[str]] = {}
                 for _, row_data in active_authors_monthly.iterrows():
                     month_key = row_data["merge_month"].strftime("%Y-%m")
                     if month_key not in active_contributors_json:
