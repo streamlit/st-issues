@@ -24,7 +24,7 @@ Other available commands:
 
 ```bash
 make help       # Show all available commands
-make check      # Run linting, pre-commit, and type checking
+make check      # Run linting and type checking
 make fix        # Auto-fix lint issues and format code
 make clean      # Remove cache and build artifacts
 ```

@@ -26,3 +26,19 @@ repos:
       - id: check-symlinks
       - id: check-case-conflict
       - id: fix-byte-order-marker
+
+  # Project-wide checks that should run on every commit
+  - repo: local
+    hooks:
+      - id: ty-check
+        name: ty (full app type check)
+        entry: uv run ty check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: mypy-check
+        name: mypy (full app type check)
+        entry: uv run mypy
+        language: system
+        pass_filenames: false
+        always_run: true

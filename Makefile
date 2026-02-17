@@ -11,7 +11,7 @@ help:
 
 install:
 	uv sync
-	uv run pre-commit install
+	uv run pre-commit install --hook-type pre-commit --install-hooks --overwrite
 
 app:
 	uv run streamlit run 🚧_Streamlit_Issue_Explorer.py
