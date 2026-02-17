@@ -147,6 +147,12 @@ def _request_json(
         return None, f"Failed to decode JSON from {url}: {exc!s}", response.status_code
 
 
+class _PartialDataError(Exception):
+    def __init__(self, message: str, partial_data: Any) -> None:
+        super().__init__(message)
+        self.partial_data = partial_data
+
+
 @st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False)
 def fetch_issue_payload(repo: str, issue_number: int | str) -> tuple[dict[str, Any] | None, str | None]:
     """Fetch issue payload and return (data, error_message)."""
@@ -163,8 +169,8 @@ def fetch_issue_payload(repo: str, issue_number: int | str) -> tuple[dict[str, A
 
 
 @st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False)
-def fetch_issue_comments_payload(repo: str, issue_number: int | str) -> tuple[list[dict[str, Any]], str | None]:
-    """Fetch all issue comments and return (comments, error_message)."""
+def _fetch_issue_comments_payload_cached(repo: str, issue_number: int | str) -> list[dict[str, Any]]:
+    """Fetch all issue comments, raising if a later page fails."""
     comments: list[dict[str, Any]] = []
     page = 1
 
@@ -176,9 +182,9 @@ def fetch_issue_comments_payload(repo: str, issue_number: int | str) -> tuple[li
             expected_statuses={200, 404},
         )
         if status == 404:
-            return comments, None
+            return comments
         if error:
-            return comments, error
+            raise _PartialDataError(error, comments)
 
         page_items = cast("list[dict[str, Any]]", payload)
         if not page_items:
@@ -188,12 +194,31 @@ def fetch_issue_comments_payload(repo: str, issue_number: int | str) -> tuple[li
             break
         page += 1
 
-    return comments, None
+    return comments
+
+
+def _fetch_issue_comments_payload(repo: str, issue_number: int | str) -> tuple[list[dict[str, Any]], str | None]:
+    """Fetch all issue comments and return (comments, error_message)."""
+    try:
+        return _fetch_issue_comments_payload_cached(repo, issue_number), None
+    except _PartialDataError as exc:
+        return cast("list[dict[str, Any]]", exc.partial_data), str(exc)
+
+
+class _IssueCommentsPayloadFetcher:
+    def __call__(self, repo: str, issue_number: int | str) -> tuple[list[dict[str, Any]], str | None]:
+        return _fetch_issue_comments_payload(repo, issue_number)
+
+    def clear(self) -> None:
+        _fetch_issue_comments_payload_cached.clear()
+
+
+fetch_issue_comments_payload = _IssueCommentsPayloadFetcher()
 
 
 @st.cache_data(ttl=60 * 60, max_entries=1024, show_spinner=False)
-def fetch_issue_reactions(repo: str, issue_number: int) -> tuple[list[dict[str, Any]], str | None]:
-    """Fetch all issue reactions and return (reactions, error_message)."""
+def _fetch_issue_reactions_cached(repo: str, issue_number: int) -> list[dict[str, Any]]:
+    """Fetch all issue reactions, raising if a later page fails."""
     reactions: list[dict[str, Any]] = []
     page = 1
 
@@ -205,9 +230,9 @@ def fetch_issue_reactions(repo: str, issue_number: int) -> tuple[list[dict[str, 
             expected_statuses={200, 404},
         )
         if status == 404:
-            return reactions, None
+            return reactions
         if error:
-            return reactions, error
+            raise _PartialDataError(error, reactions)
 
         page_items = cast("list[dict[str, Any]]", payload)
         if not page_items:
@@ -217,7 +242,26 @@ def fetch_issue_reactions(repo: str, issue_number: int) -> tuple[list[dict[str, 
             break
         page += 1
 
-    return reactions, None
+    return reactions
+
+
+def _fetch_issue_reactions(repo: str, issue_number: int) -> tuple[list[dict[str, Any]], str | None]:
+    """Fetch all issue reactions and return (reactions, error_message)."""
+    try:
+        return _fetch_issue_reactions_cached(repo, issue_number), None
+    except _PartialDataError as exc:
+        return cast("list[dict[str, Any]]", exc.partial_data), str(exc)
+
+
+class _IssueReactionsFetcher:
+    def __call__(self, repo: str, issue_number: int) -> tuple[list[dict[str, Any]], str | None]:
+        return _fetch_issue_reactions(repo, issue_number)
+
+    def clear(self) -> None:
+        _fetch_issue_reactions_cached.clear()
+
+
+fetch_issue_reactions = _IssueReactionsFetcher()
 
 
 @st.cache_data(ttl=60 * 60, max_entries=2048, show_spinner=False)
@@ -267,8 +311,8 @@ def fetch_pull_request_payload(repo: str, pr_number: int) -> tuple[dict[str, Any
 
 
 @st.cache_data(ttl=300, max_entries=256, show_spinner=False)
-def fetch_pull_request_files_payload(repo: str, pr_number: int) -> tuple[list[dict[str, Any]], str | None]:
-    """Fetch all changed files for a pull request."""
+def _fetch_pull_request_files_payload_cached(repo: str, pr_number: int) -> list[dict[str, Any]]:
+    """Fetch all changed files for a pull request, raising on later-page failures."""
     files: list[dict[str, Any]] = []
     page = 1
 
@@ -280,9 +324,9 @@ def fetch_pull_request_files_payload(repo: str, pr_number: int) -> tuple[list[di
             expected_statuses={200, 404},
         )
         if status == 404:
-            return files, None
+            return files
         if error:
-            return files, error
+            raise _PartialDataError(error, files)
 
         page_items = cast("list[dict[str, Any]]", payload)
         if not page_items:
@@ -292,7 +336,18 @@ def fetch_pull_request_files_payload(repo: str, pr_number: int) -> tuple[list[di
             break
         page += 1
 
-    return files, None
+    return files
+
+
+def fetch_pull_request_files_payload(repo: str, pr_number: int) -> tuple[list[dict[str, Any]], str | None]:
+    """Fetch all changed files for a pull request."""
+    try:
+        return _fetch_pull_request_files_payload_cached(repo, pr_number), None
+    except _PartialDataError as exc:
+        return cast("list[dict[str, Any]]", exc.partial_data), str(exc)
+
+
+fetch_pull_request_files_payload.clear = _fetch_pull_request_files_payload_cached.clear  # type: ignore[attr-defined]
 
 
 @st.cache_data(ttl=300, max_entries=256, show_spinner=False)
@@ -320,11 +375,11 @@ def fetch_repo_file_text_at_ref(repo: str, path: str, ref: str) -> tuple[str | N
 
 
 @st.cache_data(ttl=60 * 60 * 12, max_entries=128, show_spinner=False)
-def fetch_issue_view_counts(issue_numbers: tuple[int, ...]) -> tuple[dict[int, int | None], str | None]:
-    """Fetch view counts from views-badge.org in batches."""
+def _fetch_issue_view_counts_cached(issue_numbers: tuple[int, ...]) -> dict[int, int | None]:
+    """Fetch view counts from views-badge.org in batches, raising on any batch failure."""
     unique_issues = sorted(set(issue_numbers))
     if not unique_issues:
-        return {}, None
+        return {}
 
     view_counts: dict[int, int | None] = {}
     batch_size = 100
@@ -362,6 +417,11 @@ def fetch_issue_view_counts(issue_numbers: tuple[int, ...]) -> tuple[dict[int, i
         except ValueError as exc:
             errors.append(f"Failed to decode issue views response for batch starting at issue #{batch[0]}: {exc!s}")
             continue
+        if not isinstance(data, dict):
+            errors.append(
+                f"Unexpected issue views payload type for batch starting at issue #{batch[0]}: {type(data).__name__}"
+            )
+            continue
 
         for key, value in data.items():
             with contextlib.suppress(ValueError):
@@ -370,9 +430,28 @@ def fetch_issue_view_counts(issue_numbers: tuple[int, ...]) -> tuple[dict[int, i
                 view_counts[issue_num] = int(views) if isinstance(views, int) else None
 
     if errors:
-        return view_counts, " ; ".join(errors)
+        raise _PartialDataError(" ; ".join(errors), view_counts)
 
-    return view_counts, None
+    return view_counts
+
+
+def _fetch_issue_view_counts(issue_numbers: tuple[int, ...]) -> tuple[dict[int, int | None], str | None]:
+    """Fetch view counts from views-badge.org in batches."""
+    try:
+        return _fetch_issue_view_counts_cached(issue_numbers), None
+    except _PartialDataError as exc:
+        return cast("dict[int, int | None]", exc.partial_data), str(exc)
+
+
+class _IssueViewCountsFetcher:
+    def __call__(self, issue_numbers: tuple[int, ...]) -> tuple[dict[int, int | None], str | None]:
+        return _fetch_issue_view_counts(issue_numbers)
+
+    def clear(self) -> None:
+        _fetch_issue_view_counts_cached.clear()
+
+
+fetch_issue_view_counts = _IssueViewCountsFetcher()
 
 
 @st.cache_data(ttl=60 * 5)  # cache for 5 minutes
