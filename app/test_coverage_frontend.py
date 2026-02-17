@@ -21,7 +21,7 @@ from app.utils.github_utils import (
 from app.utils.smokeshow import extract_and_upload_coverage_report
 
 # Set page configuration
-st.set_page_config(page_title="Code Coverage (Frontend)", page_icon="☂️", layout="wide")
+st.set_page_config(page_title="Frontend test coverage", page_icon="☂️", layout="wide")
 
 # GitHub API configuration is now imported
 
@@ -74,7 +74,7 @@ pr_number = query_params.get("pr")
 # Page title and description
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("☂️ Test Coverage (Frontend)")
+    st.title("☂️ Frontend test coverage")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
 if pr_number is not None:

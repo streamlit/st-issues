@@ -25,13 +25,13 @@ from app.perf.utils.test_diff_analyzer import (
     find_and_remove_outliers,
 )
 
-TITLE = "Streamlit Performance - Playwright"
+TITLE = "Playwright performance"
 
 st.set_page_config(page_title=TITLE, layout="wide")
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🎭 Performance - Playwright")
+    st.title("🎭 Playwright performance")
 
 tab = segmented_tabs(
     options=["Runs", "Interpret metrics", "Write a test", "Explorer"],

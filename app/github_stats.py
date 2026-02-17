@@ -19,6 +19,8 @@ from app.utils.github_utils import (
 # Define the repo URL
 GITHUB_REPO = "streamlit/streamlit"
 
+st.set_page_config(page_title="GitHub stats", page_icon="📊", layout="wide")
+
 REACTION_EMOJI = {
     "+1": "👍",
     "-1": "👎",
@@ -97,7 +99,7 @@ def fetch_pr_metrics(merged_since: date) -> pd.DataFrame:
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("📊 GitHub Stats")
+    st.title("📊 GitHub stats")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_git_fame_stats.clear()
         fetch_pr_metrics.clear()

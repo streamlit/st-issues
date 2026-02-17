@@ -1,6 +1,6 @@
 import streamlit as st
 
-TITLE = "Interpreting Lighthouse Results"
+TITLE = "Interpreting Lighthouse results"
 
 DOCS_1 = """
 ## What is Lighthouse?
@@ -72,8 +72,8 @@ def render_interpreting_results() -> None:
 
 
 def _standalone() -> None:
-    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
-    st.header(f"Streamlit Performance - {TITLE}")
+    st.set_page_config(page_title=TITLE)
+    st.header(TITLE)
     render_interpreting_results()
 
 

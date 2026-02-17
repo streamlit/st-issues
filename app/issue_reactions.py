@@ -14,13 +14,13 @@ PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
 PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 
 st.set_page_config(
-    page_title="Issue Reactions",
+    page_title="Issue reactions",
     page_icon="👍",
 )
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🫶 Issue Reactions")
+    st.title("🫶 Issue reactions")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_all_github_issues.clear()
 st.caption("This page analyzes user reactions on Github issues (emoji reaction or comment).")

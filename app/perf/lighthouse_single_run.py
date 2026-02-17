@@ -7,7 +7,7 @@ import streamlit as st
 from app.perf.utils.perf_github_artifacts import process_artifact
 from app.utils.github_utils import fetch_artifacts
 
-TITLE = "Streamlit Performance - Single Lighthouse Run"
+TITLE = "Lighthouse single run"
 
 
 st.set_page_config(page_title=TITLE)

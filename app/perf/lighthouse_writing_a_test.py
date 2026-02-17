@@ -1,6 +1,6 @@
 import streamlit as st
 
-TITLE = "Writing a Lighthouse Test"
+TITLE = "Writing a Lighthouse test"
 
 DOCS = """
 ## Existing Tests
@@ -31,8 +31,8 @@ def render_writing_a_test() -> None:
 
 
 def _standalone() -> None:
-    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
-    st.header(f"Streamlit Performance - {TITLE}")
+    st.set_page_config(page_title=TITLE)
+    st.header(TITLE)
     render_writing_a_test()
 
 

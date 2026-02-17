@@ -1,6 +1,6 @@
 import streamlit as st
 
-TITLE = "Writing a Pytest Benchmark Test"
+TITLE = "Writing a Pytest benchmark test"
 
 DOCS = """
 ## When to Use a Pytest Benchmark Test
@@ -59,8 +59,8 @@ def render_writing_a_test() -> None:
 
 
 def _standalone() -> None:
-    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
-    st.header(f"Streamlit Performance - {TITLE}")
+    st.set_page_config(page_title=TITLE)
+    st.header(TITLE)
     render_writing_a_test()
 
 

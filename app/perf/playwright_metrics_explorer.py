@@ -12,7 +12,7 @@ from app.perf.utils.perf_traces import (
     sum_long_animation_frames,
 )
 
-TITLE = "Playwright Metrics Explorer"
+TITLE = "Playwright metrics explorer"
 
 DOCS = """
 Every Performance job in CI, and any run of a performance job locally outputs json file artifacts that contain the captured traces from the Playwright run. This tool allows you to upload one of these json files and visualize the captured traces in a Gantt chart as well as understand the meaning of the key metrics.
@@ -195,8 +195,8 @@ information.
 
 
 def _standalone() -> None:
-    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}", layout="wide")
-    st.header(f"Streamlit Performance - {TITLE}")
+    st.set_page_config(page_title=TITLE, layout="wide")
+    st.header(TITLE)
     render_metrics_explorer()
 
 

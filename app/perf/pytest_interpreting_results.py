@@ -1,6 +1,6 @@
 import streamlit as st
 
-TITLE = "Interpreting Pytest Benchmark Results"
+TITLE = "Interpreting Pytest benchmark results"
 
 DOCS = """
 ### How `pytest-benchmark` Works
@@ -32,8 +32,8 @@ def render_interpreting_results() -> None:
 
 
 def _standalone() -> None:
-    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
-    st.header(f"Streamlit Performance - {TITLE}")
+    st.set_page_config(page_title=TITLE)
+    st.header(TITLE)
     render_interpreting_results()
 
 

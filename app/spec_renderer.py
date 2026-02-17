@@ -5,6 +5,8 @@ import streamlit as st
 
 from app.utils.github_utils import get_all_github_prs, get_headers
 
+st.set_page_config(page_title="Spec renderer", page_icon="🔧")
+
 
 def fetch_open_prs() -> list[dict]:
     """Fetch open PRs from streamlit/streamlit repo."""
@@ -322,7 +324,7 @@ def extract_title_and_content(markdown_content: str) -> tuple[str | None, str]:
 def main() -> None:
     title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
     with title_row:
-        st.title("🔧 Spec Renderer")
+        st.title("🔧 Spec renderer")
         if st.button(":material/refresh: Refresh Data", type="tertiary"):
             get_all_github_prs.clear(state="open")
     st.markdown("Read product specs from the Streamlit repo. So far only supports PRs, not merged specs.")

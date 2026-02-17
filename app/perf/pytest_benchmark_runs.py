@@ -19,13 +19,13 @@ from app.perf.utils.perf_github_artifacts import get_commit_hashes_for_branch_na
 from app.perf.utils.pytest_types import BenchmarkStats, OutputJson
 from app.perf.utils.tab_nav import segmented_tabs
 
-TITLE = "Streamlit Performance - Pytest"
+TITLE = "Pytest performance"
 
 st.set_page_config(page_title=TITLE, layout="wide")
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🧪 Performance - Pytest")
+    st.title("🧪 Pytest performance")
 
 tab = segmented_tabs(
     options=["Runs", "Interpret metrics", "Write a test"],

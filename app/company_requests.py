@@ -9,11 +9,11 @@ import streamlit as st
 from app.utils.github_utils import get_headers, get_issue_comments, get_issue_data
 
 st.set_page_config(
-    page_title="Company Requests",
+    page_title="Company requests",
     page_icon="🏢",
 )
 
-st.title("🏢 Company Requests")
+st.title("🏢 Company requests")
 st.caption("Analyze which companies engaged with a GitHub issue through reactions and comments.")
 
 # Input field

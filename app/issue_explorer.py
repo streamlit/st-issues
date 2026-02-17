@@ -7,8 +7,8 @@ import streamlit.components.v1 as components
 
 from app.utils.github_utils import get_issue_data
 
-st.set_page_config(page_title="Streamlit Issue", page_icon="🚧")
-st.title("🚧 Streamlit Issues")
+st.set_page_config(page_title="Issue explorer", page_icon="🚧")
+st.title("🚧 Issue explorer")
 
 st.caption(
     f"""

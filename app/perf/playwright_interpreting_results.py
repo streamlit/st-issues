@@ -2,7 +2,7 @@ import streamlit as st
 
 from app.perf.utils.docs import METRIC_DEFINITIONS
 
-TITLE = "Interpreting Playwright Performance Results"
+TITLE = "Interpreting Playwright performance results"
 
 DOCS = f"""
 While the infrastructure for writing these tests aims to be as simple as
@@ -44,8 +44,8 @@ def render_interpreting_results() -> None:
 
 
 def _standalone() -> None:
-    st.set_page_config(page_title=f"Streamlit Performance - {TITLE}")
-    st.header(f"Streamlit Performance - {TITLE}")
+    st.set_page_config(page_title=TITLE)
+    st.header(TITLE)
     render_interpreting_results()
 
 

@@ -3,7 +3,7 @@ import streamlit as st
 from app.perf.utils.perf_github_artifacts import get_workflow_run_id
 from app.utils.github_utils import get_all_github_prs
 
-TITLE = "Streamlit Performance - Open PRs"
+TITLE = "Lighthouse open PRs"
 
 st.set_page_config(page_title=TITLE)
 

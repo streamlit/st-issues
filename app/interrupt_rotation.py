@@ -21,10 +21,10 @@ from app.utils.interrupt_data import (
 )
 
 # Set page configuration
-st.set_page_config(page_title="Interrupt Rotation - Dashboard", page_icon="🩺", layout="wide")
+st.set_page_config(page_title="Interrupt rotation", page_icon="🩺", layout="wide")
 
 # Main app
-st.title("🩺 Interrupt Rotation - Dashboard")
+st.title("🩺 Interrupt rotation")
 st.caption("This dashboard provides an overview of repository health and areas that require attention.")
 
 st.session_state.setdefault("interrupt_refresh_nonce", 0)

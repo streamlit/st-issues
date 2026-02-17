@@ -9,7 +9,7 @@ from app.perf.utils.perf_traces import (
     sum_long_animation_frames,
 )
 
-TITLE = "Streamlit Performance - Playwright Metrics Comparison"
+TITLE = "Playwright metrics comparison"
 
 st.set_page_config(page_title=TITLE)
 

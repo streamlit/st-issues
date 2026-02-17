@@ -22,13 +22,13 @@ from app.perf.utils.perf_github_artifacts import (
 )
 from app.perf.utils.tab_nav import segmented_tabs
 
-TITLE = "Streamlit Performance - Lighthouse"
+TITLE = "Lighthouse performance"
 
 st.set_page_config(page_title=TITLE)
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("💡 Performance - Lighthouse")
+    st.title("💡 Lighthouse performance")
 
 tab = segmented_tabs(
     options=["Runs", "Interpret metrics", "Write a test"],

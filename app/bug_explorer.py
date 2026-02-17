@@ -8,11 +8,11 @@ import streamlit as st
 
 from app.utils.github_utils import get_all_github_issues
 
-st.set_page_config(page_title="Bug Prioritization", page_icon="🐛", layout="wide")
+st.set_page_config(page_title="Bug prioritization", page_icon="🐛", layout="wide")
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🐛 Bug Prioritization")
+    st.title("🐛 Bug prioritization")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_all_github_issues.clear()
 

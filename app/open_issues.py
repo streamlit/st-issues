@@ -17,10 +17,11 @@ PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
 PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 
 st.set_page_config(
-    page_title="Open Issues",
+    page_title="Open issues",
     page_icon="🗃",
     initial_sidebar_state="collapsed",
 )
+st.title("🗃 Open issues")
 
 
 GROWTH_PERIODS = {
