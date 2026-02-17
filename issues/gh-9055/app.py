@@ -42,7 +42,7 @@ st.header('...')
 st.dataframe(pd.DataFrame())  # uncommenting this line causes view to jump when interacting with chart
 
 st.altair_chart(chart,
-                theme=None, 
-                on_select=update_table, 
-                key='chart_events', 
+                theme=None,
+                on_select=update_table,
+                key='chart_events',
                 use_container_width=False)

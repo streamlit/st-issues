@@ -8,9 +8,9 @@ df = pd.DataFrame({
 })
 
 styled_df = df.style.set_properties(**{
-    "background-color": "white", 
-    "color": "black", 
-    "border-color": "black", 
+    "background-color": "white",
+    "color": "black",
+    "border-color": "black",
     'text-align': 'center'
 })
 
