@@ -272,14 +272,16 @@ def load_issue_data() -> bool:
         return False
 
 
-@st.cache_data(ttl=60 * 60 * 24)  # cache for 24 hours
+@st.cache_data(ttl=60 * 15, max_entries=24)  # cache for 15 minutes
 def get_all_github_issues(
     state: Literal["open", "closed", "all"] = "all",
+    refresh_nonce: int = 0,
 ) -> list[dict[str, Any]]:
     """Paginate through all issues in the streamlit/streamlit repo.
 
     Returns all issues as a list of dicts.
     """
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     issues = []
     state_param = f"state={state}" if state else ""
     url: str | None = f"https://api.github.com/repos/streamlit/streamlit/issues?{state_param}&per_page=100"
@@ -316,14 +318,16 @@ def get_all_github_issues(
     return issues
 
 
-@st.cache_data(ttl=60 * 60 * 24)  # cache for 24 hours
+@st.cache_data(ttl=60 * 15, max_entries=24)  # cache for 15 minutes
 def get_all_github_prs(
     state: Literal["open", "closed", "all"] = "all",
+    refresh_nonce: int = 0,
 ) -> list[dict[str, Any]]:
     """Paginate through all PRs in the streamlit/streamlit repo.
 
     Returns all PRs as a list of dicts.
     """
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     prs = []
     state_param = f"state={state}" if state else ""
     url: str | None = f"https://api.github.com/repos/streamlit/streamlit/pulls?{state_param}&per_page=100"
@@ -419,7 +423,7 @@ def fetch_workflow_runs(
     return all_runs[:limit]
 
 
-@st.cache_data(show_spinner="Fetching artifacts...")
+@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner="Fetching artifacts...")
 def fetch_artifacts(run_id: int) -> list[dict[str, Any]]:
     """Fetch artifacts for a specific workflow run."""
     try:
@@ -439,7 +443,7 @@ def fetch_artifacts(run_id: int) -> list[dict[str, Any]]:
         return []
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False)
 def download_artifact(artifact_url: str) -> bytes | None:
     """Download an artifact from GitHub Actions."""
     try:
@@ -578,7 +582,7 @@ def fetch_workflow_runs_for_commit(commit_sha: str, workflow_name: str) -> list[
         return []
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False)
 def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
     annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-runs/{check_run_id}/annotations"
     response = requests.get(annotations_url, headers=get_headers(), timeout=30)
@@ -589,7 +593,7 @@ def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
     return []
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False)
 def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
     annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-suites/{check_suite_id}/check-runs"
     response = requests.get(annotations_url, headers=get_headers(), timeout=30)

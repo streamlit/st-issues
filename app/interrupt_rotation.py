@@ -8,26 +8,15 @@ import streamlit as st
 from app.utils.ai.agent_dialog import show_agent_prompt_dialog
 from app.utils.github_utils import (
     EXPECTED_FLAKY_TESTS,
-    get_all_github_issues,
-    get_all_github_prs,
     parse_github_url,
     validate_issue_number,
 )
 from app.utils.interrupt_data import (
+    build_interrupt_action_items,
     get_bundle_size_metrics,
-    get_community_prs_ready_for_review,
-    get_confirmed_bugs_without_repro_script,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
-    get_issue_waiting_for_team_response,
-    get_missing_labels_issues,
-    get_missing_labels_prs,
-    get_needs_triage_issues,
-    get_open_dependabot_prs,
-    get_p0_p1_bugs,
-    get_prs_needing_product_approval,
     get_python_test_coverage_metrics,
-    get_unprioritized_bugs,
     get_wheel_size_metrics,
 )
 
@@ -38,15 +27,20 @@ st.set_page_config(page_title="Interrupt Rotation - Dashboard", page_icon="🩺"
 st.title("🩺 Interrupt Rotation - Dashboard")
 st.caption("This dashboard provides an overview of repository health and areas that require attention.")
 
+st.session_state.setdefault("interrupt_refresh_nonce", 0)
+
 timeframe = st.sidebar.selectbox(
     "Select timeframe",
     ("Last 7 days", "Last 14 days"),
     index=0,
 )
 if st.sidebar.button(":material/refresh: Refresh data", width="stretch"):
-    # Refresh issue and PR data:
-    get_all_github_issues.clear()
-    get_all_github_prs.clear()
+    st.session_state.interrupt_refresh_nonce += 1
+show_ci_sections = st.sidebar.toggle(
+    "Load CI metrics and flaky tests",
+    value=False,
+    help="Enable this when you need coverage, bundle, wheel, and flaky-test sections. Can be a slow query, so it's disabled by default.",
+)
 
 # Agent Prompt Generation Section
 st.sidebar.divider()
@@ -102,65 +96,89 @@ if submitted and manual_issue_number:
 
 days = 14 if timeframe == "Last 14 days" else 7
 since = date.today() - timedelta(days=days)
+refresh_nonce = st.session_state.interrupt_refresh_nonce
+action_items = build_interrupt_action_items(
+    since_date=since,
+    refresh_nonce=refresh_nonce,
+)
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    py_coverage, py_coverage_change = get_python_test_coverage_metrics(since)
-    st.metric(
-        "Python Test Coverage",
-        f"{py_coverage:.2f}%",
-        f"{py_coverage_change:+.2f}%",
-        delta_color="normal",
-        border=True,
-        help="Percentage of lines covered by tests in the Python codebase.",
-    )
-with col2:
-    fe_coverage, fe_coverage_change = get_frontend_test_coverage_metrics(since)
-    st.metric(
-        "Frontend Test Coverage",
-        f"{fe_coverage:.2f}%",
-        f"{fe_coverage_change:+.2f}%",
-        delta_color="normal",
-        border=True,
-        help="Percentage of lines covered by tests in the Frontend codebase.",
-    )
-with col3:
-    wheel_size, wheel_size_change = get_wheel_size_metrics(since)
-    st.metric(
-        "Wheel Size",
-        humanize.naturalsize(wheel_size, binary=True),
-        humanize.naturalsize(wheel_size_change, binary=True),
-        delta_color="inverse",
-        border=True,
-        help="Size of the Streamlit Python package (wheel file).",
-    )
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    (
-        total_gzip,
-        total_gzip_change,
-        entry_gzip,
-        entry_gzip_change,
-    ) = get_bundle_size_metrics(since)
+@st.fragment
+def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None:
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        py_coverage, py_coverage_change = get_python_test_coverage_metrics(
+            selected_since,
+            refresh_nonce=selected_refresh_nonce,
+        )
+        st.metric(
+            "Python Test Coverage",
+            f"{py_coverage:.2f}%",
+            f"{py_coverage_change:+.2f}%",
+            delta_color="normal",
+            border=True,
+            help="Percentage of lines covered by tests in the Python codebase.",
+        )
+    with col2:
+        fe_coverage, fe_coverage_change = get_frontend_test_coverage_metrics(
+            selected_since,
+            refresh_nonce=selected_refresh_nonce,
+        )
+        st.metric(
+            "Frontend Test Coverage",
+            f"{fe_coverage:.2f}%",
+            f"{fe_coverage_change:+.2f}%",
+            delta_color="normal",
+            border=True,
+            help="Percentage of lines covered by tests in the Frontend codebase.",
+        )
+    with col3:
+        wheel_size, wheel_size_change = get_wheel_size_metrics(
+            selected_since,
+            refresh_nonce=selected_refresh_nonce,
+        )
+        st.metric(
+            "Wheel Size",
+            humanize.naturalsize(wheel_size, binary=True),
+            humanize.naturalsize(wheel_size_change, binary=True),
+            delta_color="inverse",
+            border=True,
+            help="Size of the Streamlit Python package (wheel file).",
+        )
 
-    st.metric(
-        "Total Bundle (gzip)",
-        humanize.naturalsize(total_gzip, binary=True),
-        humanize.naturalsize(total_gzip_change, binary=True),
-        delta_color="inverse",
-        border=True,
-        help="Total size of all JavaScript files after Gzip compression.",
-    )
-with col2:
-    st.metric(
-        "Entry Bundle (gzip)",
-        humanize.naturalsize(entry_gzip, binary=True),
-        humanize.naturalsize(entry_gzip_change, binary=True),
-        delta_color="inverse",
-        border=True,
-        help="Size of the entry point chunks (initial load) after Gzip compression.",
-    )
+    col1, col2, _ = st.columns(3)
+    with col1:
+        (
+            total_gzip,
+            total_gzip_change,
+            entry_gzip,
+            entry_gzip_change,
+        ) = get_bundle_size_metrics(
+            selected_since,
+            refresh_nonce=selected_refresh_nonce,
+        )
+
+        st.metric(
+            "Total Bundle (gzip)",
+            humanize.naturalsize(total_gzip, binary=True),
+            humanize.naturalsize(total_gzip_change, binary=True),
+            delta_color="inverse",
+            border=True,
+            help="Total size of all JavaScript files after Gzip compression.",
+        )
+    with col2:
+        st.metric(
+            "Entry Bundle (gzip)",
+            humanize.naturalsize(entry_gzip, binary=True),
+            humanize.naturalsize(entry_gzip_change, binary=True),
+            delta_color="inverse",
+            border=True,
+            help="Size of the entry point chunks (initial load) after Gzip compression.",
+        )
+
+
+if show_ci_sections:
+    render_ci_metrics(since, refresh_nonce)
 
 with st.expander("**🔄 Helpful Processes**"):
     st.markdown("""
@@ -199,7 +217,7 @@ To triage an issue, you need to try to reproduce the issue.
 3. Respond in a comment thanking the user for filing their issue, let them know that it is intended behavior, and close the issue.
 """,
 )
-needs_triage_df = get_needs_triage_issues()
+needs_triage_df = action_items["needs_triage"]
 if needs_triage_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
@@ -220,7 +238,7 @@ st.subheader(
     "Issues missing feature label",
     help="Every issue is expected to have atleast one `feature:{the_feature}` or `area:{the_area}` label.",
 )
-missing_labels_df = get_missing_labels_issues()
+missing_labels_df = action_items["missing_labels_issues"]
 if missing_labels_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
@@ -282,7 +300,7 @@ Every confirmed bug is expected to be labled with a `priority:P{0,1,2,3,4}` labe
 **Action:** It can be fixed opportunistically but should not be especially prioritized by core engineers. We may also accept an outside contribution, or fix it as a papercut.
 """,
 )
-unprioritized_bugs_df = get_unprioritized_bugs()
+unprioritized_bugs_df = action_items["unprioritized_bugs"]
 if unprioritized_bugs_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
@@ -306,7 +324,7 @@ Lists high-priority bugs that require immediate attention.
 Please make sure that those bugs are assigned and are being worked on.
 """,
 )
-p0_p1_bugs_df = get_p0_p1_bugs()
+p0_p1_bugs_df = action_items["p0_p1_bugs"].copy()
 if p0_p1_bugs_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
@@ -334,7 +352,7 @@ st.subheader(
     "Community PRs missing labels",
     help="Every community PR is expected to be labeled with a `change:*` and `impact:*` label.",
 )
-missing_labels_prs_df = get_missing_labels_prs()
+missing_labels_prs_df = action_items["missing_labels_prs"]
 if missing_labels_prs_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
@@ -360,7 +378,7 @@ Feature PRs from community (`change:feature` and `impact:users`) need to be labe
 - `do-not-merge`: PRs that should not be merged.
 """,
 )
-prs_needing_approval_df = get_prs_needing_product_approval()
+prs_needing_approval_df = action_items["prs_needing_approval"]
 if prs_needing_approval_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
@@ -387,7 +405,7 @@ if it requires no or only minor changes.
 - If our CI indicates that updating the dependency will likely require bigger changes, just close the PR with a brief message and add the dependency to our https://github.com/streamlit/streamlit/blob/develop/.github/dependabot.yml ignore list. [Example PR](https://github.com/streamlit/streamlit/pull/10630)
  """,
 )
-dependabot_prs_df = get_open_dependabot_prs()
+dependabot_prs_df = action_items["open_dependabot_prs"]
 if dependabot_prs_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
@@ -407,7 +425,7 @@ st.subheader(
     "Issues waiting for team response",
     help="Lists all issues that are waiting for a response from the team.",
 )
-waiting_for_team_response_df = get_issue_waiting_for_team_response()
+waiting_for_team_response_df = action_items["waiting_for_team_response"]
 if waiting_for_team_response_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
@@ -434,17 +452,27 @@ Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky
 marker as a last resort.
 """,
 )
-flaky_tests_df = get_flaky_tests(since, min_failures=10)
+flaky_tests_df = (
+    get_flaky_tests(
+        since,
+        min_failures=10,
+        refresh_nonce=refresh_nonce,
+    )
+    if show_ci_sections
+    else None
+)
 # Always hide expected flaky tests
-if not flaky_tests_df.empty:
+if flaky_tests_df is not None and not flaky_tests_df.empty:
     mask_not_expected = ~flaky_tests_df["Test"].apply(
         lambda t: any(t.startswith(prefix) for prefix in EXPECTED_FLAKY_TESTS)
     )
     flaky_tests_df = flaky_tests_df[mask_not_expected]
 
-if flaky_tests_df.empty:
+if not show_ci_sections:
+    st.info("Enable CI metrics and flaky tests in the sidebar to load this section.")
+elif flaky_tests_df is not None and flaky_tests_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
-else:
+elif flaky_tests_df is not None:
     flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
     st.dataframe(
         flaky_tests_df,
@@ -474,7 +502,7 @@ Before reviewing, its recommended to approve and run the CI (check that the code
 security issues) and assign Copilot for an automated review.
 """,
 )
-community_prs_ready_df = get_community_prs_ready_for_review()
+community_prs_ready_df = action_items["community_prs_ready_for_review"]
 if community_prs_ready_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:
@@ -507,7 +535,7 @@ This isn't a requirement for all issues. If the issue is not easily reproducible
 4. Make sure to link the issue app in the respective issue on Github. Tip: Inside the Issue Description expander, you can find a markdown snippet that allows you to easily add a badge to the GitHub issue. Add this to the issue body in the Steps to reproduce section.
 """,
 )
-confirmed_bugs_without_repro_df = get_confirmed_bugs_without_repro_script(since)
+confirmed_bugs_without_repro_df = action_items["confirmed_bugs_without_repro"]
 if confirmed_bugs_without_repro_df.empty:
     st.success("Congrats, everything is done here!", icon="🎉")
 else:

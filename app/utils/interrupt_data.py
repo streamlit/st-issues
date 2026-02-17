@@ -10,6 +10,7 @@ import pathlib
 from collections import Counter
 from datetime import date, datetime, timedelta
 from io import BytesIO
+from typing import Any
 from zipfile import ZipFile
 
 import pandas as pd
@@ -32,9 +33,193 @@ PATH_OF_SCRIPT = pathlib.Path(__file__).parent.parent.resolve()
 PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 
 
+def _issue_row(issue: dict[str, Any], labels: set[str]) -> dict[str, Any]:
+    return {
+        "Title": issue["title"],
+        "URL": issue["html_url"],
+        "Created": issue["created_at"],
+        "Author": issue["user"]["login"],
+        "Labels": list(labels),
+    }
+
+
+def _pr_row(pr: dict[str, Any], labels: set[str], author: str | None) -> dict[str, Any]:
+    return {
+        "Title": pr["title"],
+        "URL": pr["html_url"],
+        "Created": pr["created_at"],
+        "Author": author,
+        "Labels": list(labels),
+    }
+
+
+@st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False)
+def get_interrupt_data_snapshot(refresh_nonce: int = 0) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fetch the open issue/PR snapshot used by the Interrupt Rotation page."""
+    issues = get_all_github_issues(state="open", refresh_nonce=refresh_nonce)
+    prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce)
+    return issues, prs
+
+
+def _build_interrupt_action_items(
+    issues: list[dict[str, Any]],
+    prs: list[dict[str, Any]],
+    since_date: date,
+) -> dict[str, pd.DataFrame]:
+    needs_triage: list[dict[str, Any]] = []
+    missing_label_issues: list[dict[str, Any]] = []
+    waiting_for_team_response: list[dict[str, Any]] = []
+    unprioritized: list[dict[str, Any]] = []
+    high_priority_bugs: list[dict[str, Any]] = []
+    bugs_without_repro: list[dict[str, Any]] = []
+    missing_label_prs: list[dict[str, Any]] = []
+    needs_approval_prs: list[dict[str, Any]] = []
+    ready_for_review: list[dict[str, Any]] = []
+    dependabot_prs: list[dict[str, Any]] = []
+
+    for issue in issues:
+        if "pull_request" in issue:
+            continue
+
+        labels = {label["name"] for label in issue["labels"]}
+        issue_common = _issue_row(issue, labels)
+
+        if "status:needs-triage" in labels:
+            needs_triage.append(
+                {
+                    "Title": issue_common["Title"],
+                    "URL": issue_common["URL"],
+                    "Author": issue_common["Author"],
+                    "Created": issue_common["Created"],
+                }
+            )
+
+        if not any(label.startswith(("feature:", "area:")) or label == "type:kudos" for label in labels):
+            missing_label_issues.append(issue_common)
+
+        if "status:awaiting-team-response" in labels:
+            waiting_for_team_response.append(issue_common)
+
+        if "type:bug" in labels and "status:confirmed" in labels:
+            has_priority = any(label.startswith("priority:P") for label in labels)
+            if not has_priority:
+                unprioritized.append(
+                    {
+                        "Title": issue_common["Title"],
+                        "URL": issue_common["URL"],
+                        "Created": issue_common["Created"],
+                        "Author": issue_common["Author"],
+                    }
+                )
+
+            if any(label in {"priority:P0", "priority:P1"} for label in labels):
+                priority = next((label for label in labels if label.startswith("priority:P")), "Unknown")
+                high_priority_bugs.append(
+                    {
+                        "Title": issue_common["Title"],
+                        "URL": issue_common["URL"],
+                        "Created": issue_common["Created"],
+                        "Assignees": [assignee["login"] for assignee in issue.get("assignees", [])],
+                        "Priority": priority,
+                        "Labels": issue_common["Labels"],
+                        "Author": issue_common["Author"],
+                    }
+                )
+
+            # Multipage app bugs are not easy to reproduce in the issues app.
+            if "feature:multipage-apps" not in labels:
+                created_at = datetime.fromisoformat(issue["created_at"]).date()
+                if created_at >= since_date and not get_reproducible_example_exists(issue["number"]):
+                    bugs_without_repro.append(
+                        {
+                            "Title": issue_common["Title"],
+                            "URL": issue_common["URL"],
+                            "Created": issue_common["Created"],
+                            "Author": issue_common["Author"],
+                        }
+                    )
+
+    for pr in prs:
+        author = pr.get("user", {}).get("login")
+        labels = {label["name"] for label in pr["labels"]}
+
+        if author == "dependabot[bot]" and "do-not-merge" not in labels:
+            dependabot_prs.append(
+                {
+                    "Title": pr["title"],
+                    "URL": pr["html_url"],
+                    "Created": pr["created_at"],
+                }
+            )
+
+        if not author or not is_community_author(author):
+            continue
+
+        pr_common = _pr_row(pr, labels, author)
+        has_change = any(label.startswith("change:") for label in labels)
+        has_impact = any(label.startswith("impact:") for label in labels)
+
+        if not has_change or not has_impact:
+            missing_label_prs.append(pr_common)
+
+        has_required_labels = "change:feature" in labels and "impact:users" in labels
+        has_status_labels = (
+            "status:needs-product-approval" in labels or "status:product-approved" in labels or "do-not-merge" in labels
+        )
+        if has_required_labels and not has_status_labels:
+            needs_approval_prs.append(pr_common)
+
+        if pr.get("draft", False):
+            continue
+        if "[WIP]" in pr.get("title", "").upper():
+            continue
+        blocking_labels = {
+            "do-not-merge",
+            "status:needs-product-approval",
+            "status:awaiting-user-response",
+        }
+        if any(label in blocking_labels for label in labels):
+            continue
+        if not has_change or not has_impact:
+            continue
+
+        ready_for_review.append(
+            {
+                "Title": pr_common["Title"],
+                "URL": pr_common["URL"],
+                "Assignees": [assignee["login"] for assignee in pr.get("assignees", [])],
+                "Created": pr_common["Created"],
+                "Updated": pr["updated_at"],
+                "Labels": pr_common["Labels"],
+                "Author": author,
+            }
+        )
+
+    return {
+        "needs_triage": pd.DataFrame(needs_triage),
+        "missing_labels_issues": pd.DataFrame(missing_label_issues),
+        "waiting_for_team_response": pd.DataFrame(waiting_for_team_response),
+        "unprioritized_bugs": pd.DataFrame(unprioritized),
+        "p0_p1_bugs": pd.DataFrame(high_priority_bugs),
+        "missing_labels_prs": pd.DataFrame(missing_label_prs),
+        "prs_needing_approval": pd.DataFrame(needs_approval_prs),
+        "open_dependabot_prs": pd.DataFrame(dependabot_prs),
+        "community_prs_ready_for_review": pd.DataFrame(ready_for_review),
+        "confirmed_bugs_without_repro": pd.DataFrame(bugs_without_repro),
+    }
+
+
+@st.cache_data(ttl=60 * 5, max_entries=64, show_spinner=False)
+def build_interrupt_action_items(since_date: date, refresh_nonce: int = 0) -> dict[str, pd.DataFrame]:
+    """Build all interrupt action-item tables from a shared issue/PR snapshot."""
+    issues, prs = get_interrupt_data_snapshot(refresh_nonce=refresh_nonce)
+    return _build_interrupt_action_items(issues=issues, prs=prs, since_date=since_date)
+
+
 @st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching python test coverage...")  # cache for 6 hours
-def get_python_test_coverage_metrics(since_date: date) -> tuple[float, float]:
+def get_python_test_coverage_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[float, float]:
     """Get the python test coverage and the change over a period."""
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     runs_in_period = fetch_workflow_runs("python-tests.yml", since=since_date)
 
     def get_coverage(run_id: int) -> float:
@@ -70,8 +255,9 @@ def get_python_test_coverage_metrics(since_date: date) -> tuple[float, float]:
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching frontend test coverage...")  # cache for 6 hours
-def get_frontend_test_coverage_metrics(since_date: date) -> tuple[float, float]:
+def get_frontend_test_coverage_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[float, float]:
     """Get the frontend test coverage and the change over a period."""
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     runs_in_period = fetch_workflow_runs("js-tests.yml", since=since_date)
 
     def get_coverage(run_id: int) -> float:
@@ -110,8 +296,9 @@ def get_frontend_test_coverage_metrics(since_date: date) -> tuple[float, float]:
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching wheel size...")  # cache for 6 hours
-def get_wheel_size_metrics(since_date: date) -> tuple[int, int]:
+def get_wheel_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[int, int]:
     """Get the wheel size and the change over a period."""
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     runs_in_period = fetch_workflow_runs("pr-preview.yml", since=since_date)
 
     def get_size(run_id: int) -> int:
@@ -139,11 +326,12 @@ def get_wheel_size_metrics(since_date: date) -> tuple[int, int]:
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching bundle size metrics...")  # cache for 6 hours
-def get_bundle_size_metrics(since_date: date) -> tuple[int, int, int, int]:
+def get_bundle_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[int, int, int, int]:
     """Get the total and entry gzip size and the change over a period.
 
     Returns: (total_gzip, total_gzip_change, entry_gzip, entry_gzip_change).
     """
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     runs_in_period = fetch_workflow_runs("pr-preview.yml", since=since_date)
 
     def get_sizes(run_id: int) -> tuple[int, int]:
@@ -233,253 +421,64 @@ def get_reproducible_example_exists(issue_number: int) -> bool:
     return PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir()
 
 
-def get_needs_triage_issues() -> pd.DataFrame:
+def get_needs_triage_issues(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get issues that need triage."""
-    issues = get_all_github_issues(state="open")
-    needs_triage = []
-    for i in issues:
-        if "pull_request" in i:
-            continue
-        labels = {label["name"] for label in i["labels"]}
-        if "status:needs-triage" in labels:
-            needs_triage.append(
-                {
-                    "Title": i["title"],
-                    "URL": i["html_url"],
-                    "Author": i["user"]["login"],
-                    "Created": i["created_at"],
-                }
-            )
-    return pd.DataFrame(needs_triage)
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["needs_triage"].copy()
 
 
-def get_missing_labels_issues() -> pd.DataFrame:
+def get_missing_labels_issues(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get issues missing feature/area labels."""
-    issues = get_all_github_issues(state="open")
-    missing_label_issues = []
-    for i in issues:
-        if "pull_request" in i:
-            continue
-        labels = {label["name"] for label in i["labels"]}
-
-        if not any(label.startswith(("feature:", "area:")) or label == "type:kudos" for label in labels):
-            missing_label_issues.append(
-                {
-                    "Title": i["title"],
-                    "URL": i["html_url"],
-                    "Created": i["created_at"],
-                    "Author": i["user"]["login"],
-                    "Labels": list(labels),
-                }
-            )
-    return pd.DataFrame(missing_label_issues)
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["missing_labels_issues"].copy()
 
 
-def get_issue_waiting_for_team_response() -> pd.DataFrame:
+def get_issue_waiting_for_team_response(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get issues waiting for team response."""
-    issues = get_all_github_issues(state="open")
-    waiting_for_team_response = []
-    for i in issues:
-        if "pull_request" in i:
-            continue
-        labels = {label["name"] for label in i["labels"]}
-        if "status:awaiting-team-response" in labels:
-            waiting_for_team_response.append(
-                {
-                    "Title": i["title"],
-                    "URL": i["html_url"],
-                    "Created": i["created_at"],
-                    "Author": i["user"]["login"],
-                    "Labels": list(labels),
-                }
-            )
-
-    return pd.DataFrame(waiting_for_team_response)
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["waiting_for_team_response"].copy()
 
 
-def get_missing_labels_prs() -> pd.DataFrame:
+def get_missing_labels_prs(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get community PRs missing change/impact labels."""
-    prs = get_all_github_prs(state="open")
-    missing_label_prs = []
-    for pr in prs:
-        author = pr.get("user", {}).get("login")
-        if not author or not is_community_author(author):
-            continue
-        labels = {label["name"] for label in pr["labels"]}
-        has_change = any(label.startswith("change:") for label in labels)
-        has_impact = any(label.startswith("impact:") for label in labels)
-        if not has_change or not has_impact:
-            missing_label_prs.append(
-                {
-                    "Title": pr["title"],
-                    "URL": pr["html_url"],
-                    "Created": pr["created_at"],
-                    "Author": author,
-                    "Labels": list(labels),
-                }
-            )
-    return pd.DataFrame(missing_label_prs)
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["missing_labels_prs"].copy()
 
 
-def get_prs_needing_product_approval() -> pd.DataFrame:
+def get_prs_needing_product_approval(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get community PRs with feature changes that need product approval."""
-    prs = get_all_github_prs(state="open")
-    needs_approval_prs = []
-    for pr in prs:
-        author = pr.get("user", {}).get("login")
-        if not author or not is_community_author(author):
-            continue
-
-        labels = {label["name"] for label in pr["labels"]}
-
-        has_required_labels = "change:feature" in labels and "impact:users" in labels
-
-        has_status_labels = (
-            "status:needs-product-approval" in labels or "status:product-approved" in labels or "do-not-merge" in labels
-        )
-
-        if has_required_labels and not has_status_labels:
-            needs_approval_prs.append(
-                {
-                    "Title": pr["title"],
-                    "URL": pr["html_url"],
-                    "Created": pr["created_at"],
-                    "Author": author,
-                    "Labels": list(labels),
-                }
-            )
-    return pd.DataFrame(needs_approval_prs)
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["prs_needing_approval"].copy()
 
 
-def get_community_prs_ready_for_review() -> pd.DataFrame:
+def get_community_prs_ready_for_review(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get community PRs that are ready for review."""
-    prs = get_all_github_prs(state="open")
-    ready_for_review = []
-    for pr in prs:
-        author = pr.get("user", {}).get("login")
-        if not author or not is_community_author(author):
-            continue
-
-        # Check if PR is in draft state
-        if pr.get("draft", False):
-            continue
-
-        # Check if PR title has [WIP]
-        if "[WIP]" in pr.get("title", "").upper():
-            continue
-
-        labels = {label["name"] for label in pr["labels"]}
-
-        # Check for blocking labels
-        blocking_labels = {
-            "do-not-merge",
-            "status:needs-product-approval",
-            "status:awaiting-user-response",
-        }
-        if any(label in blocking_labels for label in labels):
-            continue
-
-        # Check for required labels
-        has_change = any(label.startswith("change:") for label in labels)
-        has_impact = any(label.startswith("impact:") for label in labels)
-        if not has_change or not has_impact:
-            continue
-
-        ready_for_review.append(
-            {
-                "Title": pr["title"],
-                "URL": pr["html_url"],
-                "Assignees": [assignee["login"] for assignee in pr.get("assignees", [])],
-                "Created": pr["created_at"],
-                "Updated": pr["updated_at"],
-                "Labels": list(labels),
-                "Author": author,
-            }
-        )
-    return pd.DataFrame(ready_for_review)
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["community_prs_ready_for_review"].copy()
 
 
-def get_unprioritized_bugs() -> pd.DataFrame:
+def get_unprioritized_bugs(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get confirmed bugs without a priority."""
-    issues = get_all_github_issues(state="open")
-    unprioritized = []
-    for i in issues:
-        if "pull_request" in i:
-            continue
-        labels = {label["name"] for label in i["labels"]}
-        if "type:bug" in labels and "status:confirmed" in labels:
-            has_priority = any(label.startswith("priority:P") for label in labels)
-            if not has_priority:
-                unprioritized.append(
-                    {
-                        "Title": i["title"],
-                        "URL": i["html_url"],
-                        "Created": i["created_at"],
-                        "Author": i["user"]["login"],
-                    }
-                )
-    return pd.DataFrame(unprioritized)
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["unprioritized_bugs"].copy()
 
 
-def get_p0_p1_bugs() -> pd.DataFrame:
+def get_p0_p1_bugs(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get all P0 and P1 priority bugs."""
-    issues = get_all_github_issues(state="open")
-    high_priority_bugs = []
-    for i in issues:
-        if "pull_request" in i:
-            continue
-        labels = {label["name"] for label in i["labels"]}
-        if "type:bug" in labels and any(label in {"priority:P0", "priority:P1"} for label in labels):
-            priority = next((label for label in labels if label.startswith("priority:P")), "Unknown")
-            high_priority_bugs.append(
-                {
-                    "Title": i["title"],
-                    "URL": i["html_url"],
-                    "Created": i["created_at"],
-                    "Assignees": [assignee["login"] for assignee in i.get("assignees", [])],
-                    "Priority": priority,
-                    "Labels": list(labels),
-                    "Author": i["user"]["login"],
-                }
-            )
-    return pd.DataFrame(high_priority_bugs)
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["p0_p1_bugs"].copy()
 
 
-def get_confirmed_bugs_without_repro_script(since_date: date) -> pd.DataFrame:
+def get_confirmed_bugs_without_repro_script(since_date: date, refresh_nonce: int = 0) -> pd.DataFrame:
     """Get confirmed bugs created since a date that don't have a repro script."""
-    issues = get_all_github_issues(state="open")  # Get all open issues
-    bugs_without_repro = []
-    for i in issues:
-        if "pull_request" in i:
-            continue
-
-        created_at = datetime.fromisoformat(i["created_at"])
-        if created_at.date() < since_date:
-            continue
-
-        labels = {label["name"] for label in i["labels"]}
-        if (  # noqa: SIM102
-            "type:bug" in labels
-            and "status:confirmed" in labels
-            # Multipage app bugs are not easy to reproduce
-            # in the issues app:
-            and "feature:multipage-apps" not in labels
-        ):
-            if not get_reproducible_example_exists(i["number"]):
-                bugs_without_repro.append(
-                    {
-                        "Title": i["title"],
-                        "URL": i["html_url"],
-                        "Created": i["created_at"],
-                        "Author": i["user"]["login"],
-                    }
-                )
-    return pd.DataFrame(bugs_without_repro)
+    data = build_interrupt_action_items(since_date, refresh_nonce=refresh_nonce)
+    return data["confirmed_bugs_without_repro"].copy()
 
 
 @st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
-def get_flaky_tests(since_date: date, min_failures: int = 10) -> pd.DataFrame:
+def get_flaky_tests(since_date: date, min_failures: int = 10, refresh_nonce: int = 0) -> pd.DataFrame:
     """Get flaky tests with >= min_failures."""
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     flaky_tests_counter: Counter[str] = Counter()
     example_run: dict[str, str] = {}
     last_failure_date: dict[str, date] = {}
@@ -517,20 +516,7 @@ def get_flaky_tests(since_date: date, min_failures: int = 10) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
-def get_open_dependabot_prs() -> pd.DataFrame:
+def get_open_dependabot_prs(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get open Dependabot PRs without 'do-not-merge' label."""
-    prs = get_all_github_prs(state="open")
-    dependabot_prs = []
-    for pr in prs:
-        author = pr.get("user", {}).get("login")
-        if author == "dependabot[bot]":
-            labels = {label["name"] for label in pr["labels"]}
-            if "do-not-merge" not in labels:
-                dependabot_prs.append(
-                    {
-                        "Title": pr["title"],
-                        "URL": pr["html_url"],
-                        "Created": pr["created_at"],
-                    }
-                )
-    return pd.DataFrame(dependabot_prs)
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["open_dependabot_prs"].copy()
