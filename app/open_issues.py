@@ -1,16 +1,14 @@
-import json
 import operator
 import pathlib
-import urllib.request
 from datetime import date, datetime
 from urllib.parse import quote
 
 import altair as alt
 import pandas as pd
-import requests
 import streamlit as st
 
-from app.utils.github_utils import get_all_github_issues, get_headers
+from app.utils.github_utils import fetch_issue_reactions, fetch_issue_view_counts, get_all_github_issues
+from app.utils.issue_formatting import labels_to_type_emoji, reactions_to_str
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -33,34 +31,10 @@ GROWTH_PERIODS = {
 
 @st.cache_data(ttl=60 * 60 * 72, show_spinner=False)  # 3 days
 def get_issue_reactions(issue_number: int) -> pd.DataFrame:
-    reactions = []
-    page = 1
-
-    while True:
-        try:
-            response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}/reactions?per_page=100&page={page}",
-                headers=get_headers(),
-                timeout=100,
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                if not data:
-                    break
-                reactions.extend(data)
-                page += 1
-            else:
-                # Don't show error for 404, might just mean no reactions
-                if response.status_code != 404:
-                    print(
-                        f"Failed to retrieve reactions for issue {issue_number}: {response.status_code}:",
-                        response.text,
-                    )
-                break
-        except Exception as ex:
-            print(ex, flush=True)
-            break
+    reactions, error = fetch_issue_reactions("streamlit/streamlit", issue_number)
+    if error:
+        print(f"Failed to retrieve reactions for issue {issue_number}: {error}", flush=True)
+        return pd.DataFrame()
 
     if not reactions:
         return pd.DataFrame()
@@ -93,6 +67,8 @@ def get_all_reactions(issue_numbers: list) -> pd.DataFrame:
 
 if st.sidebar.button(":material/refresh: Refresh data", width="stretch"):
     get_all_github_issues.clear()
+    fetch_issue_reactions.clear()
+    fetch_issue_view_counts.clear()
 
 
 # Add checkbox for showing statistics
@@ -147,34 +123,6 @@ for issue in all_issues:
         filtered_issues.append(issue)
 
 
-REACTION_EMOJI = {
-    "+1": "👍",
-    "-1": "👎",
-    "confused": "😕",
-    "eyes": "👀",
-    "heart": "❤️",
-    "hooray": "🎉",
-    "laugh": "😄",
-    "rocket": "🚀",
-}
-
-
-def reactions_to_str(reactions: dict) -> str:
-    return " ".join([f"{reactions[name]} {emoji}" for name, emoji in REACTION_EMOJI.items() if reactions[name] > 0])
-
-
-def labels_to_type(labels: list[str]) -> str:
-    if "type:enhancement" in labels:
-        return "✨"
-    if "type:bug" in labels:
-        return "🚨"
-    if "type:docs" in labels:
-        return "📚"
-    if "type:kudos" in labels:
-        return "🙏"
-    return "❓"
-
-
 def get_reproducible_example(issue_number: int) -> str | None:
     issue_folder_name = f"gh-{issue_number}"
     if PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir():
@@ -182,60 +130,23 @@ def get_reproducible_example(issue_number: int) -> str | None:
     return None
 
 
-@st.cache_data(ttl=60 * 60 * 12)  # cache for 12 hours
-def get_view_counts(issue_numbers_series: pd.Series) -> pd.Series:
-    # Get unique issue numbers and create batch request
-    unique_issues = issue_numbers_series.unique()
-    if len(unique_issues) == 0:
-        return pd.Series(index=issue_numbers_series.index, dtype=float)
-
-    # Process in batches of 100
-    batch_size = 100
-    view_counts = {}
-
-    for i in range(0, len(unique_issues), batch_size):
-        batch = unique_issues[i : i + batch_size]
-        # Create batch request URL with current batch of issue numbers
-        keys = ",".join(f"st-issue-{num}" for num in batch)
-        url = f"https://api.views-badge.org/stats-batch?keys={keys}"
-
-        try:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            }
-            request = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(request) as response:  # noqa: S310
-                if not response or response.status != 200:
-                    print("Failed to fetch issue view counts", flush=True)
-                    continue
-
-                data = json.loads(response.read().decode("utf-8"))
-
-                # Add view counts from this batch to the mapping
-                view_counts.update(
-                    {int(key.split("-")[-1]): data.get(key, {}).get("views", None) or None for key in data}
-                )
-        except Exception:
-            print("Failed to fetch issue view counts", flush=True)
-            continue
-
-    # Map the view counts back to the original series
-    return issue_numbers_series.map(view_counts)
-
-
 df = pd.DataFrame(filtered_issues)
 if df.empty:
     st.markdown("No issues found")
 else:
     df["labels"] = df["labels"].map(lambda x: [label["name"] if label else "" for label in x])
-    df["type"] = df["labels"].map(labels_to_type)
+    df["type"] = df["labels"].map(labels_to_type_emoji)
     df["reproducible_example"] = df["number"].map(get_reproducible_example)
     df["title"] = df["type"] + df["title"]
     df["reaction_types"] = df["reactions"].map(reactions_to_str)
     df["total_reactions"] = df["reactions"].map(operator.itemgetter("total_count")) + df["comments"]
     df["author_avatar"] = df["user"].map(operator.itemgetter("avatar_url"))
     df["assignee_avatar"] = df["assignee"].map(lambda x: x["avatar_url"] if x else None)
-    df["views"] = get_view_counts(df["number"])
+    issue_numbers = tuple(int(issue_number) for issue_number in df["number"].dropna().astype(int))
+    view_counts, view_error = fetch_issue_view_counts(issue_numbers)
+    if view_error:
+        st.warning("Failed to fetch issue view counts. Continuing without view metrics.")
+    df["views"] = df["number"].map(view_counts if not view_error else {})
 
     if show_reactions_growth:
         # --- NEW LOGIC FOR REACTION GROWTH ---

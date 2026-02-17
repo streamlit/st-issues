@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pandas as pd
-import requests
 import streamlit as st
 
-from app.utils.github_utils import get_headers, get_issue_comments, get_issue_data
+from app.utils.github_utils import (
+    fetch_github_user_profiles,
+    fetch_issue_comments_payload,
+    fetch_issue_payload,
+    fetch_issue_reactions,
+)
+from app.utils.issue_formatting import REACTION_EMOJI
 
 st.set_page_config(
     page_title="Company requests",
@@ -49,8 +52,10 @@ if issue_number:
 
     # Fetch issue data first to validate it exists
     with st.spinner(f"Fetching issue #{issue_num}..."):
-        issue_data = get_issue_data("streamlit/streamlit", issue_number)
-
+        issue_data, issue_error = fetch_issue_payload("streamlit/streamlit", issue_num)
+        if issue_error:
+            st.error(issue_error)
+            st.stop()
         if not issue_data:
             st.error(f"Issue #{issue_num} not found")
             st.stop()
@@ -63,126 +68,73 @@ if issue_number:
     else:
         st.badge("Open", icon=":material/circle:", color="green")
 
-    # Fetch reactions
-    @st.cache_data(ttl=60 * 60, show_spinner=False)
-    def fetch_issue_reactions(issue_number: int) -> list[dict[str, Any]]:
-        """Fetch all reactions for an issue."""
-        reactions = []
-        page = 1
-
-        while True:
-            try:
-                response = requests.get(
-                    f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}/reactions?per_page=100&page={page}",
-                    headers=get_headers(),
-                    timeout=30,
-                )
-
-                if response.status_code == 200:
-                    data = response.json()
-                    if not data:
-                        break
-                    reactions.extend(data)
-                    page += 1
-                else:
-                    if response.status_code != 404:
-                        st.error(f"Failed to fetch reactions: {response.status_code}")
-                    break
-            except Exception as e:
-                st.error(f"Error fetching reactions: {e}")
-                break
-
-        return reactions
-
-    @st.cache_data(ttl=60 * 60, show_spinner=False)
-    def fetch_user_info(username: str) -> dict[str, Any] | None:
-        """Fetch detailed user information including company."""
-        try:
-            response = requests.get(
-                f"https://api.github.com/users/{username}",
-                headers=get_headers(),
-                timeout=30,
-            )
-
-            if response.status_code == 200:
-                return response.json()
-            return None
-        except Exception:
-            return None
-
     # Collect all engagement data
     engagement_data = []
 
     # Fetch reactions
     with st.spinner("Fetching reactions..."):
-        reactions = fetch_issue_reactions(issue_num)
-
-        # Process reactions
-        for reaction in reactions:
-            user = reaction.get("user", {})
-            username = user.get("login", "Unknown")
-
-            # Get user details for company info
-            user_info = fetch_user_info(username)
-            company = None
-            if user_info:
-                company = user_info.get("company", None)
-                # Remove leading @ from company name
-                if company and company.startswith("@"):
-                    company = company[1:]
-
-            # Map reaction content to emoji
-            reaction_emoji_map = {
-                "+1": "👍",
-                "-1": "👎",
-                "laugh": "😄",
-                "confused": "😕",
-                "heart": "❤️",
-                "hooray": "🎉",
-                "rocket": "🚀",
-                "eyes": "👀",
-            }
-            reaction_content = reaction.get("content", "")
-            emoji = reaction_emoji_map.get(reaction_content, reaction_content)
-
-            engagement_data.append(
-                {
-                    "Username": username,
-                    "Company": company or "—",
-                    "Engagement": emoji,
-                    "Avatar": user.get("avatar_url", ""),
-                    "Profile": f"https://github.com/{username}",
-                }
-            )
+        reactions, reactions_error = fetch_issue_reactions("streamlit/streamlit", issue_num)
+    if reactions_error:
+        st.error(reactions_error)
+        st.stop()
 
     # Fetch comments
     with st.spinner("Fetching comments..."):
-        comments = get_issue_comments("streamlit/streamlit", issue_number)
+        comments, comments_error = fetch_issue_comments_payload("streamlit/streamlit", issue_num)
+    if comments_error:
+        st.error(comments_error)
+        st.stop()
 
-        if comments:
-            # Process comments
-            for comment in comments:
-                user = comment.get("user", {})
-                username = user.get("login", "Unknown")
+    usernames = {
+        reaction.get("user", {}).get("login", "") for reaction in reactions if reaction.get("user", {}).get("login")
+    }
+    usernames.update(
+        comment.get("user", {}).get("login", "") for comment in comments if comment.get("user", {}).get("login")
+    )
+    profiles, profile_errors = fetch_github_user_profiles(tuple(sorted(usernames)))
+    if profile_errors:
+        st.warning("Some user profiles could not be loaded, so company metadata may be incomplete.")
 
-                # Get user details for company info
-                user_info = fetch_user_info(username)
-                company = None
-                if user_info:
-                    company = user_info.get("company", None)
-                    # Remove leading @ from company name
-                    if company and company.startswith("@"):
-                        company = company[1:]
+    # Process reactions
+    for reaction in reactions:
+        user = reaction.get("user", {})
+        username = user.get("login", "Unknown")
+        user_info = profiles.get(username)
+        company = user_info.get("company") if user_info else None
+        if isinstance(company, str) and company.startswith("@"):
+            company = company[1:]
 
-                engagement_data.append(
-                    {
-                        "Username": username,
-                        "Company": company or "—",
-                        "Engagement": "Comment",
-                        "Avatar": user.get("avatar_url", ""),
-                        "Profile": f"https://github.com/{username}",
-                    }
-                )
+        reaction_content = str(reaction.get("content", ""))
+        emoji = REACTION_EMOJI.get(reaction_content, reaction_content)
+
+        engagement_data.append(
+            {
+                "Username": username,
+                "Company": company or "—",
+                "Engagement": emoji,
+                "Avatar": user.get("avatar_url", ""),
+                "Profile": f"https://github.com/{username}",
+            }
+        )
+
+    # Process comments
+    for comment in comments:
+        user = comment.get("user", {})
+        username = user.get("login", "Unknown")
+        user_info = profiles.get(username)
+        company = user_info.get("company") if user_info else None
+        if isinstance(company, str) and company.startswith("@"):
+            company = company[1:]
+
+        engagement_data.append(
+            {
+                "Username": username,
+                "Company": company or "—",
+                "Engagement": "Comment",
+                "Avatar": user.get("avatar_url", ""),
+                "Profile": f"https://github.com/{username}",
+            }
+        )
 
     # Create DataFrame
     if engagement_data:

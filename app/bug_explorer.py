@@ -1,12 +1,11 @@
-import json
 import operator
-import urllib.request
 from datetime import UTC, datetime
 
 import pandas as pd
 import streamlit as st
 
-from app.utils.github_utils import get_all_github_issues
+from app.utils.github_utils import fetch_issue_view_counts, get_all_github_issues
+from app.utils.issue_formatting import labels_to_type_emoji, reactions_to_str
 
 st.set_page_config(page_title="Bug prioritization", page_icon="🐛", layout="wide")
 
@@ -15,6 +14,7 @@ with title_row:
     st.title("🐛 Bug prioritization")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_all_github_issues.clear()
+        fetch_issue_view_counts.clear()
 
 st.caption(
     "Explore the bugs and adapt prioritization based on the number of views, reactions, comments, and days since last updated."
@@ -40,77 +40,6 @@ else:
     st.caption("**Finding low-engagement issues** that may deserve lower priority (e.g., P3 → P4)")
 
 # --- Helper Functions ---
-
-
-@st.cache_data(ttl=60 * 60 * 12)  # cache for 12 hours
-def get_view_counts(issue_numbers_series: pd.Series) -> pd.Series:
-    # Get unique issue numbers and create batch request
-    unique_issues = issue_numbers_series.unique()
-    if len(unique_issues) == 0:
-        return pd.Series(index=issue_numbers_series.index, dtype=float)
-
-    # Process in batches of 100
-    batch_size = 100
-    view_counts = {}
-
-    for i in range(0, len(unique_issues), batch_size):
-        batch = unique_issues[i : i + batch_size]
-        # Create batch request URL with current batch of issue numbers
-        keys = ",".join(f"st-issue-{num}" for num in batch)
-        url = f"https://api.views-badge.org/stats-batch?keys={keys}"
-
-        try:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            }
-            request = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(request) as response:  # noqa: S310
-                if not response or response.status != 200:
-                    print("Failed to fetch issue view counts", flush=True)
-                    continue
-
-                data = json.loads(response.read().decode("utf-8"))
-
-                # Add view counts from this batch to the mapping
-                view_counts.update(
-                    {int(key.split("-")[-1]): data.get(key, {}).get("views", None) or None for key in data}
-                )
-        except Exception:
-            print("Failed to fetch issue view counts", flush=True)
-            continue
-
-    # Map the view counts back to the original series
-    return issue_numbers_series.map(view_counts)
-
-
-def labels_to_type(labels: list[str]) -> str:
-    if "type:enhancement" in labels:
-        return "✨"
-    if "type:bug" in labels:
-        return "🚨"
-    if "type:docs" in labels:
-        return "📚"
-    if "type:kudos" in labels:
-        return "🙏"
-    return "❓"
-
-
-REACTION_EMOJI = {
-    "+1": "👍",
-    "-1": "👎",
-    "confused": "😕",
-    "eyes": "👀",
-    "heart": "❤️",
-    "hooray": "🎉",
-    "laugh": "😄",
-    "rocket": "🚀",
-}
-
-
-def reactions_to_str(reactions: dict) -> str:
-    return " ".join(
-        [f"{reactions[name]} {emoji}" for name, emoji in REACTION_EMOJI.items() if reactions.get(name, 0) > 0]
-    )
 
 
 # --- Data Loading ---
@@ -245,7 +174,11 @@ else:
 # Fetch views only for the remaining issues to minimize API calls
 if not filtered_df.empty:
     with st.spinner("Fetching view counts..."):
-        filtered_df["views"] = get_view_counts(filtered_df["number"])
+        issue_numbers = tuple(int(issue_number) for issue_number in filtered_df["number"].dropna().astype(int))
+        view_counts, view_error = fetch_issue_view_counts(issue_numbers)
+        if view_error:
+            st.warning("Failed to fetch issue view counts. Continuing without view metrics.")
+        filtered_df["views"] = filtered_df["number"].map(view_counts if not view_error else {})
 else:
     filtered_df["views"] = []
 
@@ -274,7 +207,7 @@ st.markdown(f"Found **{len(filtered_df)}** bug issues matching criteria.")
 
 if not filtered_df.empty:
     # Formatting for display
-    filtered_df["type"] = filtered_df["label_names"].map(labels_to_type)
+    filtered_df["type"] = filtered_df["label_names"].map(labels_to_type_emoji)
     filtered_df["title_display"] = filtered_df["type"] + filtered_df["title"]
 
     # Prepare final dataframe for display

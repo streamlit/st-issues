@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+from app.utils.coverage_parsers import extract_python_coverage_summary, parse_python_coverage_payload
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
@@ -83,37 +84,7 @@ else:
 def parse_coverage_json(coverage_file: Any) -> dict | None:
     """Parse a coverage.py JSON report file and return the data."""
     try:
-        # Parse the JSON data
-        coverage_data = json.load(coverage_file)
-
-        # Create a dictionary to store coverage information
-        coverage_info = {}
-
-        # Process each file in the coverage data
-        for file_path, file_data in coverage_data["files"].items():
-            file_name = pathlib.Path(file_path).name
-
-            # Get executed and missing lines directly from the file data
-            executed_lines = file_data.get("executed_lines", [])
-            missing_lines = file_data.get("missing_lines", [])
-
-            # Calculate total lines (excluding comments and empty lines)
-            total_lines = len(executed_lines) + len(missing_lines)
-
-            # Calculate coverage percentage
-            coverage_pct = (len(executed_lines) / total_lines * 100) if total_lines > 0 else 0
-
-            # Store information
-            coverage_info[file_path] = {
-                "file_name": file_name,
-                "file_path": file_path,
-                "executed_lines": executed_lines,
-                "missing_lines": missing_lines,
-                "total_lines": total_lines,
-                "coverage_pct": coverage_pct,
-            }
-
-        return coverage_info
+        return parse_python_coverage_payload(json.load(coverage_file))
 
     except json.JSONDecodeError:
         st.error("Invalid JSON file. Please ensure you're uploading a valid coverage.py JSON report.")
@@ -125,24 +96,7 @@ def parse_coverage_json(coverage_file: Any) -> dict | None:
 
 def extract_coverage_summary(coverage_data: dict) -> dict[str, Any]:
     """Extract summary statistics from coverage data."""
-    total_lines = 0
-    total_covered = 0
-    total_files = len(coverage_data)
-
-    for file_info in coverage_data.values():
-        total_lines += file_info["total_lines"]
-        total_covered += len(file_info["executed_lines"])
-
-    coverage = (total_covered / total_lines) if total_lines > 0 else 0
-
-    return {
-        "total_files": total_files,
-        "total_stmts": total_lines,
-        "covered_stmts": total_covered,
-        "total_miss": total_lines - total_covered,
-        "coverage": coverage,
-        "coverage_pct": coverage * 100,
-    }
+    return extract_python_coverage_summary(coverage_data)
 
 
 @st.cache_data(show_spinner=False)

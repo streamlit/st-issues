@@ -91,18 +91,18 @@ if selected_issue:
                     if "title" in data:
                         issue_title = data["title"].strip()
                         st.markdown(f"**{issue_title}**")
-                    BADGES = f"""
-<a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue State" target="_blank"><img src="https://img.shields.io/github/issues/detail/state/streamlit/streamlit/{issue_number}?style=flat-square"></a>
-<a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Last Update" target="_blank"><img src="https://img.shields.io/github/issues/detail/last-update/streamlit/streamlit/{issue_number}?style=flat-square"></a>
-<a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Created at" target="_blank"><img src="https://img.shields.io/github/issues/detail/age/streamlit/streamlit/{issue_number}?style=flat-square"></a>
-<a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Comments" target="_blank"><img src="https://img.shields.io/github/issues/detail/comments/streamlit/streamlit/{issue_number}?style=flat-square"></a>
-<a href="https://github.com/streamlit/streamlit/issues/{issue_number}" title="Issue Labels" target="_blank"><img src="https://img.shields.io/github/issues/detail/label/streamlit/streamlit/{issue_number}?style=flat-square&label=%20"></a>
-"""
-                    st.markdown(BADGES, unsafe_allow_html=True)
+                    badges = [
+                        f"[![Issue State](https://img.shields.io/github/issues/detail/state/streamlit/streamlit/{issue_number}?style=flat-square)](https://github.com/streamlit/streamlit/issues/{issue_number})",
+                        f"[![Issue Last Update](https://img.shields.io/github/issues/detail/last-update/streamlit/streamlit/{issue_number}?style=flat-square)](https://github.com/streamlit/streamlit/issues/{issue_number})",
+                        f"[![Issue Created at](https://img.shields.io/github/issues/detail/age/streamlit/streamlit/{issue_number}?style=flat-square)](https://github.com/streamlit/streamlit/issues/{issue_number})",
+                        f"[![Issue Comments](https://img.shields.io/github/issues/detail/comments/streamlit/streamlit/{issue_number}?style=flat-square)](https://github.com/streamlit/streamlit/issues/{issue_number})",
+                        f"[![Issue Labels](https://img.shields.io/github/issues/detail/label/streamlit/streamlit/{issue_number}?style=flat-square&label=%20)](https://github.com/streamlit/streamlit/issues/{issue_number})",
+                    ]
+                    st.markdown(" ".join(badges))
                     issue_body = data["body"]
                     if issue_body:
                         with st.expander("Issue Description"):
-                            st.markdown(issue_body, unsafe_allow_html=True)
+                            st.markdown(issue_body)
                             st.markdown("---")
                             st.caption(
                                 "Add the following markdown badge to the issue on Github to provide a link to this app:"
@@ -142,7 +142,7 @@ if selected_issue:
 
                         if steps_to_reproduce:
                             with st.expander("Steps to reproduce"):
-                                st.markdown(steps_to_reproduce, unsafe_allow_html=True)
+                                st.markdown(steps_to_reproduce)
             except Exception as ex:
                 print(ex, flush=True)
 

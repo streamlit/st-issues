@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import urllib.parse
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal, cast
 from zipfile import ZipFile
 
 import requests
@@ -110,6 +111,251 @@ def get_headers() -> dict[str, str]:
         "Authorization": f"token {st.secrets['github']['token']}",
         "Accept": "application/vnd.github.v3+json",
     }
+
+
+def _compact_error_text(text: str, max_chars: int = 280) -> str:
+    compact = " ".join(text.split())
+    if len(compact) <= max_chars:
+        return compact
+    return f"{compact[:max_chars].rstrip()}..."
+
+
+def _request_json(
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    timeout: int = 30,
+    expected_statuses: set[int] | None = None,
+) -> tuple[Any | None, str | None, int | None]:
+    """Perform a GitHub GET request and decode JSON without UI side effects."""
+    expected = expected_statuses or {200}
+    try:
+        response = requests.get(url, headers=get_headers(), params=params, timeout=timeout)
+    except requests.RequestException as exc:
+        return None, f"Request failed for {url}: {exc!s}", None
+
+    if response.status_code not in expected:
+        error = f"Request to {url} failed with status {response.status_code}: {_compact_error_text(response.text)}"
+        return None, error, response.status_code
+
+    if response.status_code == 204:
+        return None, None, response.status_code
+
+    try:
+        return response.json(), None, response.status_code
+    except ValueError as exc:
+        return None, f"Failed to decode JSON from {url}: {exc!s}", response.status_code
+
+
+@st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False)
+def fetch_issue_payload(repo: str, issue_number: int | str) -> tuple[dict[str, Any] | None, str | None]:
+    """Fetch issue payload and return (data, error_message)."""
+    payload, error, status = _request_json(
+        f"https://api.github.com/repos/{repo}/issues/{issue_number}",
+        timeout=100,
+        expected_statuses={200, 404},
+    )
+    if status == 404:
+        return None, None
+    if error:
+        return None, error
+    return cast("dict[str, Any]", payload), None
+
+
+@st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False)
+def fetch_issue_comments_payload(repo: str, issue_number: int | str) -> tuple[list[dict[str, Any]], str | None]:
+    """Fetch all issue comments and return (comments, error_message)."""
+    comments: list[dict[str, Any]] = []
+    page = 1
+
+    while True:
+        payload, error, status = _request_json(
+            f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments",
+            params={"per_page": 100, "page": page},
+            timeout=100,
+            expected_statuses={200, 404},
+        )
+        if status == 404:
+            return [], None
+        if error:
+            return [], error
+
+        page_items = cast("list[dict[str, Any]]", payload)
+        if not page_items:
+            break
+        comments.extend(page_items)
+        if len(page_items) < 100:
+            break
+        page += 1
+
+    return comments, None
+
+
+@st.cache_data(ttl=60 * 60, max_entries=1024, show_spinner=False)
+def fetch_issue_reactions(repo: str, issue_number: int) -> tuple[list[dict[str, Any]], str | None]:
+    """Fetch all issue reactions and return (reactions, error_message)."""
+    reactions: list[dict[str, Any]] = []
+    page = 1
+
+    while True:
+        payload, error, status = _request_json(
+            f"https://api.github.com/repos/{repo}/issues/{issue_number}/reactions",
+            params={"per_page": 100, "page": page},
+            timeout=30,
+            expected_statuses={200, 404},
+        )
+        if status == 404:
+            return [], None
+        if error:
+            return [], error
+
+        page_items = cast("list[dict[str, Any]]", payload)
+        if not page_items:
+            break
+        reactions.extend(page_items)
+        if len(page_items) < 100:
+            break
+        page += 1
+
+    return reactions, None
+
+
+@st.cache_data(ttl=60 * 60, max_entries=2048, show_spinner=False)
+def fetch_github_user_profile(username: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Fetch a GitHub user profile by login."""
+    if not username:
+        return None, None
+
+    payload, error, status = _request_json(
+        f"https://api.github.com/users/{username}",
+        timeout=30,
+        expected_statuses={200, 404},
+    )
+    if status == 404:
+        return None, None
+    if error:
+        return None, error
+    return cast("dict[str, Any]", payload), None
+
+
+@st.cache_data(ttl=60 * 60, max_entries=256, show_spinner=False)
+def fetch_github_user_profiles(usernames: tuple[str, ...]) -> tuple[dict[str, dict[str, Any] | None], list[str]]:
+    """Fetch user profiles for a set of usernames with one request per unique login."""
+    profiles: dict[str, dict[str, Any] | None] = {}
+    errors: list[str] = []
+    for username in sorted({name for name in usernames if name}):
+        profile, error = fetch_github_user_profile(username)
+        profiles[username] = profile
+        if error:
+            errors.append(error)
+    return profiles, errors
+
+
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
+def fetch_pull_request_payload(repo: str, pr_number: int) -> tuple[dict[str, Any] | None, str | None]:
+    """Fetch pull request details and return (data, error_message)."""
+    payload, error, status = _request_json(
+        f"https://api.github.com/repos/{repo}/pulls/{pr_number}",
+        timeout=100,
+        expected_statuses={200, 404},
+    )
+    if status == 404:
+        return None, None
+    if error:
+        return None, error
+    return cast("dict[str, Any]", payload), None
+
+
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
+def fetch_pull_request_files_payload(repo: str, pr_number: int) -> tuple[list[dict[str, Any]], str | None]:
+    """Fetch all changed files for a pull request."""
+    files: list[dict[str, Any]] = []
+    page = 1
+
+    while True:
+        payload, error, status = _request_json(
+            f"https://api.github.com/repos/{repo}/pulls/{pr_number}/files",
+            params={"per_page": 100, "page": page},
+            timeout=100,
+            expected_statuses={200, 404},
+        )
+        if status == 404:
+            return [], None
+        if error:
+            return [], error
+
+        page_items = cast("list[dict[str, Any]]", payload)
+        if not page_items:
+            break
+        files.extend(page_items)
+        if len(page_items) < 100:
+            break
+        page += 1
+
+    return files, None
+
+
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
+def fetch_repo_file_text_at_ref(repo: str, path: str, ref: str) -> tuple[str | None, str | None]:
+    """Fetch text content for a repository file at a specific ref."""
+    payload, error, status = _request_json(
+        f"https://api.github.com/repos/{repo}/contents/{path}",
+        params={"ref": ref},
+        timeout=100,
+        expected_statuses={200, 404},
+    )
+    if status == 404:
+        return None, None
+    if error:
+        return None, error
+
+    content_b64 = cast("dict[str, Any]", payload).get("content")
+    if not isinstance(content_b64, str):
+        return None, f"No content returned for {path} at {ref}"
+
+    try:
+        return base64.b64decode(content_b64).decode("utf-8"), None
+    except Exception as exc:
+        return None, f"Failed decoding content for {path}: {exc!s}"
+
+
+@st.cache_data(ttl=60 * 60 * 12, max_entries=128, show_spinner=False)
+def fetch_issue_view_counts(issue_numbers: tuple[int, ...]) -> tuple[dict[int, int | None], str | None]:
+    """Fetch view counts from views-badge.org in batches."""
+    unique_issues = sorted(set(issue_numbers))
+    if not unique_issues:
+        return {}, None
+
+    view_counts: dict[int, int | None] = {}
+    batch_size = 100
+
+    for i in range(0, len(unique_issues), batch_size):
+        batch = unique_issues[i : i + batch_size]
+        keys = ",".join(f"st-issue-{num}" for num in batch)
+        url = f"https://api.views-badge.org/stats-batch?keys={keys}"
+        try:
+            response = requests.get(
+                url,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                    )
+                },
+                timeout=30,
+            )
+            if response.status_code != 200:
+                return {}, f"Failed to fetch issue views ({response.status_code})"
+
+            data = response.json()
+            for key, value in data.items():
+                issue_num = int(str(key).split("-")[-1])
+                views = value.get("views") if isinstance(value, dict) else None
+                view_counts[issue_num] = int(views) if isinstance(views, int) else None
+        except Exception as exc:
+            return {}, f"Failed to fetch issue views: {exc!s}"
+
+    return view_counts, None
 
 
 @st.cache_data(ttl=60 * 5)  # cache for 5 minutes

@@ -1,9 +1,14 @@
 import re
 
-import requests
 import streamlit as st
 
-from app.utils.github_utils import get_all_github_prs, get_headers
+from app.utils.github_utils import (
+    fetch_issue_payload,
+    fetch_pull_request_files_payload,
+    fetch_pull_request_payload,
+    fetch_repo_file_text_at_ref,
+    get_all_github_prs,
+)
 
 st.set_page_config(page_title="Spec renderer", page_icon="🔧")
 
@@ -24,17 +29,9 @@ def filter_spec_prs(prs: list[dict]) -> list[dict]:
 
 
 @st.cache_data(ttl=300)
-def fetch_pr_files(pr_number: int) -> list[dict]:
+def fetch_pr_files(pr_number: int) -> tuple[list[dict], str | None]:
     """Fetch files changed in a PR."""
-    url = f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}/files"
-
-    try:
-        response = requests.get(url, headers=get_headers(), timeout=100)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        st.error(f"Failed to fetch PR files: {e}")
-        return []
+    return fetch_pull_request_files_payload("streamlit/streamlit", pr_number)
 
 
 def find_spec_markdown_file(files: list[dict]) -> str | None:
@@ -49,34 +46,16 @@ def find_spec_markdown_file(files: list[dict]) -> str | None:
     return None
 
 
-def fetch_markdown_content(filepath: str, pr_number: int) -> str | None:
+def fetch_markdown_content(filepath: str, pr_number: int) -> tuple[str | None, str | None]:
     """Fetch the content of a markdown file from a PR."""
-    # Get the PR details to find the head SHA
-    pr_url = f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}"
+    pr_data, pr_error = fetch_pull_request_payload("streamlit/streamlit", pr_number)
+    if pr_error:
+        return None, pr_error
+    if not pr_data:
+        return None, f"Pull request #{pr_number} not found."
 
-    try:
-        pr_response = requests.get(pr_url, headers=get_headers(), timeout=100)
-        pr_response.raise_for_status()
-        pr_data = pr_response.json()
-        head_sha = pr_data["head"]["sha"]
-
-        # Fetch the file content from the PR's head commit
-        content_url = f"https://api.github.com/repos/streamlit/streamlit/contents/{filepath}"
-        params = {"ref": head_sha}
-
-        content_response = requests.get(content_url, headers=get_headers(), params=params, timeout=100)
-        content_response.raise_for_status()
-        content_data = content_response.json()
-
-        # Decode base64 content
-        import base64
-
-        content = base64.b64decode(content_data["content"]).decode("utf-8")
-        return content
-
-    except requests.RequestException as e:
-        st.error(f"Failed to fetch markdown content: {e}")
-        return None
+    head_sha = pr_data["head"]["sha"]
+    return fetch_repo_file_text_at_ref("streamlit/streamlit", filepath, head_sha)
 
 
 def clean_spec_title(title: str) -> str:
@@ -88,85 +67,76 @@ def clean_spec_title(title: str) -> str:
 
 def replace_local_images_with_github_urls(markdown_content: str, pr_number: int, spec_file_path: str) -> str:
     """Replace local image references with GitHub raw URLs."""
-    # Get the PR details to find the head SHA
-    pr_url = f"https://api.github.com/repos/streamlit/streamlit/pulls/{pr_number}"
+    pr_data, pr_error = fetch_pull_request_payload("streamlit/streamlit", pr_number)
+    if pr_error or not pr_data:
+        return markdown_content
 
-    try:
-        pr_response = requests.get(pr_url, headers=get_headers(), timeout=100)
-        pr_response.raise_for_status()
-        pr_data = pr_response.json()
-        head_sha = pr_data["head"]["sha"]
+    head_sha = pr_data["head"]["sha"]
 
-        # Get the directory of the spec file to resolve relative paths
-        spec_dir = "/".join(spec_file_path.split("/")[:-1])  # Remove filename, keep directory
+    # Get the directory of the spec file to resolve relative paths
+    spec_dir = "/".join(spec_file_path.split("/")[:-1])  # Remove filename, keep directory
 
-        # Pattern to match markdown images with local paths
-        # Matches: ![alt text](./path/to/image.ext) or ![](./path/to/image.ext) or ![alt](path/to/image.ext)
-        image_pattern = r"!\[([^\]]*)\]\((?!https?://)([^)]+)\)"
+    # Pattern to match markdown images with local paths
+    # Matches: ![alt text](./path/to/image.ext) or ![](./path/to/image.ext) or ![alt](path/to/image.ext)
+    image_pattern = r"!\[([^\]]*)\]\((?!https?://)([^)]+)\)"
 
-        def replace_image(match: re.Match) -> str:
-            alt_text = match.group(1)
-            image_path = match.group(2)
+    def replace_image(match: re.Match) -> str:
+        alt_text = match.group(1)
+        image_path = match.group(2)
 
-            # Handle relative paths
-            if image_path.startswith("./"):
-                # Remove ./ and join with spec directory
-                clean_path = image_path[2:]
-                full_path = f"{spec_dir}/{clean_path}" if spec_dir else clean_path
-            elif image_path.startswith("../"):
-                # Handle parent directory references
-                # Split spec_dir into parts and go up directories as needed
-                dir_parts = spec_dir.split("/") if spec_dir else []
-                path_parts = image_path.split("/")
+        # Handle relative paths
+        if image_path.startswith("./"):
+            # Remove ./ and join with spec directory
+            clean_path = image_path[2:]
+            full_path = f"{spec_dir}/{clean_path}" if spec_dir else clean_path
+        elif image_path.startswith("../"):
+            # Handle parent directory references
+            # Split spec_dir into parts and go up directories as needed
+            dir_parts = spec_dir.split("/") if spec_dir else []
+            path_parts = image_path.split("/")
 
-                # Count how many ../ we have
-                up_count = 0
-                remaining_parts = []
-                for part in path_parts:
-                    if part == "..":
-                        up_count += 1
-                    else:
-                        remaining_parts.append(part)
+            # Count how many ../ we have
+            up_count = 0
+            remaining_parts = []
+            for part in path_parts:
+                if part == "..":
+                    up_count += 1
+                else:
+                    remaining_parts.append(part)
 
-                # Go up the directory tree
-                final_dir_parts = dir_parts[:-up_count] if up_count <= len(dir_parts) else []
-                full_path = "/".join(final_dir_parts + remaining_parts)
-            else:
-                # Assume it's relative to the spec directory
-                full_path = f"{spec_dir}/{image_path}" if spec_dir else image_path
+            # Go up the directory tree
+            final_dir_parts = dir_parts[:-up_count] if up_count <= len(dir_parts) else []
+            full_path = "/".join(final_dir_parts + remaining_parts)
+        else:
+            # Assume it's relative to the spec directory
+            full_path = f"{spec_dir}/{image_path}" if spec_dir else image_path
 
-            # Create GitHub raw URL
-            github_url = f"https://raw.githubusercontent.com/streamlit/streamlit/{head_sha}/{full_path}"
+        # Create GitHub raw URL
+        github_url = f"https://raw.githubusercontent.com/streamlit/streamlit/{head_sha}/{full_path}"
 
-            return f"![{alt_text}]({github_url})"
+        return f"![{alt_text}]({github_url})"
 
-        # Replace all local image references
-        updated_content = re.sub(image_pattern, replace_image, markdown_content)
-        return updated_content
-
-    except requests.RequestException as e:
-        st.warning(f"Failed to fetch PR details for image URL replacement: {e}")
-        return markdown_content  # Return original content if we can't get PR details
+    # Replace all local image references
+    updated_content = re.sub(image_pattern, replace_image, markdown_content)
+    return updated_content
 
 
 @st.cache_data(ttl=300)
-def fetch_issue_details(issue_number: int) -> dict | None:
+def fetch_issue_details(issue_number: int) -> tuple[dict | None, str | None]:
     """Fetch issue details from GitHub API."""
-    url = f"https://api.github.com/repos/streamlit/streamlit/issues/{issue_number}"
+    issue_data, issue_error = fetch_issue_payload("streamlit/streamlit", issue_number)
+    if issue_error:
+        return None, issue_error
+    if not issue_data:
+        return None, None
 
-    try:
-        response = requests.get(url, headers=get_headers(), timeout=100)
-        response.raise_for_status()
-        issue_data = response.json()
-        return {
-            "title": issue_data["title"],
-            "url": issue_data["html_url"],
-            "state": issue_data["state"],
-            "number": issue_data["number"],
-            "upvotes": issue_data.get("reactions", {}).get("+1", 0),
-        }
-    except requests.RequestException:
-        return None
+    return {
+        "title": issue_data["title"],
+        "url": issue_data["html_url"],
+        "state": issue_data["state"],
+        "number": issue_data["number"],
+        "upvotes": issue_data.get("reactions", {}).get("+1", 0),
+    }, None
 
 
 def replace_issue_references_with_previews(markdown_content: str) -> str:
@@ -179,7 +149,7 @@ def replace_issue_references_with_previews(markdown_content: str) -> str:
 
     def create_issue_preview(issue_number: int) -> str:
         """Create a styled issue preview using only markdown features."""
-        issue_details = fetch_issue_details(issue_number)
+        issue_details, _ = fetch_issue_details(issue_number)
 
         if not issue_details:
             return f"#{issue_number}"
@@ -326,7 +296,11 @@ def main() -> None:
     with title_row:
         st.title("🔧 Spec renderer")
         if st.button(":material/refresh: Refresh Data", type="tertiary"):
-            get_all_github_prs.clear(state="open")
+            get_all_github_prs.clear()
+            fetch_pr_files.clear()
+            fetch_pull_request_payload.clear()
+            fetch_repo_file_text_at_ref.clear()
+            fetch_issue_payload.clear()
     st.markdown("Read product specs from the Streamlit repo. So far only supports PRs, not merged specs.")
 
     # Get query parameters
@@ -386,7 +360,10 @@ def main() -> None:
 
         # Fetch PR files
         with st.spinner("Fetching PR files..."):
-            pr_files = fetch_pr_files(pr_number)
+            pr_files, pr_files_error = fetch_pr_files(pr_number)
+        if pr_files_error:
+            st.error(pr_files_error)
+            return
 
         if not pr_files:
             st.warning("No files found for this PR.")
@@ -407,7 +384,10 @@ def main() -> None:
 
         # Fetch and render markdown content
         with st.spinner("Fetching markdown content..."):
-            markdown_content = fetch_markdown_content(spec_file, pr_number)
+            markdown_content, markdown_error = fetch_markdown_content(spec_file, pr_number)
+        if markdown_error:
+            st.error(markdown_error)
+            return
 
         if markdown_content:
             # Extract frontmatter
@@ -435,5 +415,4 @@ def main() -> None:
             st.error("Failed to fetch markdown content.")
 
 
-if __name__ == "__main__":
-    main()
+main()

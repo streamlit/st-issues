@@ -8,6 +8,7 @@ import plotly.express as px
 import streamlit as st
 
 from app.utils.github_utils import get_all_github_issues
+from app.utils.issue_formatting import get_issue_type, reactions_to_str
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -24,36 +25,6 @@ with title_row:
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_all_github_issues.clear()
 st.caption("This page analyzes user reactions on Github issues (emoji reaction or comment).")
-
-
-REACTION_EMOJI = {
-    "+1": "👍",
-    "-1": "👎",
-    "confused": "😕",
-    "eyes": "👀",
-    "heart": "❤️",
-    "hooray": "🎉",
-    "laugh": "😄",
-    "rocket": "🚀",
-}
-
-
-def reactions_to_str(reactions: dict) -> str:
-    return " ".join([f"{reactions[name]} {emoji}" for name, emoji in REACTION_EMOJI.items() if reactions[name] > 0])
-
-
-# Function to determine issue type based on labels
-def get_issue_type(labels: list) -> str | list[str]:
-    is_bug = any(label["name"] == "type:bug" for label in labels)
-    is_enhancement = any(label["name"] == "type:enhancement" for label in labels)
-
-    if is_bug and is_enhancement:
-        return ["Bug", "Enhancement"]
-    if is_bug:
-        return "Bug"
-    if is_enhancement:
-        return "Enhancement"
-    return []
 
 
 # Process the data

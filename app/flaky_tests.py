@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date, datetime
+from typing import Any
 
 import altair as alt
 import pandas as pd
@@ -41,6 +42,42 @@ def is_expected_flaky(test_full_name: str) -> bool:
     return any(test_full_name.startswith(expected_prefix) for expected_prefix in EXPECTED_FLAKY_TESTS)
 
 
+def extract_playwright_test_name(annotation: dict[str, Any]) -> str | None:
+    """Extract a normalized test name from a Playwright annotation."""
+    path = str(annotation.get("path", ""))
+    if not path.startswith("e2e_playwright/"):
+        return None
+
+    message = str(annotation.get("message", ""))
+    return f"{path.replace('e2e_playwright/', '')}::{message.split('\n\n', maxsplit=1)[0]}"
+
+
+@st.cache_data(ttl=60 * 60 * 6, max_entries=1024, show_spinner=False)
+def fetch_check_suite_playwright_tests(check_suite_id: str) -> list[str]:
+    """Fetch all Playwright test names attached to a check suite."""
+    test_names: list[str] = []
+    check_runs_ids = fetch_workflow_runs_ids(check_suite_id)
+    for check_run_id in check_runs_ids:
+        annotations_list = fetch_workflow_run_annotations(check_run_id)
+        for annotation in annotations_list:
+            test_name = extract_playwright_test_name(annotation)
+            if test_name:
+                test_names.append(test_name)
+    return test_names
+
+
+def build_workflow_annotation_snapshot(workflow_runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Expand check-suite annotations once and reuse across all sections."""
+    return [
+        {
+            "date": date.fromisoformat(workflow_run["created_at"][:10]),
+            "html_url": workflow_run["html_url"],
+            "tests": fetch_check_suite_playwright_tests(workflow_run["check_suite_id"]),
+        }
+        for workflow_run in workflow_runs
+    ]
+
+
 # Fetch workflow runs
 flaky_tests: Counter[str] = Counter()
 example_run: dict[str, str] = {}
@@ -51,28 +88,19 @@ first_date = date.today()
 
 workflow_runs = fetch_workflow_runs("playwright.yml", limit=workflow_runs_limit, branch=None, status="success")
 with st.spinner("Fetching workflow annotations..."):
-    for workflow_run in workflow_runs:
-        check_suite_id = workflow_run["check_suite_id"]
-        workflow_date = date.fromisoformat(workflow_run["created_at"][:10])
+    workflow_snapshot = build_workflow_annotation_snapshot(workflow_runs)
+    for workflow_run in workflow_snapshot:
+        workflow_date = workflow_run["date"]
         first_date = min(first_date, workflow_date)
 
-        check_runs_ids = fetch_workflow_runs_ids(check_suite_id)
-        for check_run_id in check_runs_ids:
-            annotations_list = fetch_workflow_run_annotations(check_run_id)
-            for annotation in annotations_list:
-                if annotation["path"].startswith("e2e_playwright/"):
-                    test_name = (
-                        annotation["path"].replace("e2e_playwright/", "")
-                        + "::"
-                        + annotation["message"].split("\n\n")[0]
-                    )
-                    flaky_tests.update([test_name])
-                    if test_name not in example_run:
-                        example_run[test_name] = workflow_run["html_url"]
-                    if test_name not in last_failure_date:
-                        last_failure_date[test_name] = workflow_date
-                    if test_name not in first_failure_date or workflow_date < first_failure_date[test_name]:
-                        first_failure_date[test_name] = workflow_date
+        for test_name in workflow_run["tests"]:
+            flaky_tests.update([test_name])
+            if test_name not in example_run:
+                example_run[test_name] = workflow_run["html_url"]
+            if test_name not in last_failure_date:
+                last_failure_date[test_name] = workflow_date
+            if test_name not in first_failure_date or workflow_date < first_failure_date[test_name]:
+                first_failure_date[test_name] = workflow_date
 
 flaky_tests_df = pd.DataFrame(flaky_tests.items(), columns=["Test Name", "Failures"])
 # Set the test name as the index
@@ -152,32 +180,13 @@ st.dataframe(
 st.divider()
 # Process workflow runs to determine which ones needed reruns
 workflow_data = []
-for workflow_run in workflow_runs:
-    run_date = datetime.fromisoformat(workflow_run["created_at"])
-    check_suite_id = workflow_run["check_suite_id"]
-
-    # Check if this workflow run had any annotations (indicating reruns)
-    had_reruns = False
-    check_runs_ids = fetch_workflow_runs_ids(check_suite_id)
-    for check_run_id in check_runs_ids:
-        annotations_list = fetch_workflow_run_annotations(check_run_id)
-        if hide_expected_flaky_tests:
-            # Only consider reruns from non-expected flaky tests
-            for annotation in annotations_list:
-                if annotation["path"].startswith("e2e_playwright/"):
-                    test_name_for_chart = (
-                        annotation["path"].replace("e2e_playwright/", "")
-                        + "::"
-                        + annotation["message"].split("\n\n")[0]
-                    )
-                    if not is_expected_flaky(test_name_for_chart):
-                        had_reruns = True
-                        break
-            if had_reruns:
-                break
-        elif any(annotation["path"].startswith("e2e_playwright/") for annotation in annotations_list):
-            had_reruns = True
-            break
+for workflow_run in workflow_snapshot:
+    run_date = datetime.combine(workflow_run["date"], datetime.min.time())
+    tests_for_run = workflow_run["tests"]
+    if hide_expected_flaky_tests:
+        had_reruns = any(not is_expected_flaky(test_name) for test_name in tests_for_run)
+    else:
+        had_reruns = bool(tests_for_run)
 
     workflow_data.append(
         {

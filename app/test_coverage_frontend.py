@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+from app.utils.coverage_parsers import parse_vitest_coverage_payload
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
@@ -127,57 +128,7 @@ else:
 def parse_vitest_coverage_json(coverage_file: Any) -> tuple[dict, dict] | tuple[None, None]:
     """Parse a Vitest JSON summary report file and return the data."""
     try:
-        # Parse the JSON data
-        coverage_data = json.load(coverage_file)
-
-        # Create a dictionary to store coverage information
-        coverage_info = {}
-
-        # Define prefix to remove
-        prefix_to_remove = "/home/runner/work/streamlit/streamlit/frontend/"
-
-        # Process each file in the coverage data (excluding the "total" key)
-        for file_path, file_data in coverage_data.items():
-            if file_path == "total":
-                continue
-
-            # Remove the prefix from the file path if it exists
-            clean_path = file_path
-            if file_path.startswith(prefix_to_remove):
-                clean_path = file_path[len(prefix_to_remove) :]
-
-            # Extract the file name from the path
-            file_name = pathlib.Path(clean_path).name
-
-            # Extract relevant metrics
-            lines_total = file_data["lines"]["total"]
-            lines_covered = file_data["lines"]["covered"]
-            functions_total = file_data["functions"]["total"]
-            functions_covered = file_data["functions"]["covered"]
-            branches_total = file_data["branches"]["total"]
-            branches_covered = file_data["branches"]["covered"]
-
-            # Calculate coverage percentages
-            lines_pct = file_data["lines"]["pct"]
-            functions_pct = file_data["functions"]["pct"]
-            branches_pct = file_data["branches"]["pct"]
-
-            # Store information
-            coverage_info[clean_path] = {
-                "file_name": file_name,
-                "file_path": clean_path,
-                "lines_total": lines_total,
-                "lines_covered": lines_covered,
-                "lines_pct": lines_pct,
-                "functions_total": functions_total,
-                "functions_covered": functions_covered,
-                "functions_pct": functions_pct,
-                "branches_total": branches_total,
-                "branches_covered": branches_covered,
-                "branches_pct": branches_pct,
-            }
-
-        return coverage_info, coverage_data.get("total", {})
+        return parse_vitest_coverage_payload(json.load(coverage_file))
 
     except json.JSONDecodeError:
         st.error("Invalid JSON file. Please ensure you're uploading a valid Vitest JSON summary report.")

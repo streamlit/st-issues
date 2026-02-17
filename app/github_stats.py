@@ -15,52 +15,16 @@ from app.utils.github_utils import (
     get_all_github_issues,
     get_count_issues_commented_by_user,
 )
+from app.utils.issue_formatting import get_issue_type, labels_to_type_emoji, reactions_to_str
 
 # Define the repo URL
 GITHUB_REPO = "streamlit/streamlit"
 
 st.set_page_config(page_title="GitHub stats", page_icon="📊", layout="wide")
 
-REACTION_EMOJI = {
-    "+1": "👍",
-    "-1": "👎",
-    "confused": "😕",
-    "eyes": "👀",
-    "heart": "❤️",
-    "hooray": "🎉",
-    "laugh": "😄",
-    "rocket": "🚀",
-}
-
-
-def reactions_to_str(reactions: dict) -> str:
-    return " ".join([f"{reactions[name]} {emoji}" for name, emoji in REACTION_EMOJI.items() if reactions[name] > 0])
-
-
-def get_issue_type(labels: list) -> str | list[str]:
-    is_bug = any(label["name"] == "type:bug" for label in labels)
-    is_enhancement = any(label["name"] == "type:enhancement" for label in labels)
-
-    if is_bug and is_enhancement:
-        return ["Bug", "Enhancement"]
-    if is_bug:
-        return "Bug"
-    if is_enhancement:
-        return "Enhancement"
-    return []
-
 
 def get_issue_emoji(labels: list) -> str:
-    label_names = [label["name"] for label in labels]
-    if "type:enhancement" in label_names:
-        return "✨"
-    if "type:bug" in label_names:
-        return "🚨"
-    if "type:docs" in label_names:
-        return "📚"
-    if "type:kudos" in label_names:
-        return "🙏"
-    return "❓"
+    return labels_to_type_emoji([label["name"] for label in labels])
 
 
 @st.cache_data(show_spinner="Cloning and analyzing repository...")
