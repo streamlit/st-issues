@@ -177,8 +177,8 @@ if not filtered_df.empty:
         issue_numbers = tuple(int(issue_number) for issue_number in filtered_df["number"].dropna().astype(int))
         view_counts, view_error = fetch_issue_view_counts(issue_numbers)
         if view_error:
-            st.warning("Failed to fetch issue view counts. Continuing without view metrics.")
-        filtered_df["views"] = filtered_df["number"].map(view_counts if not view_error else {})
+            st.warning("Some issue view counts could not be loaded. Displaying partial view metrics.")
+        filtered_df["views"] = filtered_df["number"].map(view_counts)
 else:
     filtered_df["views"] = []
 

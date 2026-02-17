@@ -362,8 +362,11 @@ def main() -> None:
         with st.spinner("Fetching PR files..."):
             pr_files, pr_files_error = fetch_pr_files(pr_number)
         if pr_files_error:
-            st.error(pr_files_error)
-            return
+            if pr_files:
+                st.warning("PR files were only partially loaded. Results may be incomplete.")
+            else:
+                st.error(pr_files_error)
+                return
 
         if not pr_files:
             st.warning("No files found for this PR.")

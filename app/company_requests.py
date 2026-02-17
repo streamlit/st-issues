@@ -75,15 +75,19 @@ if issue_number:
     with st.spinner("Fetching reactions..."):
         reactions, reactions_error = fetch_issue_reactions("streamlit/streamlit", issue_num)
     if reactions_error:
-        st.error(reactions_error)
-        st.stop()
+        if reactions:
+            st.warning("Reactions could not be fully loaded. Showing partial reaction data.")
+        else:
+            st.warning("Could not load reactions for this issue. Showing comments only.")
 
     # Fetch comments
     with st.spinner("Fetching comments..."):
         comments, comments_error = fetch_issue_comments_payload("streamlit/streamlit", issue_num)
     if comments_error:
-        st.error(comments_error)
-        st.stop()
+        if comments:
+            st.warning("Comments could not be fully loaded. Showing partial comment data.")
+        else:
+            st.warning("Could not load comments for this issue. Showing reactions only.")
 
     usernames = {
         reaction.get("user", {}).get("login", "") for reaction in reactions if reaction.get("user", {}).get("login")

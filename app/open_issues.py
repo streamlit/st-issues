@@ -34,7 +34,8 @@ def get_issue_reactions(issue_number: int) -> pd.DataFrame:
     reactions, error = fetch_issue_reactions("streamlit/streamlit", issue_number)
     if error:
         print(f"Failed to retrieve reactions for issue {issue_number}: {error}", flush=True)
-        return pd.DataFrame()
+        if not reactions:
+            return pd.DataFrame()
 
     if not reactions:
         return pd.DataFrame()
@@ -145,8 +146,8 @@ else:
     issue_numbers = tuple(int(issue_number) for issue_number in df["number"].dropna().astype(int))
     view_counts, view_error = fetch_issue_view_counts(issue_numbers)
     if view_error:
-        st.warning("Failed to fetch issue view counts. Continuing without view metrics.")
-    df["views"] = df["number"].map(view_counts if not view_error else {})
+        st.warning("Some issue view counts could not be loaded. Displaying partial view metrics.")
+    df["views"] = df["number"].map(view_counts)
 
     if show_reactions_growth:
         # --- NEW LOGIC FOR REACTION GROWTH ---

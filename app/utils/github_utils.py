@@ -176,9 +176,9 @@ def fetch_issue_comments_payload(repo: str, issue_number: int | str) -> tuple[li
             expected_statuses={200, 404},
         )
         if status == 404:
-            return [], None
+            return comments, None
         if error:
-            return [], error
+            return comments, error
 
         page_items = cast("list[dict[str, Any]]", payload)
         if not page_items:
@@ -205,9 +205,9 @@ def fetch_issue_reactions(repo: str, issue_number: int) -> tuple[list[dict[str, 
             expected_statuses={200, 404},
         )
         if status == 404:
-            return [], None
+            return reactions, None
         if error:
-            return [], error
+            return reactions, error
 
         page_items = cast("list[dict[str, Any]]", payload)
         if not page_items:
@@ -280,9 +280,9 @@ def fetch_pull_request_files_payload(repo: str, pr_number: int) -> tuple[list[di
             expected_statuses={200, 404},
         )
         if status == 404:
-            return [], None
+            return files, None
         if error:
-            return [], error
+            return files, error
 
         page_items = cast("list[dict[str, Any]]", payload)
         if not page_items:
@@ -329,6 +329,8 @@ def fetch_issue_view_counts(issue_numbers: tuple[int, ...]) -> tuple[dict[int, i
     view_counts: dict[int, int | None] = {}
     batch_size = 100
 
+    errors: list[str] = []
+
     for i in range(0, len(unique_issues), batch_size):
         batch = unique_issues[i : i + batch_size]
         keys = ",".join(f"st-issue-{num}" for num in batch)
@@ -344,16 +346,31 @@ def fetch_issue_view_counts(issue_numbers: tuple[int, ...]) -> tuple[dict[int, i
                 },
                 timeout=30,
             )
-            if response.status_code != 200:
-                return {}, f"Failed to fetch issue views ({response.status_code})"
+        except requests.RequestException as exc:
+            errors.append(f"Failed to fetch issue views for batch starting at issue #{batch[0]}: {exc!s}")
+            continue
 
+        if response.status_code != 200:
+            errors.append(
+                f"Failed to fetch issue views ({response.status_code}) for batch starting at issue #{batch[0]}: "
+                f"{_compact_error_text(response.text)}"
+            )
+            continue
+
+        try:
             data = response.json()
-            for key, value in data.items():
+        except ValueError as exc:
+            errors.append(f"Failed to decode issue views response for batch starting at issue #{batch[0]}: {exc!s}")
+            continue
+
+        for key, value in data.items():
+            with contextlib.suppress(ValueError):
                 issue_num = int(str(key).split("-")[-1])
                 views = value.get("views") if isinstance(value, dict) else None
                 view_counts[issue_num] = int(views) if isinstance(views, int) else None
-        except Exception as exc:
-            return {}, f"Failed to fetch issue views: {exc!s}"
+
+    if errors:
+        return view_counts, " ; ".join(errors)
 
     return view_counts, None
 
