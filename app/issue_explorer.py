@@ -61,8 +61,16 @@ for issue in issues:
     title_to_issue_folder[issue] = issue
     issue_titles.append(issue)
 
+
+def issue_sort_key(issue_name: str) -> tuple[int, int, str]:
+    match = re.fullmatch(r"gh-(\d+)", issue_name)
+    if match:
+        return (1, int(match.group(1)), issue_name)
+    return (0, 0, issue_name)
+
+
 # Add empty state:
-issue_titles.sort(reverse=True)
+issue_titles.sort(key=issue_sort_key, reverse=True)
 issue_titles = ["", *issue_titles]
 query_params = initial_query_params()
 if query_params.get("issue"):
