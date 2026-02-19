@@ -41,7 +41,7 @@ page = st.navigation(
                 "./app/playwright_test_stats.py",
                 title="Playwright test stats",
                 icon="🎭",
-                url_path="Playwright_Test_Stats",
+                url_path="playwright_stats",
             ),
         ],
         "Performance and size": [
