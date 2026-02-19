@@ -413,7 +413,6 @@ st.caption(":material/keyboard_arrow_down: Select a row to view detailed stats f
 
 history_df = df.sort_values("created_at", ascending=False).copy()
 history_df["session_duration_min"] = history_df["session_duration_s"] / 60
-history_df["pass_rate"] = history_df["passed"] / history_df["total_tests"]
 
 df_selection = st.dataframe(
     history_df,
@@ -425,7 +424,6 @@ df_selection = st.dataframe(
         "passed": st.column_config.NumberColumn("Passed"),
         "failed": st.column_config.NumberColumn("Failed"),
         "total_reruns": st.column_config.NumberColumn("Reruns"),
-        "pass_rate": st.column_config.ProgressColumn("Pass Rate", format="%.1f%%", min_value=0, max_value=1),
         "session_duration_min": st.column_config.NumberColumn("Session (min)", format="%.1f"),
         "mean_duration_s": st.column_config.NumberColumn("Mean Duration (s)", format="%.2f"),
         "total_memory_mb": st.column_config.NumberColumn("Memory (MB)", format="%.0f"),
@@ -442,7 +440,6 @@ df_selection = st.dataframe(
         "passed",
         "failed",
         "total_reruns",
-        "pass_rate",
         "session_duration_min",
         "mean_duration_s",
         "total_memory_mb",
