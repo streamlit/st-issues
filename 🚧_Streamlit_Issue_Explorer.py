@@ -37,6 +37,12 @@ page = st.navigation(
                 icon="☂️",
                 url_path="Test_Coverage_(Frontend)",
             ),
+            st.Page(
+                "./app/playwright_test_stats.py",
+                title="Playwright test stats",
+                icon="🎭",
+                url_path="Playwright_Test_Stats",
+            ),
         ],
         "Performance and size": [
             st.Page(
