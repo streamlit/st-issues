@@ -183,6 +183,15 @@ def fetch_issue_details(issue_number: int) -> tuple[dict | None, str | None]:
     }, None
 
 
+def sanitize_title_for_markdown_link(title: str) -> str:
+    """Remove or escape markdown special characters from title for use in link text."""
+    # Remove backticks which break markdown link syntax
+    sanitized = title.replace("`", "")
+    # Remove square brackets which interfere with link syntax
+    sanitized = sanitized.replace("[", "(").replace("]", ")")
+    return sanitized
+
+
 def replace_issue_references_with_previews(markdown_content: str) -> str:
     """Replace issue references with styled previews."""
     # Pattern for issue links like [#12331](https://github.com/streamlit/streamlit/issues/12331)
@@ -206,8 +215,8 @@ def replace_issue_references_with_previews(markdown_content: str) -> str:
         else:
             status_icon = ":violet[:material/check_circle:]"
 
-        # Truncate title if too long
-        title = issue_details["title"]
+        # Sanitize and truncate title for use in markdown link
+        title = sanitize_title_for_markdown_link(issue_details["title"])
         if len(title) > 50:
             title = title[:50] + "..."
 
@@ -582,12 +591,36 @@ def main() -> None:
             fetch_merged_specs.clear()
     st.markdown("Read product specs from the Streamlit repo.")
 
-    tab_open, tab_merged = st.tabs(["Open PRs", "Merged Specs"])
+    # Determine initial view from query params
+    view_param = st.query_params.get("view")
+    if view_param == "open" or "pr" in st.query_params:
+        default_view = "Open PRs"
+    elif view_param == "merged" or "spec" in st.query_params:
+        default_view = "Merged Specs"
+    else:
+        default_view = "Merged Specs"  # Default to merged specs
 
-    with tab_open:
+    view_options = ["Open PRs", "Merged Specs"]
+    selected_view = st.segmented_control(
+        "View",
+        options=view_options,
+        default=default_view,
+        label_visibility="collapsed",
+    )
+
+    # Update query param when view changes and clean up conflicting params
+    new_view_param = "merged" if selected_view == "Merged Specs" else "open"
+    if st.query_params.get("view") != new_view_param:
+        st.query_params["view"] = new_view_param
+        # Remove conflicting query params when switching views
+        if new_view_param == "merged" and "pr" in st.query_params:
+            del st.query_params["pr"]
+        elif new_view_param == "open" and "spec" in st.query_params:
+            del st.query_params["spec"]
+
+    if selected_view == "Open PRs":
         render_open_spec_prs()
-
-    with tab_merged:
+    else:
         render_merged_specs()
 
 
