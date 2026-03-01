@@ -593,14 +593,14 @@ def main() -> None:
 
     # Determine initial view from query params
     view_param = st.query_params.get("view")
-    if view_param == "open" or "pr" in st.query_params:
-        default_view = "Open PRs"
-    elif view_param == "merged" or "spec" in st.query_params:
-        default_view = "Merged Specs"
+    if view_param == "review" or "pr" in st.query_params:
+        default_view = "In review"
+    elif view_param == "approved" or "spec" in st.query_params:
+        default_view = "Approved"
     else:
-        default_view = "Merged Specs"  # Default to merged specs
+        default_view = "Approved"  # Default to approved specs
 
-    view_options = ["Open PRs", "Merged Specs"]
+    view_options = ["In review", "Approved"]
     selected_view = st.segmented_control(
         "View",
         options=view_options,
@@ -609,16 +609,16 @@ def main() -> None:
     )
 
     # Update query param when view changes and clean up conflicting params
-    new_view_param = "merged" if selected_view == "Merged Specs" else "open"
+    new_view_param = "approved" if selected_view == "Approved" else "review"
     if st.query_params.get("view") != new_view_param:
         st.query_params["view"] = new_view_param
         # Remove conflicting query params when switching views
-        if new_view_param == "merged" and "pr" in st.query_params:
+        if new_view_param == "approved" and "pr" in st.query_params:
             del st.query_params["pr"]
-        elif new_view_param == "open" and "spec" in st.query_params:
+        elif new_view_param == "review" and "spec" in st.query_params:
             del st.query_params["spec"]
 
-    if selected_view == "Open PRs":
+    if selected_view == "In review":
         render_open_spec_prs()
     else:
         render_merged_specs()
