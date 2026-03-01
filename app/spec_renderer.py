@@ -591,14 +591,8 @@ def main() -> None:
             fetch_merged_specs.clear()
     st.markdown("Read product specs from the Streamlit repo.")
 
-    # Determine initial view from query params
-    view_param = st.query_params.get("view")
-    if view_param == "review" or "pr" in st.query_params:
-        default_view = "In review"
-    elif view_param == "approved" or "spec" in st.query_params:
-        default_view = "Approved"
-    else:
-        default_view = "Approved"  # Default to approved specs
+    # Determine initial view based on presence of pr or spec query param
+    default_view = "In review" if "pr" in st.query_params else "Approved"
 
     view_options = ["In review", "Approved"]
     selected_view = st.segmented_control(
@@ -609,15 +603,11 @@ def main() -> None:
         width="stretch",
     )
 
-    # Update query param when view changes and clean up conflicting params
-    new_view_param = "approved" if selected_view == "Approved" else "review"
-    if st.query_params.get("view") != new_view_param:
-        st.query_params["view"] = new_view_param
-        # Remove conflicting query params when switching views
-        if new_view_param == "approved" and "pr" in st.query_params:
-            del st.query_params["pr"]
-        elif new_view_param == "review" and "spec" in st.query_params:
-            del st.query_params["spec"]
+    # Clean up conflicting query params when switching views
+    if selected_view == "Approved" and "pr" in st.query_params:
+        del st.query_params["pr"]
+    elif selected_view == "In review" and "spec" in st.query_params:
+        del st.query_params["spec"]
 
     if selected_view == "In review":
         render_open_spec_prs()
