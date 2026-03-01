@@ -606,6 +606,7 @@ def main() -> None:
         options=view_options,
         default=default_view,
         label_visibility="collapsed",
+        width="stretch",
     )
 
     # Update query param when view changes and clean up conflicting params
