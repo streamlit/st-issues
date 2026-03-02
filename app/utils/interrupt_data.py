@@ -388,6 +388,48 @@ def get_bundle_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[i
     )
 
 
+@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching Playwright test count...")  # cache for 6 hours
+def get_playwright_test_count_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[int, int]:
+    """Get the Playwright E2E test count and the change over a period."""
+    _ = refresh_nonce
+    runs_in_period = fetch_workflow_runs("playwright.yml", since=since_date)
+
+    def get_test_count(run_id: int) -> int:
+        artifacts = fetch_artifacts(run_id)
+        artifact = next((a for a in artifacts if a["name"].startswith("playwright_test_stats")), None)
+        if not artifact:
+            return 0
+        content = download_artifact(artifact["archive_download_url"])
+        if not content:
+            return 0
+        try:
+            with ZipFile(BytesIO(content)) as z:
+                for name in z.namelist():
+                    if name.endswith(".json"):
+                        with z.open(name) as f:
+                            data = json.load(f)
+                            return data.get("summary", {}).get("total_tests", 0)
+        except Exception:
+            return 0
+        return 0
+
+    if not runs_in_period:
+        latest_run = fetch_workflow_runs("playwright.yml", limit=1)
+        if not latest_run:
+            return 0, 0
+        latest_count = get_test_count(latest_run[0]["id"])
+        return latest_count, 0
+
+    latest_count = get_test_count(runs_in_period[0]["id"])
+
+    if len(runs_in_period) < 2:
+        return latest_count, 0
+
+    oldest_count = get_test_count(runs_in_period[-1]["id"])
+
+    return latest_count, latest_count - oldest_count
+
+
 def get_bug_metrics(since_date: date) -> tuple[int, int]:
     """Get the total number of open bugs and closed bugs in the period.
 

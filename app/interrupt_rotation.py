@@ -16,6 +16,7 @@ from app.utils.interrupt_data import (
     get_bundle_size_metrics,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
+    get_playwright_test_count_metrics,
     get_python_test_coverage_metrics,
     get_wheel_size_metrics,
 )
@@ -146,7 +147,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             help="Size of the Streamlit Python package (wheel file).",
         )
 
-    col1, col2, _ = st.columns(3)
+    col1, col2, col3 = st.columns(3)
     with col1:
         (
             total_gzip,
@@ -174,6 +175,19 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             delta_color="inverse",
             border=True,
             help="Size of the entry point chunks (initial load) after Gzip compression.",
+        )
+    with col3:
+        pw_count, pw_count_change = get_playwright_test_count_metrics(
+            selected_since,
+            refresh_nonce=selected_refresh_nonce,
+        )
+        st.metric(
+            "Playwright Tests",
+            f"{pw_count:,}",
+            f"{pw_count_change:+,}",
+            delta_color="off",
+            border=True,
+            help="Total number of Playwright E2E tests (across all browsers).",
         )
 
 
