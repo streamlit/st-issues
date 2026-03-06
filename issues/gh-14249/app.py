@@ -3,7 +3,7 @@ import time
 import streamlit as st
 
 
-@st.cache_data
+@st.cache_data(ttl="10s")
 def foo():
     time.sleep(2)
 
