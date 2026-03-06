@@ -3,9 +3,9 @@ import time
 import streamlit as st
 
 
-@st.cache_data(ttl="10s")
+@st.cache_data(ttl="15s")
 def foo():
-    time.sleep(2)
+    time.sleep(10)
 
 
 section = st.segmented_control("Section", ["S1", "S2"])
