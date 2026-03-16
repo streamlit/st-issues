@@ -134,6 +134,14 @@ df = df.sort_values(by=["app_name", "index"])
 # Calculate rolling mean
 df["rolling_mean"] = df.groupby("app_name")["score"].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
 
+points_selection = alt.selection_point(
+    name="points",
+    fields=["commit_sha_full"],
+    on="click",
+    clear="dblclick",
+    toggle=False,
+)
+
 chart = (
     alt.Chart(df)
     .mark_point()
@@ -148,6 +156,7 @@ chart = (
         tooltip=["datetime:T", "score:Q", "app_name:N", "commit_hash:N"],
     )
     .properties(title="Lighthouse Scores Over Time")
+    .add_params(points_selection)
 )
 
 rolling_mean_line = (
