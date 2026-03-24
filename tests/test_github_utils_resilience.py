@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import requests
@@ -18,6 +19,24 @@ class _FakeResponse:
 
     def json(self) -> Any:
         return self._payload
+
+
+class _FakeSecrets:
+    def __init__(self, data: dict[str, Any] | None = None, *, raises: bool = False) -> None:
+        self._data = data or {}
+        self._raises = raises
+
+    def get(self, key: str) -> Any:
+        if self._raises:
+            message = "secrets missing"
+            raise RuntimeError(message)
+        return self._data.get(key)
+
+
+def test_get_headers_returns_accept_header_without_secrets(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(github_utils, "st", SimpleNamespace(secrets=_FakeSecrets(raises=True)))
+
+    assert github_utils.get_headers() == {"Accept": "application/vnd.github.v3+json"}
 
 
 def test_fetch_issue_comments_payload_keeps_partial_results_on_later_page_failure(monkeypatch: MonkeyPatch) -> None:

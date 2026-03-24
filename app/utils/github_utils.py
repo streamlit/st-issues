@@ -106,11 +106,23 @@ def is_community_author(author: str) -> bool:
 
 
 def get_headers() -> dict[str, str]:
-    """Get headers for GitHub API requests."""
-    return {
-        "Authorization": f"token {st.secrets['github']['token']}",
-        "Accept": "application/vnd.github.v3+json",
-    }
+    """Get headers for GitHub API requests with optional auth."""
+    headers = {"Accept": "application/vnd.github.v3+json"}
+
+    try:
+        github_secrets = st.secrets.get("github")
+    except Exception:
+        github_secrets = None
+
+    if github_secrets is not None:
+        try:
+            token = github_secrets.get("token")
+        except Exception:
+            token = None
+        if isinstance(token, str) and token:
+            headers["Authorization"] = f"token {token}"
+
+    return headers
 
 
 def _compact_error_text(text: str, max_chars: int = 280) -> str:

@@ -76,6 +76,7 @@ page = st.navigation(
         ],
         "Tools": [
             st.Page("./app/spec_renderer.py", title="Spec renderer", icon="🔧"),
+            st.Page("./app/agent_wiki_explorer.py", title="Agent wiki explorer", icon="📚"),
         ],
     }
 )
