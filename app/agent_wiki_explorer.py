@@ -45,12 +45,12 @@ def _render_image_asset(document: WikiDocument) -> None:
     if local_path is None:
         st.warning("The selected asset could not be loaded.")
         return
-    st.image(local_path, caption=document["path"], use_container_width=True)
+    st.image(local_path, caption=document["path"], width="stretch")
 
 
 def _render_other_asset(document: WikiDocument) -> None:
     st.info("This asset is not rendered inline.")
-    st.link_button("Open asset", document["raw_url"], use_container_width=False)
+    st.link_button("Open asset", document["raw_url"], width="content")
 
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")

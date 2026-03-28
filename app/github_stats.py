@@ -731,7 +731,7 @@ if selected_metrics == "Contribution Metrics":
                     y="Merged PRs",
                     title=f"Monthly Merged PRs by @{selected_member}",
                 )
-                st.plotly_chart(fig_member_prs, use_container_width=True)
+                st.plotly_chart(fig_member_prs, width="stretch")
 
             with member_tab2:
                 # Line chart for weekly PRs trend
@@ -750,7 +750,7 @@ if selected_metrics == "Contribution Metrics":
                     annotation_text=f"Avg: {avg_weekly_prs:.1f}",
                     annotation_position="top right",
                 )
-                st.plotly_chart(fig_weekly_prs, use_container_width=True)
+                st.plotly_chart(fig_weekly_prs, width="stretch")
 
             with member_tab3:
                 # Melt for LOC chart
@@ -769,7 +769,7 @@ if selected_metrics == "Contribution Metrics":
                     title=f"Monthly LOC Changes by @{selected_member}",
                     color_discrete_map={"Additions": "#28a745", "Deletions": "#dc3545"},
                 )
-                st.plotly_chart(fig_member_loc, use_container_width=True)
+                st.plotly_chart(fig_member_loc, width="stretch")
 
             with member_tab4:
                 # Melt for Types chart
@@ -788,7 +788,7 @@ if selected_metrics == "Contribution Metrics":
                     title=f"Monthly Features vs Bugfixes by @{selected_member}",
                     barmode="group",
                 )
-                st.plotly_chart(fig_member_types, use_container_width=True)
+                st.plotly_chart(fig_member_types, width="stretch")
         else:
             st.info(f"No merged PRs found for @{selected_member} in the selected period.")
     elif merged_prs_df.empty:
@@ -1139,7 +1139,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 )
                 active_chart_selection = st.plotly_chart(
                     fig_active,
-                    use_container_width=True,
+                    width="stretch",
                     on_select="rerun",
                     key="active_contributors_chart",
                 )
@@ -1222,7 +1222,7 @@ elif selected_metrics == "Team Productivity Metrics":
                     )
                     chart_selection = st.plotly_chart(
                         fig_team,
-                        use_container_width=True,
+                        width="stretch",
                         on_select="rerun",
                         key="core_team_prs_chart",
                     )
@@ -1380,7 +1380,7 @@ elif selected_metrics == "Team Productivity Metrics":
                     )
                     reactions_chart_selection = st.plotly_chart(
                         fig_reactions,
-                        use_container_width=True,
+                        width="stretch",
                         on_select="rerun",
                         key="issue_reactions_chart",
                     )

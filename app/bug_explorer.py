@@ -242,9 +242,9 @@ if not filtered_df.empty:
 
     st.dataframe(
         filtered_df[display_cols],
-        column_config=column_config,  # type: ignore[arg-type]
+        column_config=column_config,  # type: ignore[call-overload]
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 else:
     st.info("No issues match the current filters.")

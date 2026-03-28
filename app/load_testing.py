@@ -638,7 +638,7 @@ if run_summary_records:
                         "Max (ms)": st.column_config.NumberColumn(format="%.1f"),
                     },
                     hide_index=True,
-                    use_container_width=True,
+                    width="stretch",
                 )
 
             with tab_server:
