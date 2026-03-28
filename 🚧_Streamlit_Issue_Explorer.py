@@ -69,6 +69,7 @@ page = st.navigation(
                 icon="📦",
             ),
             st.Page("./app/wheel_size.py", title="Wheel size", icon="🛞"),
+            st.Page("./app/load_testing.py", title="Load testing", icon="⚡"),
         ],
         "Collaboration insights": [
             st.Page("./app/community_prs.py", title="Community PRs", icon="👥"),
