@@ -286,6 +286,8 @@ for _, row in latest_df.iterrows():
             "Failed sessions",
             int(row["sessions_failed"]),
             border=True,
+            chart_data=scenario_history["sessions_failed"],
+            chart_type="bar",
         )
 
 
