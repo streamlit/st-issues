@@ -31,6 +31,30 @@ PR #9276 ("Do not preserve children of a block if the block type changes") is pr
 - **Areas:** frontend, element rendering, block reconciliation
 - **Related:** PR #9276, Issues #9259, #8676
 
+## Visual Reproduction App
+
+**File:** `app.py`
+
+**Created:** 2026-04-08
+
+**Purpose:** Visual demonstration of issue #14672 for manual verification, particularly on Firefox
+
+**App Features:**
+
+- ✅ Demonstrates the exact reporter repro (expander ↔ tabs with checkbox + time.sleep)
+- ✅ Includes additional test cases (reverse direction, tabs ↔ container)
+- ✅ Highlights Firefox as the reported browser
+- ✅ Links to original issue
+- ✅ Self-contained and immediately runnable
+
+**Testing Notes:**
+- Must test on **Firefox** — could not reproduce on Chromium or WebKit
+- Look for: whitescreen, brief flicker, or blank area when toggling checkbox
+- Try toggling multiple times rapidly
+
+**Deploy URL:** https://issues.streamlit.app/?issue=gh-14672
+(Available after deployment)
+
 ## Repro app
 
 ```python
