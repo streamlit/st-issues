@@ -14,11 +14,19 @@ import streamlit as st
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
+    fetch_pr_info,
     fetch_workflow_runs,
+    fetch_workflow_runs_for_commit,
     get_headers,
 )
 
 st.set_page_config(page_title="Load testing", page_icon="⚡", layout="wide")
+
+LOAD_TESTING_WORKFLOW = "load-testing.yml"
+
+query_params = st.query_params
+pr_number_param = query_params.get("pr")
+pr_number = (pr_number_param[0] if pr_number_param else None) if isinstance(pr_number_param, list) else pr_number_param
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
@@ -26,36 +34,45 @@ with title_row:
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
 
-st.caption(
-    "This page visualizes load testing results over time, based on the "
-    "`load-testing.yml` workflow runs on the develop branch."
-)
+if pr_number:
+    st.caption(
+        f"Comparing load test stats for [PR #{pr_number}](https://github.com/streamlit/streamlit/pull/{pr_number}) "
+        "against the latest develop run."
+    )
+else:
+    st.caption(
+        "This page visualizes load testing results over time, based on the "
+        f"`{LOAD_TESTING_WORKFLOW}` workflow runs on the develop branch."
+    )
 
 # Sidebar controls
-time_period = st.sidebar.selectbox(
-    "Time period",
-    options=["Last 7 days", "Last 30 days", "Last 90 days", "All time"],
-    help="The time period to display load test results for.",
-    index=3,
-)
-workflow_runs_limit = st.sidebar.slider(
-    "Number of workflow runs",
-    min_value=20,
-    max_value=200,
-    value=50,
-    step=10,
-    help="Number of workflow runs (commits to develop) to include.",
-)
-
-since_date: datetime | None
-if time_period == "Last 7 days":
-    since_date = datetime.now() - timedelta(days=7)
-elif time_period == "Last 30 days":
-    since_date = datetime.now() - timedelta(days=30)
-elif time_period == "Last 90 days":
-    since_date = datetime.now() - timedelta(days=90)
+if pr_number:
+    since_date: datetime | None = None
+    workflow_runs_limit = 1
 else:
-    since_date = None
+    time_period = st.sidebar.selectbox(
+        "Time period",
+        options=["Last 7 days", "Last 30 days", "Last 90 days", "All time"],
+        help="The time period to display load test results for.",
+        index=3,
+    )
+    workflow_runs_limit = st.sidebar.slider(
+        "Number of workflow runs",
+        min_value=20,
+        max_value=200,
+        value=50,
+        step=10,
+        help="Number of workflow runs (commits to develop) to include.",
+    )
+
+    if time_period == "Last 7 days":
+        since_date = datetime.now() - timedelta(days=7)
+    elif time_period == "Last 30 days":
+        since_date = datetime.now() - timedelta(days=30)
+    elif time_period == "Last 90 days":
+        since_date = datetime.now() - timedelta(days=90)
+    else:
+        since_date = None
 
 
 def _parse_load_test_payload(content: bytes) -> dict[str, Any] | None:
@@ -195,10 +212,285 @@ def flatten_scenario_records(run: dict[str, Any], results: dict[str, Any]) -> li
     return records
 
 
+def get_load_test_run_data(run: dict[str, Any]) -> dict[str, Any] | None:
+    """Return parsed load test data and flattened records for a workflow run."""
+    results = get_load_test_results(run["id"])
+    if not results:
+        return None
+
+    records = flatten_scenario_records(run, results)
+    if not records:
+        return None
+
+    return {
+        "run": run,
+        "results": results,
+        "records": records,
+    }
+
+
+def get_latest_develop_load_test() -> dict[str, Any] | None:
+    """Get load test data for the latest successful workflow run on develop."""
+    latest_runs = fetch_workflow_runs(LOAD_TESTING_WORKFLOW, limit=1)
+    if not latest_runs:
+        st.error(f"No recent successful `{LOAD_TESTING_WORKFLOW}` runs found on develop.")
+        return None
+
+    load_test_data = get_load_test_run_data(latest_runs[0])
+    if not load_test_data:
+        st.error("Could not fetch load test results for the latest develop run.")
+        return None
+
+    return load_test_data
+
+
+def get_pr_load_test(pr_info: dict[str, Any]) -> dict[str, Any] | None:
+    """Get load test data for a PR's head commit."""
+    head_sha = pr_info["head"]["sha"]
+    pr_runs = fetch_workflow_runs_for_commit(head_sha, LOAD_TESTING_WORKFLOW)
+
+    if not pr_runs:
+        st.error(f"No successful `{LOAD_TESTING_WORKFLOW}` runs found for PR commit {head_sha[:7]}.")
+        return None
+
+    for pr_run in pr_runs:
+        load_test_data = get_load_test_run_data(pr_run)
+        if load_test_data:
+            return load_test_data
+
+    st.error(f"Could not fetch load test results for PR commit {head_sha[:7]}.")
+    return None
+
+
+def summarize_load_test_records(records: list[dict[str, Any]]) -> dict[str, float]:
+    """Summarize per-scenario load test records into run-level metrics."""
+    run_df = pd.DataFrame(records)
+    if run_df.empty:
+        return {
+            "avg_initial_load_p50_s": 0.0,
+            "avg_initial_load_p95_s": 0.0,
+            "avg_rerun_p50_ms": 0.0,
+            "max_memory_peak_mb": 0.0,
+            "total_failed_sessions": 0.0,
+        }
+
+    return {
+        "avg_initial_load_p50_s": run_df["initial_load_p50_ms"].mean() / 1000,
+        "avg_initial_load_p95_s": run_df["initial_load_p95_ms"].mean() / 1000,
+        "avg_rerun_p50_ms": run_df["rerun_p50_ms"].mean(),
+        "max_memory_peak_mb": run_df["memory_peak_mb"].max(),
+        "total_failed_sessions": run_df["sessions_failed"].sum(),
+    }
+
+
+def format_metric_delta(delta: float, unit: str, precision: int) -> str:
+    """Format a signed metric delta for st.metric."""
+    sign = "+" if delta > 0 else ""
+    separator = "" if not unit or unit == "%" else " "
+    return f"{sign}{delta:.{precision}f}{separator}{unit}"
+
+
+def get_comparison_metric_definitions() -> list[tuple[str, str, float, str]]:
+    """Return comparison metrics as label, record key, scale divisor, and display unit."""
+    return [
+        ("Initial load p50", "initial_load_p50_ms", 1000, "s"),
+        ("Initial load p95", "initial_load_p95_ms", 1000, "s"),
+        ("Initial load p99", "initial_load_p99_ms", 1000, "s"),
+        ("Rerun p50", "rerun_p50_ms", 1, "ms"),
+        ("Rerun p95", "rerun_p95_ms", 1, "ms"),
+        ("Rerun p99", "rerun_p99_ms", 1, "ms"),
+        ("Memory peak", "memory_peak_mb", 1, "MB"),
+        ("Memory growth", "memory_growth_mb", 1, "MB"),
+        ("CPU avg", "cpu_avg_pct", 1, "%"),
+        ("CPU peak", "cpu_peak_pct", 1, "%"),
+        ("Failed sessions", "sessions_failed", 1, "count"),
+        ("Errors", "error_count", 1, "count"),
+    ]
+
+
+def scale_metric_value(value: Any, scale: float) -> float | None:
+    """Scale a raw metric value for display."""
+    if pd.isna(value):
+        return None
+
+    return float(value) / scale
+
+
+def build_scenario_comparison_df(
+    pr_records: list[dict[str, Any]], develop_records: list[dict[str, Any]]
+) -> pd.DataFrame:
+    """Build a long-form scenario comparison table."""
+    pr_df = pd.DataFrame(pr_records)
+    develop_df = pd.DataFrame(develop_records)
+    if pr_df.empty and develop_df.empty:
+        return pd.DataFrame()
+
+    merged_df = pr_df.merge(
+        develop_df,
+        on="scenario",
+        how="outer",
+        suffixes=("_pr", "_develop"),
+    )
+
+    comparison_records = []
+    for _, row in merged_df.iterrows():
+        for label, key, scale, unit in get_comparison_metric_definitions():
+            pr_display_value = scale_metric_value(row.get(f"{key}_pr"), scale)
+            develop_display_value = scale_metric_value(row.get(f"{key}_develop"), scale)
+
+            if pr_display_value is None:
+                comparison_records.append(
+                    {
+                        "Scenario": row["scenario"],
+                        "Metric": label,
+                        "Unit": unit,
+                        "PR": None,
+                        "Develop": develop_display_value,
+                        "Delta": None,
+                        "Delta %": None,
+                        "Impact": "Develop only",
+                    }
+                )
+                continue
+
+            if develop_display_value is None:
+                comparison_records.append(
+                    {
+                        "Scenario": row["scenario"],
+                        "Metric": label,
+                        "Unit": unit,
+                        "PR": pr_display_value,
+                        "Develop": None,
+                        "Delta": None,
+                        "Delta %": None,
+                        "Impact": "PR only",
+                    }
+                )
+                continue
+
+            delta = pr_display_value - develop_display_value
+            delta_pct = (delta / develop_display_value * 100) if develop_display_value else None
+            impact = "Regression" if delta > 0 else "Improvement" if delta < 0 else "No change"
+
+            comparison_records.append(
+                {
+                    "Scenario": row["scenario"],
+                    "Metric": label,
+                    "Unit": unit,
+                    "PR": pr_display_value,
+                    "Develop": develop_display_value,
+                    "Delta": delta,
+                    "Delta %": delta_pct,
+                    "Impact": impact,
+                }
+            )
+
+    return pd.DataFrame(comparison_records)
+
+
+def display_load_test_comparison(pr_data: dict[str, Any], develop_data: dict[str, Any]) -> None:
+    """Display a PR load test comparison against latest develop."""
+    st.subheader("PR Load Test Comparison")
+
+    pr_run = pr_data["run"]
+    develop_run = develop_data["run"]
+    pr_results = pr_data["results"]
+    develop_results = develop_data["results"]
+    pr_sha = pr_results.get("metadata", {}).get("git_sha", pr_run["head_sha"])
+    develop_sha = develop_results.get("metadata", {}).get("git_sha", develop_run["head_sha"])
+
+    st.markdown(
+        f"**PR Commit:** [{pr_sha[:7]}](https://github.com/streamlit/streamlit/commit/{pr_sha}) | "
+        f"**Develop Commit:** [{develop_sha[:7]}](https://github.com/streamlit/streamlit/commit/{develop_sha})  \n"
+        f"**PR Workflow Run:** [View Run]({pr_run['html_url']}) | "
+        f"**Develop Workflow Run:** [View Run]({develop_run['html_url']})"
+    )
+
+    pr_summary = summarize_load_test_records(pr_data["records"])
+    develop_summary = summarize_load_test_records(develop_data["records"])
+    summary_metrics = [
+        ("Avg initial load p50", "avg_initial_load_p50_s", "s", 2),
+        ("Avg initial load p95", "avg_initial_load_p95_s", "s", 2),
+        ("Avg rerun p50", "avg_rerun_p50_ms", "ms", 1),
+        ("Max memory peak", "max_memory_peak_mb", "MB", 0),
+        ("Failed sessions", "total_failed_sessions", "", 0),
+    ]
+
+    cols = st.columns(len(summary_metrics))
+    for col, (label, key, unit, precision) in zip(cols, summary_metrics, strict=False):
+        pr_value = pr_summary[key]
+        delta = pr_value - develop_summary[key]
+        separator = "" if not unit else " "
+        with col:
+            st.metric(
+                label,
+                f"{pr_value:.{precision}f}{separator}{unit}",
+                format_metric_delta(delta, unit, precision),
+                delta_color="inverse",
+                border=True,
+            )
+
+    st.subheader("Scenario comparison")
+    st.caption("Deltas are PR minus develop. Lower values are better for the metrics shown here.")
+
+    comparison_df = build_scenario_comparison_df(pr_data["records"], develop_data["records"])
+    if comparison_df.empty:
+        st.warning("No comparable scenario metrics found.")
+        return
+
+    st.dataframe(
+        comparison_df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Scenario": st.column_config.TextColumn("Scenario", pinned=True),
+            "Metric": st.column_config.TextColumn("Metric"),
+            "Unit": st.column_config.TextColumn("Unit"),
+            "PR": st.column_config.NumberColumn("PR", format="%.2f"),
+            "Develop": st.column_config.NumberColumn("Develop", format="%.2f"),
+            "Delta": st.column_config.NumberColumn("Delta", format="%.2f"),
+            "Delta %": st.column_config.NumberColumn("Delta %", format="%.1f%%"),
+            "Impact": st.column_config.TextColumn("Impact"),
+        },
+    )
+
+
+def handle_pr_mode(pr_number: str) -> None:
+    """Fetch and display load test comparison for a PR number."""
+    normalized_pr_number = pr_number.strip()
+    if not normalized_pr_number.isdigit():
+        st.error(f"Invalid PR number: {pr_number}")
+        return
+
+    with st.spinner(f"Fetching data for PR #{normalized_pr_number}..."):
+        pr_info = fetch_pr_info(normalized_pr_number)
+
+    if not pr_info:
+        st.error(f"Could not fetch information for PR #{normalized_pr_number}.")
+        return
+
+    with st.spinner("Fetching PR load test data..."):
+        pr_data = get_pr_load_test(pr_info)
+
+    with st.spinner("Fetching latest develop load test data..."):
+        develop_data = get_latest_develop_load_test()
+
+    if not pr_data or not develop_data:
+        st.error("Could not fetch load test data for comparison.")
+        return
+
+    display_load_test_comparison(pr_data, develop_data)
+
+
+if pr_number:
+    handle_pr_mode(str(pr_number))
+    st.stop()
+
+
 # ── Fetch and process data ──────────────────────────────────────────────────
 
 with st.spinner("Fetching data..."):
-    workflow_runs = fetch_workflow_runs("load-testing.yml", limit=workflow_runs_limit, since=since_date)
+    workflow_runs = fetch_workflow_runs(LOAD_TESTING_WORKFLOW, limit=workflow_runs_limit, since=since_date)
 
     if not workflow_runs:
         st.warning("No workflow runs found for the specified criteria.")
