@@ -6,4 +6,3 @@ enableRich = true
 
 [server]
 enableStaticServing = true
-useStarlette = true
