@@ -12,6 +12,7 @@ from app.utils.github_utils import (
     validate_issue_number,
 )
 from app.utils.interrupt_data import (
+    MONITORED_INTERRUPT_REPOS,
     build_interrupt_action_items,
     get_bundle_size_metrics,
     get_flaky_tests,
@@ -502,16 +503,14 @@ elif flaky_tests_df is not None:
     )
 st.divider()
 
+monitored_repos_help = "\n".join(f"- `{repo}`" for repo in MONITORED_INTERRUPT_REPOS)
+
 st.subheader(
-    "Open PRs in other important repos",
-    help="""
-Track open pull requests in adjacent Streamlit-maintained repos that may need interrupt rotation attention:
-- `streamlit/gallery`
-- `streamlit/component-template`
-- `streamlit/streamlit-bokeh`
-- `streamlit/streamlit-pdf`
-- `streamlit/agent-skills`
-""",
+    "Open PRs in important repos",
+    help=(
+        "Track open pull requests in Streamlit-maintained repos that may need interrupt rotation "
+        "attention:\n" + monitored_repos_help
+    ),
 )
 monitored_repo_prs_df = get_monitored_repo_open_prs(refresh_nonce=refresh_nonce)
 monitored_repo_prs_df = (

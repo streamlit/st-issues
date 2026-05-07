@@ -37,6 +37,8 @@ MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
     "streamlit/streamlit-bokeh",
     "streamlit/streamlit-pdf",
     "streamlit/agent-skills",
+    "streamlit/st-issues",
+    "streamlit/site",
 )
 
 
@@ -70,7 +72,7 @@ def get_interrupt_data_snapshot(refresh_nonce: int = 0) -> tuple[list[dict[str, 
 
 @st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False)
 def get_monitored_repo_open_prs(refresh_nonce: int = 0) -> pd.DataFrame:
-    """Fetch open PRs from adjacent repos that the interrupt rotation should monitor."""
+    """Fetch open PRs from Streamlit-managed repos that the interrupt rotation should monitor."""
     rows: list[dict[str, Any]] = []
 
     for repo in MONITORED_INTERRUPT_REPOS:

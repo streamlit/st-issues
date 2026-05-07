@@ -170,6 +170,26 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
             )
         ],
         "streamlit/agent-skills": [],
+        "streamlit/st-issues": [
+            _pr(
+                number=104,
+                repo="streamlit/st-issues",
+                title="Issues cleanup",
+                labels=[],
+                author="dave",
+                updated_at="2026-02-13T10:00:00+00:00",
+            )
+        ],
+        "streamlit/site": [
+            _pr(
+                number=105,
+                repo="streamlit/site",
+                title="Docs refresh",
+                labels=[],
+                author="erin",
+                updated_at="2026-02-08T10:00:00+00:00",
+            )
+        ],
     }
     calls: list[tuple[str, str, int]] = []
 
@@ -187,10 +207,18 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
     monitored_prs = interrupt_data.get_monitored_repo_open_prs(refresh_nonce=3)
 
     assert calls == [(repo, "open", 3) for repo in interrupt_data.MONITORED_INTERRUPT_REPOS]
-    assert list(monitored_prs["Title"]) == ["Pdf fix", "Gallery draft", "Bokeh cleanup"]
+    assert list(monitored_prs["Title"]) == [
+        "Issues cleanup",
+        "Pdf fix",
+        "Gallery draft",
+        "Bokeh cleanup",
+        "Docs refresh",
+    ]
     assert list(monitored_prs["Repository"]) == [
+        "streamlit/st-issues",
         "streamlit/streamlit-pdf",
         "streamlit/gallery",
         "streamlit/streamlit-bokeh",
+        "streamlit/site",
     ]
-    assert list(monitored_prs["Draft"]) == [False, True, False]
+    assert list(monitored_prs["Draft"]) == [False, False, True, False, False]
