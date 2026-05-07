@@ -965,7 +965,9 @@ def extract_issue_number(github_url: str) -> int:
     """Extract issue number from GitHub URL."""
     if "/issues/" in github_url:
         try:
-            return int(github_url.rsplit("/issues/", maxsplit=1)[-1].split("?")[0].split("#")[0])
+            return int(
+                github_url.rsplit("/issues/", maxsplit=1)[-1].split("?", maxsplit=1)[0].split("#", maxsplit=1)[0]
+            )
         except (ValueError, IndexError):
             return 0
     return 0

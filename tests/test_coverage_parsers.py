@@ -1,3 +1,5 @@
+import pytest
+
 from app.utils.coverage_parsers import (
     extract_python_coverage_summary,
     parse_python_coverage_payload,
@@ -14,14 +16,14 @@ def test_parse_python_coverage_payload_and_summary() -> None:
     }
 
     parsed = parse_python_coverage_payload(payload)
-    assert parsed["lib/streamlit/foo.py"]["coverage_pct"] == 75.0
-    assert parsed["lib/streamlit/bar.py"]["coverage_pct"] == 25.0
+    assert parsed["lib/streamlit/foo.py"]["coverage_pct"] == pytest.approx(75.0)
+    assert parsed["lib/streamlit/bar.py"]["coverage_pct"] == pytest.approx(25.0)
 
     summary = extract_python_coverage_summary(parsed)
     assert summary["total_stmts"] == 8
     assert summary["covered_stmts"] == 4
     assert summary["total_miss"] == 4
-    assert summary["coverage_pct"] == 50.0
+    assert summary["coverage_pct"] == pytest.approx(50.0)
 
 
 def test_parse_vitest_coverage_payload_removes_ci_prefix() -> None:
