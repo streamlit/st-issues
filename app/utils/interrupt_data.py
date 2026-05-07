@@ -38,7 +38,6 @@ MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
     "streamlit/streamlit-pdf",
     "streamlit/agent-skills",
     "streamlit/st-issues",
-    "streamlit/site",
 )
 
 
