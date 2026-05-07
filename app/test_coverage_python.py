@@ -170,7 +170,7 @@ def display_coverage_details(
                 # "Coverage": round(info["coverage"], 2),
                 "Coverage %": round(info["coverage_pct"], 2),
             }
-            for _, info in coverage_data.items()
+            for info in coverage_data.values()
         ]
     )
 

@@ -227,7 +227,7 @@ def display_coverage_details(
                 "Branches Covered": info["branches_covered"],
                 "Branches Coverage %": info["branches_pct"],
             }
-            for _, info in coverage_data.items()
+            for info in coverage_data.values()
         ]
     )
 
