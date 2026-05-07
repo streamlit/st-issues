@@ -31,6 +31,13 @@ from app.utils.github_utils import (
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.parent.resolve()
 PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
+MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
+    "streamlit/gallery",
+    "streamlit/component-template",
+    "streamlit/streamlit-bokeh",
+    "streamlit/streamlit-pdf",
+    "streamlit/agent-skills",
+)
 
 
 def _issue_row(issue: dict[str, Any], labels: set[str]) -> dict[str, Any]:
@@ -59,6 +66,36 @@ def get_interrupt_data_snapshot(refresh_nonce: int = 0) -> tuple[list[dict[str, 
     issues = get_all_github_issues(state="open", refresh_nonce=refresh_nonce)
     prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce)
     return issues, prs
+
+
+@st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False)
+def get_monitored_repo_open_prs(refresh_nonce: int = 0) -> pd.DataFrame:
+    """Fetch open PRs from adjacent repos that the interrupt rotation should monitor."""
+    rows: list[dict[str, Any]] = []
+
+    for repo in MONITORED_INTERRUPT_REPOS:
+        repo_prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=repo)
+        rows.extend(
+            {
+                "Repository": repo,
+                "Title": pr["title"],
+                "URL": pr["html_url"],
+                "Created": pr["created_at"],
+                "Updated": pr["updated_at"],
+                "Author": pr.get("user", {}).get("login"),
+                "Draft": pr.get("draft", False),
+            }
+            for pr in repo_prs
+        )
+
+    monitored_prs = pd.DataFrame(rows)
+    if monitored_prs.empty:
+        return monitored_prs
+
+    return monitored_prs.sort_values(
+        by=["Updated", "Created", "Repository", "Title"],
+        ascending=[False, False, True, True],
+    ).reset_index(drop=True)
 
 
 def _build_interrupt_action_items(

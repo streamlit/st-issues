@@ -672,19 +672,20 @@ def get_all_github_issues(
     return issues
 
 
-@st.cache_data(ttl=60 * 15, max_entries=24)  # cache for 15 minutes
+@st.cache_data(ttl=60 * 15, max_entries=128)  # cache for 15 minutes
 def get_all_github_prs(
     state: Literal["open", "closed", "all"] = "all",
     refresh_nonce: int = 0,
+    repo: str = "streamlit/streamlit",
 ) -> list[dict[str, Any]]:
-    """Paginate through all PRs in the streamlit/streamlit repo.
+    """Paginate through all PRs in a GitHub repo.
 
     Returns all PRs as a list of dicts.
     """
     _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     prs = []
     state_param = f"state={state}" if state else ""
-    url: str | None = f"https://api.github.com/repos/streamlit/streamlit/pulls?{state_param}&per_page=100"
+    url: str | None = f"https://api.github.com/repos/{repo}/pulls?{state_param}&per_page=100"
 
     while url:
         try:

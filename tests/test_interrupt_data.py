@@ -35,15 +35,18 @@ def _pr(
     title: str,
     labels: list[str],
     author: str,
+    repo: str = "streamlit/streamlit",
     draft: bool = False,
+    created_at: str = "2026-02-10T00:00:00+00:00",
+    updated_at: str = "2026-02-11T00:00:00+00:00",
     assignees: list[str] | None = None,
 ) -> dict:
     return {
         "number": number,
         "title": title,
-        "html_url": f"https://github.com/streamlit/streamlit/pull/{number}",
-        "created_at": "2026-02-10T00:00:00+00:00",
-        "updated_at": "2026-02-11T00:00:00+00:00",
+        "html_url": f"https://github.com/{repo}/pull/{number}",
+        "created_at": created_at,
+        "updated_at": updated_at,
         "draft": draft,
         "user": {"login": author},
         "labels": [{"name": label} for label in labels],
@@ -130,3 +133,64 @@ def test_build_interrupt_action_items_refresh_nonce_busts_cache(monkeypatch: pyt
 
     interrupt_data.build_interrupt_action_items(since, refresh_nonce=1)
     assert call_count["value"] == 2
+
+
+def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_payloads = {
+        "streamlit/gallery": [
+            _pr(
+                number=101,
+                repo="streamlit/gallery",
+                title="Gallery draft",
+                labels=[],
+                author="alice",
+                draft=True,
+                updated_at="2026-02-11T10:00:00+00:00",
+            )
+        ],
+        "streamlit/component-template": [],
+        "streamlit/streamlit-bokeh": [
+            _pr(
+                number=102,
+                repo="streamlit/streamlit-bokeh",
+                title="Bokeh cleanup",
+                labels=[],
+                author="bob",
+                updated_at="2026-02-09T10:00:00+00:00",
+            )
+        ],
+        "streamlit/streamlit-pdf": [
+            _pr(
+                number=103,
+                repo="streamlit/streamlit-pdf",
+                title="Pdf fix",
+                labels=[],
+                author="carol",
+                updated_at="2026-02-12T10:00:00+00:00",
+            )
+        ],
+        "streamlit/agent-skills": [],
+    }
+    calls: list[tuple[str, str, int]] = []
+
+    def fake_get_all_github_prs(
+        state: str = "all",
+        refresh_nonce: int = 0,
+        repo: str = "streamlit/streamlit",
+    ) -> list[dict]:
+        calls.append((repo, state, refresh_nonce))
+        return repo_payloads[repo]
+
+    monkeypatch.setattr(interrupt_data, "get_all_github_prs", fake_get_all_github_prs)
+    interrupt_data.get_monitored_repo_open_prs.clear()
+
+    monitored_prs = interrupt_data.get_monitored_repo_open_prs(refresh_nonce=3)
+
+    assert calls == [(repo, "open", 3) for repo in interrupt_data.MONITORED_INTERRUPT_REPOS]
+    assert list(monitored_prs["Title"]) == ["Pdf fix", "Gallery draft", "Bokeh cleanup"]
+    assert list(monitored_prs["Repository"]) == [
+        "streamlit/streamlit-pdf",
+        "streamlit/gallery",
+        "streamlit/streamlit-bokeh",
+    ]
+    assert list(monitored_prs["Draft"]) == [False, True, False]

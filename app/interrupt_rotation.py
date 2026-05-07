@@ -16,6 +16,7 @@ from app.utils.interrupt_data import (
     get_bundle_size_metrics,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
+    get_monitored_repo_open_prs,
     get_playwright_test_count_metrics,
     get_python_test_coverage_metrics,
     get_wheel_size_metrics,
@@ -497,6 +498,39 @@ elif flaky_tests_df is not None:
             "Failures": st.column_config.NumberColumn("Failures"),
             "Workflow Run": st.column_config.LinkColumn("Last Workflow Run", display_text="Open"),
             "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
+        },
+    )
+st.divider()
+
+st.subheader(
+    "Open PRs in other important repos",
+    help="""
+Track open pull requests in adjacent Streamlit-maintained repos that may need interrupt rotation attention:
+- `streamlit/gallery`
+- `streamlit/component-template`
+- `streamlit/streamlit-bokeh`
+- `streamlit/streamlit-pdf`
+- `streamlit/agent-skills`
+""",
+)
+monitored_repo_prs_df = get_monitored_repo_open_prs(refresh_nonce=refresh_nonce)
+monitored_repo_prs_df = (
+    monitored_repo_prs_df[~monitored_repo_prs_df["Draft"]] if not monitored_repo_prs_df.empty else monitored_repo_prs_df
+)
+if monitored_repo_prs_df.empty:
+    st.success("No open PRs in the monitored repos right now.", icon="🎉")
+else:
+    st.dataframe(
+        monitored_repo_prs_df[["Title", "Repository", "URL", "Created", "Updated", "Author"]],
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Title": st.column_config.TextColumn("Title", width="large"),
+            "Repository": st.column_config.TextColumn("Repository", width="medium"),
+            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Updated": st.column_config.DatetimeColumn("Updated", format="distance"),
+            "Author": st.column_config.TextColumn("Author"),
         },
     )
 st.divider()
