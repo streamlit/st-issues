@@ -158,7 +158,9 @@ if selected_metrics == "Contribution Metrics":
 
         # Add links
         author_stats["Show PRs"] = author_stats["author"].apply(
-            lambda x: f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+author%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
+            lambda x: (
+                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+author%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
+            )
         )
         author_stats["author"] = author_stats["author"].apply(lambda x: f"https://github.com/{x}")
 
@@ -240,7 +242,9 @@ if selected_metrics == "Contribution Metrics":
 
         # Add links
         reviewer_counts["Show PRs"] = reviewer_counts["reviewers"].apply(
-            lambda x: f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
+            lambda x: (
+                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
+            )
         )
         reviewer_counts["reviewers"] = reviewer_counts["reviewers"].apply(lambda x: f"https://github.com/{x}")
 
@@ -336,7 +340,9 @@ if selected_metrics == "Contribution Metrics":
 
             # Add links
             community_reviewer_counts["Show PRs"] = community_reviewer_counts["reviewers"].apply(
-                lambda x: f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
+                lambda x: (
+                    f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
+                )
             )
             community_reviewer_counts["reviewers"] = community_reviewer_counts["reviewers"].apply(
                 lambda x: f"https://github.com/{x}"
@@ -1527,9 +1533,11 @@ elif selected_metrics == "Team Productivity Metrics":
         # --- New Visualization: Created Issues by Type ---
         created_by_type = created_in_period.copy()
         created_by_type["Type"] = created_by_type["labels"].apply(
-            lambda labels: "Bug"
-            if any(label["name"] == "type:bug" for label in labels)
-            else ("Feature" if any(label["name"] == "type:enhancement" for label in labels) else None)
+            lambda labels: (
+                "Bug"
+                if any(label["name"] == "type:bug" for label in labels)
+                else ("Feature" if any(label["name"] == "type:enhancement" for label in labels) else None)
+            )
         )
         created_by_type = created_by_type.dropna(subset=["Type"])
 
