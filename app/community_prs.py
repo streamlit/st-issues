@@ -166,7 +166,7 @@ if all_change_types:
 if selected_change_types or include_no_type:
     all_prs_df = all_prs_df[
         all_prs_df["change_types"].apply(
-            lambda types: (any(t in selected_change_types for t in types) if types else include_no_type)
+            lambda types: any(t in selected_change_types for t in types) if types else include_no_type
         )
     ]
 
