@@ -23,7 +23,6 @@ dependencies = [
   "coverage",
   "httpx",
   "polars",
-  "jinja2",
   "streamlit-pdf",
   "git-fame",
   "scipy",

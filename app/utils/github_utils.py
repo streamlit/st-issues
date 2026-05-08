@@ -961,53 +961,6 @@ def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
     return []
 
 
-def extract_issue_number(github_url: str) -> int:
-    """Extract issue number from GitHub URL."""
-    if "/issues/" in github_url:
-        try:
-            return int(
-                github_url.rsplit("/issues/", maxsplit=1)[-1].split("?", maxsplit=1)[0].split("#", maxsplit=1)[0]
-            )
-        except (ValueError, IndexError):
-            return 0
-    return 0
-
-
-def validate_issue_number(issue_str: str) -> tuple[bool, int | None]:
-    """Validate issue number is between 1 and 150,000."""
-    try:
-        issue_num = int(issue_str.strip())
-        if 1 <= issue_num <= 150000:
-            return True, issue_num
-        return False, None
-    except (ValueError, TypeError):
-        return False, None
-
-
-def parse_github_url(url: str | None) -> tuple[str | None, str | None]:
-    """Parse GitHub issue URL to extract repository and issue number."""
-    import re
-
-    if not url or not url.strip():
-        return None, None
-
-    url = url.strip()
-
-    # Remove @ symbol if present at the beginning
-    url = url.removeprefix("@")
-
-    # Pattern to match GitHub issue URLs
-    pattern = r"https://github\.com/([^/]+/[^/]+)/issues/(\d+)"
-    match = re.match(pattern, url)
-
-    if match:
-        repo_info = match.group(1)
-        issue_number = match.group(2)
-        return repo_info, issue_number
-
-    return None, None
-
-
 @st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
 def get_count_issues_commented_by_user(username: str, _repo: str = "streamlit/streamlit") -> int:
     """Get the number of issues commented on by a user."""
