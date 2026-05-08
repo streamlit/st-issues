@@ -5,11 +5,8 @@ from datetime import date, timedelta
 import humanize
 import streamlit as st
 
-from app.utils.ai.agent_dialog import show_agent_prompt_dialog
 from app.utils.github_utils import (
     EXPECTED_FLAKY_TESTS,
-    parse_github_url,
-    validate_issue_number,
 )
 from app.utils.interrupt_data import (
     MONITORED_INTERRUPT_REPOS,
@@ -44,58 +41,6 @@ show_ci_sections = st.sidebar.toggle(
     value=False,
     help="Enable this when you need coverage, bundle, wheel, and flaky-test sections. Can be a slow query, so it's disabled by default.",
 )
-
-# Agent Prompt Generation Section
-st.sidebar.divider()
-st.sidebar.subheader(":computer: Agent Prompt Generator")
-
-# Manual issue number input with form
-with st.sidebar.form("issue_form"):
-    # URL input for auto-parsing
-    github_url = st.text_input(
-        "GitHub Issue URL (optional)",
-        placeholder="https://github.com/owner/repo/issues/123",
-        help="Paste a GitHub issue URL to auto-populate the fields below",
-    )
-
-    # Parse URL if provided
-    parsed_repo, parsed_issue = parse_github_url(github_url)
-
-    # Use parsed values as defaults if available
-    default_repo = parsed_repo or "streamlit/streamlit"
-    default_issue = parsed_issue or ""
-
-    repo_info = st.text_input(
-        "Repository (owner/repo)",
-        value=default_repo,
-        help="Repository in the format 'owner/repo'",
-    )
-
-    manual_issue_number = st.text_input(
-        "Issue Number",
-        value=default_issue,
-        placeholder="e.g. 12345",
-        help="Enter a GitHub issue number to generate an agent prompt",
-    )
-
-    submitted = st.form_submit_button("Open Dialog", width="stretch")
-
-if submitted and manual_issue_number:
-    # Validate issue number
-    is_valid, validated_issue = validate_issue_number(manual_issue_number)
-
-    if not is_valid:
-        if not manual_issue_number.strip():
-            st.sidebar.error("❌ Please enter an issue number.")
-        else:
-            st.sidebar.error("❌ Issue number must be a valid number between 1 and 150,000.")
-    elif not repo_info.strip():
-        st.sidebar.error("❌ Please enter a repository in the format 'owner/repo'.")
-    else:
-        st.session_state.selected_issue_number = validated_issue
-        st.session_state.selected_repo = repo_info
-        st.session_state.selected_issue_url = f"https://github.com/{repo_info}/issues/{validated_issue}"
-        st.session_state.show_agent_dialog = True
 
 days = 14 if timeframe == "Last 14 days" else 7
 since = date.today() - timedelta(days=days)
@@ -508,8 +453,15 @@ monitored_repos_help = "\n".join(f"- `{repo}`" for repo in MONITORED_INTERRUPT_R
 st.subheader(
     "Open PRs in important repos",
     help=(
-        "Track open pull requests in Streamlit-maintained repos that may need interrupt rotation "
-        "attention:\n" + monitored_repos_help
+        "Track open pull requests in Streamlit-maintained repos that may need interrupt "
+        "rotation attention.\n\n"
+        "Only PRs that are ready for review appear here. If a PR is not ready, mark it as "
+        "draft so it does not show up in this view.\n\n"
+        "Interrupt may need to review, approve, and merge PRs for these repos.\n\n"
+        "If any PR shown in this view should really be tracked as a GitHub issue in "
+        "`streamlit/streamlit` instead, close the PR (or move it back to draft) and ask the "
+        "user to open an issue or feature request in `streamlit/streamlit`.\n\n"
+        "Monitored repos:\n" + monitored_repos_help
     ),
 )
 monitored_repo_prs_df = get_monitored_repo_open_prs(refresh_nonce=refresh_nonce)
@@ -597,10 +549,3 @@ else:
             "Author": st.column_config.TextColumn("Author"),
         },
     )
-
-
-# Check if dialog should be shown
-if st.session_state.get("show_agent_dialog", False):
-    show_agent_prompt_dialog()
-    # Reset the dialog trigger after showing
-    st.session_state.show_agent_dialog = False
