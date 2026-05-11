@@ -11,6 +11,7 @@ from app.utils.github_utils import (
     fetch_pr_info,
     get_all_github_prs,
 )
+from app.utils.streamlit_date_input import normalize_date_range
 
 st.set_page_config(
     page_title="Community PRs",
@@ -205,10 +206,8 @@ with col2.popover("Modify", width="stretch"):
         max_value=max_date,
     )
 
-    # Filter data based on selected date range
-    # date_input can return () or (start,) or (start, end) depending on user input
-    start_date = date_range[0] if len(date_range) > 0 else None
-    end_date = date_range[1] if len(date_range) > 1 else None
+    # Streamlit can temporarily return partial tuples while a range is being edited.
+    start_date, end_date = normalize_date_range(date_range)
     if start_date and end_date:
         df_filtered = all_prs_df[
             (all_prs_df["created_at"].dt.date >= start_date) & (all_prs_df["created_at"].dt.date <= end_date)

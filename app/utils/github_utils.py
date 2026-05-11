@@ -5,14 +5,14 @@ import contextlib
 import json
 import urllib.parse
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Final, Literal, cast
+from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, cast
 from zipfile import ZipFile
 
 import requests
 import streamlit as st
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from datetime import date
 
 # Streamlit team members:
@@ -163,6 +163,12 @@ class _PartialDataError(Exception):
     def __init__(self, message: str, partial_data: Any) -> None:
         super().__init__(message)
         self.partial_data = partial_data
+
+
+class _PullRequestFilesPayloadFetcher(Protocol):
+    def __call__(self, repo: str, pr_number: int) -> tuple[list[dict[str, Any]], str | None]: ...
+
+    clear: Callable[..., None]
 
 
 @st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False)
@@ -351,7 +357,7 @@ def _fetch_pull_request_files_payload_cached(repo: str, pr_number: int) -> list[
     return files
 
 
-def fetch_pull_request_files_payload(repo: str, pr_number: int) -> tuple[list[dict[str, Any]], str | None]:
+def _fetch_pull_request_files_payload(repo: str, pr_number: int) -> tuple[list[dict[str, Any]], str | None]:
     """Fetch all changed files for a pull request."""
     try:
         return _fetch_pull_request_files_payload_cached(repo, pr_number), None
@@ -359,7 +365,8 @@ def fetch_pull_request_files_payload(repo: str, pr_number: int) -> tuple[list[di
         return cast("list[dict[str, Any]]", exc.partial_data), str(exc)
 
 
-fetch_pull_request_files_payload.clear = _fetch_pull_request_files_payload_cached.clear  # type: ignore[attr-defined]
+fetch_pull_request_files_payload = cast("_PullRequestFilesPayloadFetcher", _fetch_pull_request_files_payload)
+fetch_pull_request_files_payload.clear = _fetch_pull_request_files_payload_cached.clear
 
 
 @st.cache_data(ttl=300, max_entries=256, show_spinner=False)

@@ -85,11 +85,15 @@ if "issues_df" not in st.session_state:
 if "issues_state" not in st.session_state:
     st.session_state["issues_state"] = "all"
 
+issue_state_options: tuple[IssueState, IssueState, IssueState] = ("open", "closed", "all")
+saved_issue_state = st.session_state["issues_state"]
+default_issue_state: IssueState = saved_issue_state if saved_issue_state in issue_state_options else "all"
+
 with st.form("issue_download_form"):
-    issue_state = st.selectbox(
+    issue_state: IssueState = st.selectbox(
         "Issue state",
-        options=["open", "closed", "all"],
-        index=["open", "closed", "all"].index(st.session_state["issues_state"]),
+        options=issue_state_options,
+        index=issue_state_options.index(default_issue_state),
         help="GitHub issues state to fetch.",
     )
     include_prs = st.checkbox(
@@ -101,8 +105,7 @@ with st.form("issue_download_form"):
 
 if submit:
     with st.spinner("Fetching issues from GitHub…"):
-        # Cast is safe because selectbox options are limited to these values
-        raw_issues = _fetch_issue_data(issue_state)  # type: ignore[arg-type]
+        raw_issues = _fetch_issue_data(issue_state)
 
     records: list[dict[str, object]] = []
     for issue in raw_issues:

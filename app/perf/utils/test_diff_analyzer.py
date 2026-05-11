@@ -61,13 +61,14 @@ def _extract_react_profile_metrics(
         stable_test_name (str): Stable test name.
     """
     phase_data = all_phases[index][react_profile_key][phase]
-    metrics = phase_data.keys()
-    for metric in metrics:
-        key = f"{react_profile_key}__{phase}__{metric}"
+    phase_metrics = (
+        ("duration_ms", phase_data["duration_ms"]),
+        ("count", phase_data["count"]),
+    )
+    for metric_name, metric_value in phase_metrics:
+        key = f"{react_profile_key}__{phase}__{metric_name}"
         if key not in results_per_test[stable_test_name]:
             results_per_test[stable_test_name][key] = []
-        # Access by variable key - cast to handle TypedDict limitations
-        metric_value: float | int = phase_data[metric]  # type: ignore[literal-required]
         results_per_test[stable_test_name][key].append(metric_value)
 
 
