@@ -9,6 +9,7 @@ import streamlit as st
 
 from app.utils.github_utils import get_all_github_issues
 from app.utils.issue_formatting import get_issue_type, reactions_to_str
+from app.utils.streamlit_date_input import normalize_date_range
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -56,10 +57,8 @@ with row.popover("Modify", width="content"):
     # Filter who closed the issue:
     closed_by_filter = st.text_input("Closed by", value=st.query_params.get("closed_by", ""))
 
-    # Filter data based on selected date range
-    # date_input can return () or (start,) or (start, end) depending on user input
-    start_date = date_range[0] if len(date_range) > 0 else None
-    end_date = date_range[1] if len(date_range) > 1 else None
+    # Streamlit can temporarily return partial tuples while a range is being edited.
+    start_date, end_date = normalize_date_range(date_range)
     if start_date and end_date:
         df_filtered = all_issues_df[
             (all_issues_df["closed_at"].dt.date >= start_date) & (all_issues_df["closed_at"].dt.date <= end_date)

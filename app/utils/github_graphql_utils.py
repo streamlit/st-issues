@@ -255,8 +255,8 @@ def _extract_pr_metrics(
     for review in all_reviews:
         author_info = review.get("author") or {}
         login = author_info.get("login")
-        if _is_human_reviewer(author_info.get("__typename", ""), login, ignore_bots):
-            reviewer_logins.add(login)  # type: ignore[arg-type]
+        if login and _is_human_reviewer(author_info.get("__typename", ""), login, ignore_bots):
+            reviewer_logins.add(login)
 
     reviewers = sorted(reviewer_logins)
 

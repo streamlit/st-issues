@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections import Counter
 from datetime import date, datetime
 from typing import Any
@@ -144,7 +145,10 @@ if total_successful_runs > 0:
 else:
     flaky_tests_df["Workflow Failure Probability"] = float("nan")
 
-overall_failure_prob: float = 1 - (1 - flaky_tests_df["Workflow Failure Probability"].fillna(0).astype(float)).prod()  # type: ignore[operator,assignment]
+workflow_failure_probabilities = [
+    float(probability) for probability in flaky_tests_df["Workflow Failure Probability"].fillna(0).tolist()
+]
+overall_failure_prob = 1.0 - math.prod(1.0 - probability for probability in workflow_failure_probabilities)
 
 
 total_flaky_failures = int(flaky_tests_df["Failures"].sum())
