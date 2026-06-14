@@ -26,7 +26,7 @@ fig.update_xaxes(visible=False)
 fig.update_yaxes(visible=False)
 fig.update_traces(marker_size=6)
 fig.update_traces(hovertemplate = '%{customdata[0]}', customdata = st.session_state.df[['species']])
-event = st.plotly_chart(fig, selection_mode=('box', 'lasso'), on_select="rerun")
+event = st.plotly_chart(fig, selection_mode=('box', 'lasso'), on_select="rerun", key="my-chart")
 
 with st.expander("See selection"):
     events = event['selection']['point_indices']
