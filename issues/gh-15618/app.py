@@ -68,9 +68,14 @@ st.write(f"**Selected:** {s2.name}")
 st.divider()
 
 st.header("Workaround")
-st.write("Remove the `print(x[s])` (or any expression that hashes the option object) "
-         "from `format_func`. The bug only triggers when `format_func` causes a side "
-         "effect that involves hashing the option objects.")
+st.write("Remove the `print(x[s])` (or any expression that can raise) from "
+         "`format_func`. The selection is reset whenever `format_func` raises an "
+         "exception for the currently selected option: Streamlit validates the stored "
+         "value by calling `format_func` on it, and the dict lookup raises `KeyError` "
+         "because the stored value is a `deepcopy` of an instance of the *previous* "
+         "run's class, which a dataclass's class-gated `__eq__` treats as unequal. "
+         "`NamedTuple` is immune because it uses value-based `tuple.__eq__`.")
+st.caption("See NOTES.md in this issue folder for the full root-cause analysis.")
 
 st.divider()
 
