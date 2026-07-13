@@ -202,6 +202,22 @@ def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> N
                     "Title": st.column_config.TextColumn("Title", width="large"),
                     "URL": st.column_config.LinkColumn("URL", display_text="Open"),
                     "State": st.column_config.TextColumn("State"),
+                    "Priority": st.column_config.MultiselectColumn(
+                        "Priority",
+                        options=[
+                            "priority:P0",
+                            "priority:P1",
+                            "priority:P2",
+                            "priority:P3",
+                            "priority:P4",
+                        ],
+                        color=["red", "orange", "#EAB308", "blue", "gray"],
+                        format_func=lambda label: label.removeprefix("priority:"),
+                    ),
+                    "Confirmed": st.column_config.CheckboxColumn(
+                        "Confirmed",
+                        help="Whether the bug has the `status:confirmed` label.",
+                    ),
                     "Created": st.column_config.DatetimeColumn("Created", format="distance"),
                     "Author": st.column_config.TextColumn("Author"),
                     "Labels": st.column_config.ListColumn("Labels"),
