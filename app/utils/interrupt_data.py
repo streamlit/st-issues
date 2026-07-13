@@ -495,6 +495,42 @@ def get_bug_metrics(since_date: date) -> tuple[int, int]:
     return open_bugs, closed_bugs_in_period
 
 
+@st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False)
+def get_reported_bugs(since_date: date, refresh_nonce: int = 0) -> pd.DataFrame:
+    """Get all bugs (`type:bug`) reported in the given timeframe, regardless of state.
+
+    Includes both open and closed issues, filtered by their creation date.
+    """
+    all_issues = get_all_github_issues(state="all", refresh_nonce=refresh_nonce)
+
+    rows: list[dict[str, Any]] = []
+    for issue in all_issues:
+        if "pull_request" in issue:
+            continue
+        labels = {label["name"] for label in issue["labels"]}
+        if "type:bug" not in labels:
+            continue
+        created_at = datetime.fromisoformat(issue["created_at"]).date()
+        if created_at < since_date:
+            continue
+        rows.append(
+            {
+                "Title": issue["title"],
+                "URL": issue["html_url"],
+                "State": issue["state"],
+                "Created": issue["created_at"],
+                "Author": issue["user"]["login"],
+                "Labels": list(labels),
+            }
+        )
+
+    reported_bugs = pd.DataFrame(rows)
+    if reported_bugs.empty:
+        return reported_bugs
+
+    return reported_bugs.sort_values(by="Created", ascending=False).reset_index(drop=True)
+
+
 def get_reproducible_example_exists(issue_number: int) -> bool:
     """Check if a reproducible example exists for an issue."""
     issue_folder_name = f"gh-{issue_number}"

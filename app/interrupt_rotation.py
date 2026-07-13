@@ -12,11 +12,13 @@ from app.utils.interrupt_data import (
     MONITORED_INTERRUPT_REPOS,
     build_interrupt_action_items,
     get_bundle_size_metrics,
+    get_confirmed_bugs_without_repro_script,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
     get_monitored_repo_open_prs,
     get_playwright_test_count_metrics,
     get_python_test_coverage_metrics,
+    get_reported_bugs,
     get_wheel_size_metrics,
 )
 
@@ -170,6 +172,76 @@ marker as a last resort.
                     "Failures": st.column_config.NumberColumn("Failures"),
                     "Workflow Run": st.column_config.LinkColumn("Last Workflow Run", display_text="Open"),
                     "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
+                },
+            )
+
+
+@st.fragment(parallel=True)
+def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> None:
+    st.subheader(
+        "Bugs reported in the timeframe",
+        help=(
+            "Lists all bugs (labeled `type:bug`) that were reported in the selected timeframe, "
+            "regardless of whether they are still open or already closed. Useful for tracking the "
+            "overall bug influx during the interrupt rotation."
+        ),
+    )
+    with st.skeleton(height=200):
+        reported_bugs_df = get_reported_bugs(
+            selected_since,
+            refresh_nonce=selected_refresh_nonce,
+        )
+        if reported_bugs_df.empty:
+            st.success("No bugs were reported in the selected timeframe.", icon="🎉")
+        else:
+            st.dataframe(
+                reported_bugs_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "State": st.column_config.TextColumn("State"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
+                    "Labels": st.column_config.ListColumn("Labels"),
+                },
+            )
+
+
+@st.fragment(parallel=True)
+def render_confirmed_bugs_without_repro(selected_since: date, selected_refresh_nonce: int) -> None:
+    st.subheader(
+        "Confirmed bugs without a reproducible script",
+        help="""
+Confirmed bugs (`status:confirmed` & `type:bug`) created in the selected timeframe that don't have a reproducible script.
+
+This isn't a requirement for all issues. If the issue is not easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, you can skip this step.
+
+**How to add a new repro case to [streamlit/st-issues](https://github.com/streamlit/st-issues):**
+1. [Create a new folder in `issues`](https://github.com/streamlit/st-issues/new/main/issues) with this naming pattern: `gh-<GITHUB_ISSUE_ID>`.
+2. Create an `app.py` file in the created issue folder and use it to reproduce the issue.
+3. Once the issue is added, it should be automatically accessible from the deployed issue explorer after a page refresh.
+4. Make sure to link the issue app in the respective issue on Github. Tip: Inside the Issue Description expander, you can find a markdown snippet that allows you to easily add a badge to the GitHub issue. Add this to the issue body in the Steps to reproduce section.
+""",
+    )
+    with st.skeleton(height=200):
+        confirmed_bugs_without_repro_df = get_confirmed_bugs_without_repro_script(
+            selected_since,
+            refresh_nonce=selected_refresh_nonce,
+        )
+        if confirmed_bugs_without_repro_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                confirmed_bugs_without_repro_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
                 },
             )
 
@@ -345,53 +417,6 @@ else:
 st.divider()
 
 st.subheader(
-    "Community PRs missing labels",
-    help="Every community PR is expected to be labeled with a `change:*` and `impact:*` label.",
-)
-missing_labels_prs_df = action_items["missing_labels_prs"]
-if missing_labels_prs_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        missing_labels_prs_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Labels": st.column_config.ListColumn("Labels"),
-        },
-    )
-st.divider()
-
-st.subheader(
-    "Community feature PRs needing product approval labels",
-    help="""
-Feature PRs from community (`change:feature` and `impact:users`) need to be labeled with:
-- `status:needs-product-approval`: Marks the PR to need a review from product before technical review.
-- `status:product-approved`: PRs that have been approved by product. This is usually applied by a PM.
-- `do-not-merge`: PRs that should not be merged.
-""",
-)
-prs_needing_approval_df = action_items["prs_needing_approval"]
-if prs_needing_approval_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        prs_needing_approval_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Labels": st.column_config.ListColumn("Labels"),
-        },
-    )
-st.divider()
-
-st.subheader(
     "Open Dependabot PRs",
     help="""
 Lists all open dependency update PRs from Dependabot. Please try to review and merge these PRs
@@ -480,6 +505,59 @@ else:
     )
 st.divider()
 
+render_confirmed_bugs_without_repro(since, refresh_nonce)
+st.divider()
+
+render_reported_bugs(since, refresh_nonce)
+st.divider()
+
+st.subheader(
+    "Community PRs missing labels",
+    help="Every community PR is expected to be labeled with a `change:*` and `impact:*` label.",
+)
+missing_labels_prs_df = action_items["missing_labels_prs"]
+if missing_labels_prs_df.empty:
+    st.success("Congrats, everything is done here!", icon="🎉")
+else:
+    st.dataframe(
+        missing_labels_prs_df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Title": st.column_config.TextColumn("Title", width="large"),
+            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Labels": st.column_config.ListColumn("Labels"),
+        },
+    )
+st.divider()
+
+st.subheader(
+    "Community feature PRs needing product approval labels",
+    help="""
+Feature PRs from community (`change:feature` and `impact:users`) need to be labeled with:
+- `status:needs-product-approval`: Marks the PR to need a review from product before technical review.
+- `status:product-approved`: PRs that have been approved by product. This is usually applied by a PM.
+- `do-not-merge`: PRs that should not be merged.
+""",
+)
+prs_needing_approval_df = action_items["prs_needing_approval"]
+if prs_needing_approval_df.empty:
+    st.success("Congrats, everything is done here!", icon="🎉")
+else:
+    st.dataframe(
+        prs_needing_approval_df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Title": st.column_config.TextColumn("Title", width="large"),
+            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "Labels": st.column_config.ListColumn("Labels"),
+        },
+    )
+st.divider()
+
 st.subheader(
     "Community PRs ready for review",
     help="""
@@ -510,36 +588,5 @@ else:
             "Updated": st.column_config.DatetimeColumn("Updated", format="distance"),
             "Assignees": st.column_config.ListColumn("Assignees"),
             "Labels": st.column_config.ListColumn("Labels"),
-        },
-    )
-st.divider()
-
-st.subheader(
-    "Confirmed bugs without a reproducible script",
-    help="""
-Confirmed bugs (`status:confirmed` & `type:bug`) created in the selected timeframe that don't have a reproducible script.
-
-This isn't a requirement for all issues. If the issue is not easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, you can skip this step.
-
-**How to add a new repro case to [streamlit/st-issues](https://github.com/streamlit/st-issues):**
-1. [Create a new folder in `issues`](https://github.com/streamlit/st-issues/new/main/issues) with this naming pattern: `gh-<GITHUB_ISSUE_ID>`.
-2. Create an `app.py` file in the created issue folder and use it to reproduce the issue.
-3. Once the issue is added, it should be automatically accessible from the deployed issue explorer after a page refresh.
-4. Make sure to link the issue app in the respective issue on Github. Tip: Inside the Issue Description expander, you can find a markdown snippet that allows you to easily add a badge to the GitHub issue. Add this to the issue body in the Steps to reproduce section.
-""",
-)
-confirmed_bugs_without_repro_df = action_items["confirmed_bugs_without_repro"]
-if confirmed_bugs_without_repro_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        confirmed_bugs_without_repro_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Author": st.column_config.TextColumn("Author"),
         },
     )
