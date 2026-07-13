@@ -555,7 +555,7 @@ def get_confirmed_bugs_without_repro_script(since_date: date, refresh_nonce: int
     return data["confirmed_bugs_without_repro"].copy()
 
 
-@st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
+@st.cache_data(ttl=60 * 60 * 6, show_spinner=False)  # cache for 6 hours
 def get_flaky_tests(since_date: date, min_failures: int = 10, refresh_nonce: int = 0) -> pd.DataFrame:
     """Get flaky tests with >= min_failures."""
     _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
