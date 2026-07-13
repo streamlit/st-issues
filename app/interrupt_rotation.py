@@ -211,7 +211,7 @@ def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> N
                             "priority:P3",
                             "priority:P4",
                         ],
-                        color=["red", "orange", "#EAB308", "blue", "gray"],
+                        color="auto",
                         format_func=lambda label: label.removeprefix("priority:"),
                     ),
                     "Confirmed": st.column_config.CheckboxColumn(
