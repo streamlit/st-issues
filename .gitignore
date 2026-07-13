@@ -96,3 +96,7 @@ temp/*
 
 # Directory for temporary files (can be used by agents):
 work-tmp
+
+# Streamlit agent skills (environment-specific symlinks)
+.agents/skills/developing-with-streamlit
+.claude/skills/developing-with-streamlit
