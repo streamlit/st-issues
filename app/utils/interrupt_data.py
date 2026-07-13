@@ -517,7 +517,7 @@ def get_reported_bugs(since_date: date, refresh_nonce: int = 0) -> pd.DataFrame:
             {
                 "Title": issue["title"],
                 "URL": issue["html_url"],
-                "State": issue["state"],
+                "State": [issue["state"]],
                 "Priority": sorted(label for label in labels if label.startswith("priority:P")),
                 "Confirmed": "status:confirmed" in labels,
                 "Created": issue["created_at"],

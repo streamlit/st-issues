@@ -201,7 +201,12 @@ def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> N
                 column_config={
                     "Title": st.column_config.TextColumn("Title", width="large"),
                     "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-                    "State": st.column_config.TextColumn("State"),
+                    "State": st.column_config.MultiselectColumn(
+                        "State",
+                        options=["open", "closed"],
+                        color=["green", "gray"],
+                        format_func=lambda state: state.capitalize(),
+                    ),
                     "Priority": st.column_config.MultiselectColumn(
                         "Priority",
                         options=[
