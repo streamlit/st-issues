@@ -8,10 +8,11 @@ hidden and cannot be selected. Reported as a regression on 1.59.2.
 
 ## Finding
 
-**Bug confirmed** on Streamlit 1.59.0 (released build, the version available in
-the st-issues venv; the regression predates the reported 1.59.2). Verified with
-Playwright: after opening the popover and clicking the multiselect, both option
-list items are painted behind the popover body.
+**Bug confirmed** on Streamlit 1.59.0, 1.59.1, and 1.59.2 (the reporter's
+version). Verified with Playwright on each released build: after opening the
+popover and clicking the multiselect, both option list items are painted behind
+the popover body, and in all three the popover body and dropdown resolve to the
+same z-index (`1000060`).
 
 ## Reproduction
 
@@ -64,7 +65,7 @@ Likely also affects other still-on-BaseWeb overlays inside a popover
 ## Classification
 
 - **Type:** Bug — z-index / stacking regression
-- **Status:** Confirmed on 1.59.0 (reported on 1.59.2)
+- **Status:** Confirmed on 1.59.0, 1.59.1, and 1.59.2 (reported on 1.59.2)
 - **Areas:** frontend — `Popover` (floating-ui) vs BaseWeb overlay layer host
   (`st.multiselect`)
 - **Priority:** Medium — common pattern (filter widgets inside a popover) and the
