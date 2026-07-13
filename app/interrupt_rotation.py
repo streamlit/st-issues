@@ -49,7 +49,7 @@ action_items = build_interrupt_action_items(
 @st.fragment(parallel=True)
 def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None:
     col1, col2, col3 = st.columns(3)
-    with col1:
+    with col1, st.skeleton(height=110):
         py_coverage, py_coverage_change = get_python_test_coverage_metrics(
             selected_since,
             refresh_nonce=selected_refresh_nonce,
@@ -62,7 +62,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             border=True,
             help="Percentage of lines covered by tests in the Python codebase.",
         )
-    with col2:
+    with col2, st.skeleton(height=110):
         fe_coverage, fe_coverage_change = get_frontend_test_coverage_metrics(
             selected_since,
             refresh_nonce=selected_refresh_nonce,
@@ -75,7 +75,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             border=True,
             help="Percentage of lines covered by tests in the Frontend codebase.",
         )
-    with col3:
+    with col3, st.skeleton(height=110):
         wheel_size, wheel_size_change = get_wheel_size_metrics(
             selected_since,
             refresh_nonce=selected_refresh_nonce,
@@ -90,7 +90,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
         )
 
     col1, col2, col3 = st.columns(3)
-    with col1:
+    with col1, st.skeleton(height=110):
         (
             total_gzip,
             total_gzip_change,
@@ -109,7 +109,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             border=True,
             help="Total size of all JavaScript files after Gzip compression.",
         )
-    with col2:
+    with col2, st.skeleton(height=110):
         st.metric(
             "Entry Bundle (gzip)",
             humanize.naturalsize(entry_gzip, binary=True),
@@ -118,7 +118,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             border=True,
             help="Size of the entry point chunks (initial load) after Gzip compression.",
         )
-    with col3:
+    with col3, st.skeleton(height=110):
         pw_count, pw_count_change = get_playwright_test_count_metrics(
             selected_since,
             refresh_nonce=selected_refresh_nonce,
@@ -144,33 +144,34 @@ Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky
 marker as a last resort.
 """,
     )
-    flaky_tests_df = get_flaky_tests(
-        selected_since,
-        min_failures=10,
-        refresh_nonce=selected_refresh_nonce,
-    )
-    # Always hide expected flaky tests
-    if not flaky_tests_df.empty:
-        mask_not_expected = ~flaky_tests_df["Test"].apply(
-            lambda t: any(t.startswith(prefix) for prefix in EXPECTED_FLAKY_TESTS)
+    with st.skeleton(height=200):
+        flaky_tests_df = get_flaky_tests(
+            selected_since,
+            min_failures=10,
+            refresh_nonce=selected_refresh_nonce,
         )
-        flaky_tests_df = flaky_tests_df[mask_not_expected]
+        # Always hide expected flaky tests
+        if not flaky_tests_df.empty:
+            mask_not_expected = ~flaky_tests_df["Test"].apply(
+                lambda t: any(t.startswith(prefix) for prefix in EXPECTED_FLAKY_TESTS)
+            )
+            flaky_tests_df = flaky_tests_df[mask_not_expected]
 
-    if flaky_tests_df.empty:
-        st.success("Congrats, everything is done here!", icon="🎉")
-    else:
-        flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
-        st.dataframe(
-            flaky_tests_df,
-            width="stretch",
-            hide_index=True,
-            column_config={
-                "Test": st.column_config.TextColumn("Test", width="large"),
-                "Failures": st.column_config.NumberColumn("Failures"),
-                "Workflow Run": st.column_config.LinkColumn("Last Workflow Run", display_text="Open"),
-                "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
-            },
-        )
+        if flaky_tests_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
+            st.dataframe(
+                flaky_tests_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Test": st.column_config.TextColumn("Test", width="large"),
+                    "Failures": st.column_config.NumberColumn("Failures"),
+                    "Workflow Run": st.column_config.LinkColumn("Last Workflow Run", display_text="Open"),
+                    "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
+                },
+            )
 
 
 render_ci_metrics(since, refresh_nonce)
