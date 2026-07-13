@@ -36,11 +36,6 @@ timeframe = st.sidebar.selectbox(
 )
 if st.sidebar.button(":material/refresh: Refresh data", width="stretch"):
     st.session_state.interrupt_refresh_nonce += 1
-show_ci_sections = st.sidebar.toggle(
-    "Load CI metrics and flaky tests",
-    value=False,
-    help="Enable this when you need coverage, bundle, wheel, and flaky-test sections. Can be a slow query, so it's disabled by default.",
-)
 
 days = 14 if timeframe == "Last 14 days" else 7
 since = date.today() - timedelta(days=days)
@@ -51,7 +46,7 @@ action_items = build_interrupt_action_items(
 )
 
 
-@st.fragment
+@st.fragment(parallel=True)
 def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None:
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -138,8 +133,47 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
         )
 
 
-if show_ci_sections:
-    render_ci_metrics(since, refresh_nonce)
+@st.fragment(parallel=True)
+def render_flaky_tests(selected_since: date, selected_refresh_nonce: int) -> None:
+    st.subheader(
+        "Flaky tests with ≥ 10 failures",
+        help="""
+Lists flaky tests with ≥ 10 failures in the selected timeframe.
+
+Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky(reruns=3)`
+marker as a last resort.
+""",
+    )
+    flaky_tests_df = get_flaky_tests(
+        selected_since,
+        min_failures=10,
+        refresh_nonce=selected_refresh_nonce,
+    )
+    # Always hide expected flaky tests
+    if not flaky_tests_df.empty:
+        mask_not_expected = ~flaky_tests_df["Test"].apply(
+            lambda t: any(t.startswith(prefix) for prefix in EXPECTED_FLAKY_TESTS)
+        )
+        flaky_tests_df = flaky_tests_df[mask_not_expected]
+
+    if flaky_tests_df.empty:
+        st.success("Congrats, everything is done here!", icon="🎉")
+    else:
+        flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
+        st.dataframe(
+            flaky_tests_df,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "Test": st.column_config.TextColumn("Test", width="large"),
+                "Failures": st.column_config.NumberColumn("Failures"),
+                "Workflow Run": st.column_config.LinkColumn("Last Workflow Run", display_text="Open"),
+                "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
+            },
+        )
+
+
+render_ci_metrics(since, refresh_nonce)
 
 with st.expander("**🔄 Helpful Processes**"):
     st.markdown("""
@@ -404,48 +438,7 @@ else:
     )
 st.divider()
 
-st.subheader(
-    "Flaky tests with ≥ 10 failures",
-    help="""
-Lists flaky tests with ≥ 10 failures in the selected timeframe.
-
-Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky(reruns=3)`
-marker as a last resort.
-""",
-)
-flaky_tests_df = (
-    get_flaky_tests(
-        since,
-        min_failures=10,
-        refresh_nonce=refresh_nonce,
-    )
-    if show_ci_sections
-    else None
-)
-# Always hide expected flaky tests
-if flaky_tests_df is not None and not flaky_tests_df.empty:
-    mask_not_expected = ~flaky_tests_df["Test"].apply(
-        lambda t: any(t.startswith(prefix) for prefix in EXPECTED_FLAKY_TESTS)
-    )
-    flaky_tests_df = flaky_tests_df[mask_not_expected]
-
-if not show_ci_sections:
-    st.info("Enable CI metrics and flaky tests in the sidebar to load this section.")
-elif flaky_tests_df is not None and flaky_tests_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-elif flaky_tests_df is not None:
-    flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
-    st.dataframe(
-        flaky_tests_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Test": st.column_config.TextColumn("Test", width="large"),
-            "Failures": st.column_config.NumberColumn("Failures"),
-            "Workflow Run": st.column_config.LinkColumn("Last Workflow Run", display_text="Open"),
-            "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
-        },
-    )
+render_flaky_tests(since, refresh_nonce)
 st.divider()
 
 monitored_repos_help = "\n".join(f"- `{repo}`" for repo in MONITORED_INTERRUPT_REPOS)
