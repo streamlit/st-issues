@@ -18,6 +18,7 @@ st.set_page_config(
     page_title="Open issues",
     page_icon="🗃",
     initial_sidebar_state="collapsed",
+    layout="centered",
 )
 st.title("🗃 Open issues")
 
