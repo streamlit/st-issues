@@ -111,13 +111,81 @@ with ResizeObserver, smooth interruption, and nullable expanded handling"
 close was not present before that, matching the reporter's "used to work in a
 previous version."
 
-## Suggested fix (from reporter, verified as sound)
+## Lazy mode (`on_change="rerun"`) interaction — important
 
-Clear the inline `height`/`overflow` in the `cancel` listener (or inside
-`cancelAnimation()`), and let the follow-up animation re-lock — callers already
-re-lock synchronously right after cancelling, so clearing on cancel is safe and
-makes "locked with nothing running" an unreachable state. This is a small,
-low-risk change localized to `animateHeight.ts` / `useDetailsAnimation.ts`.
+`st.expander(..., on_change="rerun")` (and the callable form) makes the expander
+a stateful widget (`element.id` set → `isWidget` in `Expander.tsx`) and enables
+**server-side lazy execution**: the body only runs and is sent to the frontend
+when the expander is open (`lib/streamlit/elements/layouts.py:1011-1016`). This
+turns opening a lazy expander into a **two-stage, round-trip animation** that
+leans directly on the mechanisms this bug lives in:
+
+1. **Stage 1 (optimistic open).** `handleToggle` runs `animateTo(true)`
+   immediately. The body children don't exist yet, so the content panel measures
+   only its padding — a small but non-zero height — and animates collapsed →
+   padding-height. In parallel `setBoolValue(fromUi)` triggers a rerun.
+2. **Round-trip.** The server reruns, produces the body, streams a `ForwardMsg`.
+3. **Stage 2 (grow).** Children mount, the panel grows, and the `ResizeObserver`
+   drives `animateResize` to full height. For chart/df-heavy bodies this fires
+   **repeatedly** (skeleton → data → final layout), each `animateResize`
+   cancelling the previous one.
+
+Consequences for triage/fixing:
+
+- Lazy mode animates several times per open across a wide, interruptible gap (the
+  rerun round-trip), whereas eager mode animates once. So lazy expanders are
+  **more exposed** to the "cancel with no successor" leak, and heavy lazy bodies
+  are the most likely real-world trigger of the permanent clip.
+- Any fix must **preserve** the current interruption behavior (cancel keeps the
+  lock; only `finish` clears it) and the `ResizeObserver`-driven grow, because
+  that is exactly what makes lazy content animate smoothly.
+
+## Fix direction — and why the issue's suggested fix is NOT safe
+
+The issue suggests *"clear the inline styles in the `cancel` listener (or in
+`cancelAnimation()`)."* Both variants were analyzed and rejected:
+
+- **Clearing in the `cancel` listener is unsafe.** The Web Animations `cancel`
+  event is dispatched **asynchronously** (queued as a task), *after* the caller's
+  synchronous re-lock. Verified empirically (Chromium): after `animation.cancel()`
+  the re-lock and a follow-up `element.animate()` run first with `overflow:
+  hidden`, and the `cancel` handler only fires ~1 frame later — so clearing there
+  **wipes the re-lock of the in-flight follow-up animation**. The result is
+  `overflow: visible` mid-animation → content spills past the animating box for a
+  frame on every interrupted toggle. In lazy mode this recurs on each stage-2
+  grow, producing a visible shimmer/jump on exactly the heavy pages the feature
+  targets. This reintroduces the flicker that #13934's smooth-interruption was
+  built to prevent (and contradicts the explicit
+  `animateHeight.test.ts` case "does NOT clear styles on cancel").
+- **Clearing synchronously in `cancelAnimation()` doesn't fix the leak.** In
+  `animateTo`/`animateResize` the lock is re-applied on the two lines right after
+  `cancelAnimation()` (`useDetailsAnimation.ts:161-164`, `:221-224`), so a
+  synchronous clear is immediately overwritten — a no-op for the reported stale
+  lock while adding churn.
+
+**Recommended (lazy-safe) direction:** leave the cancel/finish contract untouched
+and instead **guarantee the lock always has a terminator**, which also hardens
+lazy mode:
+
+1. **Make the `ResizeObserver` healer self-correcting.** When it runs and finds
+   the element `open`, idle (no running WAAPI animation), and still inline-locked,
+   resolve the lock even on the branches that currently early-return
+   (`useDetailsAnimation.ts:236-266`, including the `< RESIZE_THRESHOLD_PX`
+   guard). This targets the "locked with nothing running" state directly, in the
+   same subsystem lazy already depends on.
+2. **(Optional) Low-frequency watchdog** — internalize the reporter's own
+   workaround: if inline-locked with nothing running past the 500 ms animation
+   duration, clear it. Belt-and-suspenders against future paths; treats symptom
+   over cause, so pair it with (1).
+
+**Tests the current suite lacks and a fix should add:**
+- "cancel with no successor leaves no permanent lock" (regression for this bug).
+- An **interruption test asserting `overflow` stays `hidden` for the entire
+  duration of a rapid multi-stage resize** — this is the assertion that would
+  *fail* under the issue's proposed fix, and it protects lazy mode going forward.
+
+Scope: localized to `useDetailsAnimation.ts` (+ tests); no change needed in
+`animateHeight.ts`.
 
 ## Classification
 
@@ -137,5 +205,8 @@ low-risk change localized to `animateHeight.ts` / `useDetailsAnimation.ts`.
   reproduce" descriptor. Calibrated against #16003 (P2, narrow-but-default-path
   regression); this is narrower and self-healing, but the symptom (content
   becoming unreachable) is more severe when hit.
-- **Fix complexity:** Small — clear inline styles on cancel; add a regression
-  test for the cancel-with-no-successor path.
+- **Fix complexity:** Small–Medium — **not** the issue's "clear on cancel" (see
+  "Fix direction" above; it's unsafe / a no-op and regresses lazy mode). Instead
+  make the `ResizeObserver` healer resolve a stuck lock, plus an interruption
+  test asserting `overflow` stays `hidden` across a multi-stage resize and a
+  cancel-with-no-successor regression test. Localized to `useDetailsAnimation.ts`.
