@@ -15,4 +15,4 @@ c1, c2 = st.columns([1, 1], gap='small', vertical_alignment='bottom')
 c1.dataframe(df, height=200, use_container_width=True, hide_index=True)
 fig = px.bar(df, x='date', y=['value1', 'value2'], barmode='group', height=300, text_auto=True, color_discrete_sequence=px.colors.qualitative.Bold)
 selected_point = c2.plotly_chart(fig, use_container_width=True, on_select='rerun', selection_mode='points')
-selected_point
+st.write(selected_point)
