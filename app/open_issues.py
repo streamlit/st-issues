@@ -29,6 +29,36 @@ GROWTH_PERIODS = {
     "Last 3 months": date.today() - pd.Timedelta(days=90),
 }
 
+# Priority labels considered "worth working on" for bugs. P0-P2 form the top tier,
+# while P3 shares the lower tier with papercut enhancements.
+WORTH_WORKING_TOP_PRIORITIES: frozenset[str] = frozenset({"priority:P0", "priority:P1", "priority:P2"})
+WORTH_WORKING_BUG_PRIORITIES: frozenset[str] = WORTH_WORKING_TOP_PRIORITIES | {"priority:P3"}
+
+
+def is_worth_working_on(label_names: list[str]) -> bool:
+    """Whether an issue is worth working on.
+
+    True for confirmed, non-upstream bugs prioritized up to P3, or for papercut
+    enhancements.
+    """
+    labels = set(label_names)
+    is_actionable_bug = (
+        "type:bug" in labels
+        and "status:confirmed" in labels
+        and "upstream" not in labels
+        and bool(labels & WORTH_WORKING_BUG_PRIORITIES)
+    )
+    is_papercut = "type:enhancement" in labels and "papercut" in labels
+    return is_actionable_bug or is_papercut
+
+
+def worth_working_on_category(label_names: list[str]) -> int:
+    """Sort tier: 0 for P0-P2 bugs, 1 for papercuts and P3 bugs."""
+    labels = set(label_names)
+    if "type:bug" in labels and bool(labels & WORTH_WORKING_TOP_PRIORITIES):
+        return 0
+    return 1
+
 
 @st.cache_data(ttl=60 * 60 * 72, show_spinner=False)  # 3 days
 def get_issue_reactions(issue_number: int) -> pd.DataFrame:
@@ -108,21 +138,31 @@ for label in labels_to_remove:
 
 filter_labels = st.sidebar.multiselect("Filter by label", list(all_labels), default=default_filters)
 
+worth_working_on = st.sidebar.checkbox(
+    "🎯 Only issues worth working on",
+    value=False,
+    help=(
+        "Show only confirmed, non-upstream bugs prioritized up to P3, plus papercut "
+        "enhancements. Sorted by priority tier (P0-P2 bugs first, then papercuts and "
+        "P3 bugs), and by reactions within each tier."
+    ),
+)
+
 print("Show issues with labels:", filter_labels, flush=True)
 
 st.query_params["label"] = filter_labels
 
 filtered_issues = []
 for issue in all_issues:
-    filtered_out = False
     issue_labels: list[str] = [label["name"] for label in issue["labels"]]
 
-    for filter_label in filter_labels:
-        if filter_label not in issue_labels:
-            filtered_out = True
+    if any(filter_label not in issue_labels for filter_label in filter_labels):
+        continue
 
-    if not filtered_out:
-        filtered_issues.append(issue)
+    if worth_working_on and not is_worth_working_on(issue_labels):
+        continue
+
+    filtered_issues.append(issue)
 
 
 def get_reproducible_example(issue_number: int) -> str | None:
@@ -168,7 +208,14 @@ else:
         else:
             df["reaction_growth"] = 0
 
-    df = df.sort_values(by=["total_reactions", "updated_at"], ascending=[False, False])
+    if worth_working_on:
+        df["worth_working_on_category"] = df["labels"].map(worth_working_on_category)
+        df = df.sort_values(
+            by=["worth_working_on_category", "total_reactions", "updated_at"],
+            ascending=[True, False, False],
+        )
+    else:
+        df = df.sort_values(by=["total_reactions", "updated_at"], ascending=[False, False])
 
     link_qs_labels = "+".join([quote("label:" + label) for label in filter_labels])
     link = f"https://github.com/streamlit/streamlit/issues?q={quote('is:open')}+{quote('is:issue')}+{link_qs_labels}"
