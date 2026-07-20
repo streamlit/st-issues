@@ -23,6 +23,7 @@ ACTIVTE_STREAMLIT_TEAM_MEMBERS = [
     "mayagbarnes",
     "jrieke",
     "sfc-gh-lwilby",
+    "sfc-gh-lwilby-1",
     "sfc-gh-bnisco",
     "sfc-gh-nbellante",
     "sfc-gh-tteixeira",
