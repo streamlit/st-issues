@@ -1,9 +1,9 @@
 # Issue #16003 — st.selectbox fuzzy search only matches contiguous substrings since 1.59.0
 
-**Status:** Bug confirmed — regression  
-**Priority:** P1  
-**Type:** Regression  
-**Areas:** `st.selectbox`, frontend, react-aria  
+**Status:** Bug confirmed — regression
+**Priority:** P1
+**Type:** Regression
+**Areas:** `st.selectbox`, frontend, react-aria
 
 ---
 
@@ -77,9 +77,9 @@ should be reviewed promptly given P1 priority.
 
 ## Classification
 
-- **Type:** `type:bug`, regression  
-- **Introduced:** PR #15438 (BaseWeb → react-aria migration, 1.59.0)  
-- **Area:** `st.selectbox` / frontend / react-aria  
+- **Type:** `type:bug`, regression
+- **Introduced:** PR #15438 (BaseWeb → react-aria migration, 1.59.0)
+- **Area:** `st.selectbox` / frontend / react-aria
 - **Workaround:** None clean. Users can set `filter_mode='contains'` (different behavior)
   or `filter_mode='prefix'`, but there is no way to restore true fuzzy behavior without
   the code fix.
