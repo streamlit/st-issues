@@ -10,7 +10,7 @@ import streamlit as st
 
 from app.utils.github_graphql_utils import fetch_merged_pr_metrics
 from app.utils.github_utils import (
-    ACTIVTE_STREAMLIT_TEAM_MEMBERS,
+    ACTIVE_STREAMLIT_TEAM_MEMBERS,
     STREAMLIT_TEAM_MEMBERS,
     get_all_github_issues,
     get_count_issues_commented_by_user,
@@ -619,7 +619,7 @@ if selected_metrics == "Contribution Metrics":
     )
     # Fetch data for all team members
     comment_counts = []
-    for member in ACTIVTE_STREAMLIT_TEAM_MEMBERS:
+    for member in ACTIVE_STREAMLIT_TEAM_MEMBERS:
         count = get_count_issues_commented_by_user(member)
         if count > 0:
             comment_counts.append({"User": member, "Issues Commented On": count})

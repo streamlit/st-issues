@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 # Streamlit team members:
 
-ACTIVTE_STREAMLIT_TEAM_MEMBERS = [
+ACTIVE_STREAMLIT_TEAM_MEMBERS = [
     "lukasmasuch",
     "kmcgrady",
     "mayagbarnes",
@@ -32,7 +32,7 @@ ACTIVTE_STREAMLIT_TEAM_MEMBERS = [
 ]
 
 STREAMLIT_TEAM_MEMBERS = [
-    *ACTIVTE_STREAMLIT_TEAM_MEMBERS,
+    *ACTIVE_STREAMLIT_TEAM_MEMBERS,
     "tconkling",
     "kajarenc",
     "willhuang1997",
