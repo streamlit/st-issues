@@ -1635,7 +1635,7 @@ requires-dist = [
     { name = "pytz" },
     { name = "scipy" },
     { name = "seaborn" },
-    { name = "streamlit", extras = ["performance"], specifier = ">=1.59.0" },
+    { name = "streamlit", extras = ["performance"], specifier = ">=1.59.2" },
     { name = "streamlit-aggrid" },
     { name = "streamlit-extras" },
     { name = "streamlit-folium" },
