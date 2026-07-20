@@ -46,7 +46,7 @@ def fetch_merged_specs() -> list[dict]:
     except requests.RequestException:
         return []
 
-    specs = []
+    specs: list[dict] = []
     date_pattern = re.compile(r"^(\d{4}-\d{2}-\d{2})-(.+)$")
 
     for item in contents:

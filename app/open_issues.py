@@ -136,14 +136,14 @@ df = pd.DataFrame(filtered_issues)
 if df.empty:
     st.markdown("No issues found")
 else:
-    df["labels"] = df["labels"].map(lambda x: [label["name"] if label else "" for label in x])
+    df["labels"] = df["labels"].map(lambda x: [label["name"] if label else "" for label in x], na_action="ignore")
     df["type"] = df["labels"].map(labels_to_type_emoji)
     df["reproducible_example"] = df["number"].map(get_reproducible_example)
     df["title"] = df["type"] + df["title"]
     df["reaction_types"] = df["reactions"].map(reactions_to_str)
     df["total_reactions"] = df["reactions"].map(operator.itemgetter("total_count")) + df["comments"]
     df["author_avatar"] = df["user"].map(operator.itemgetter("avatar_url"))
-    df["assignee_avatar"] = df["assignee"].map(lambda x: x["avatar_url"] if x else None)
+    df["assignee_avatar"] = df["assignee"].map(lambda x: x["avatar_url"] if x else None, na_action="ignore")
     issue_numbers = tuple(int(issue_number) for issue_number in df["number"].dropna().astype(int))
     view_counts, view_error = fetch_issue_view_counts(issue_numbers)
     if view_error:

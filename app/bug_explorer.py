@@ -65,11 +65,11 @@ if not bug_issues:
 df = pd.DataFrame(bug_issues)
 
 # Pre-process labels for easier filtering
-df["label_names"] = df["labels"].map(lambda x: [label["name"] for label in x])
+df["label_names"] = df["labels"].map(lambda x: [label["name"] for label in x], na_action="ignore")
 df["total_reactions"] = df["reactions"].map(operator.itemgetter("total_count"))
 df["reaction_types"] = df["reactions"].map(reactions_to_str)
 df["author_avatar"] = df["user"].map(operator.itemgetter("avatar_url"))
-df["assignee_avatar"] = df["assignee"].map(lambda x: x["avatar_url"] if x else None)
+df["assignee_avatar"] = df["assignee"].map(lambda x: x["avatar_url"] if x else None, na_action="ignore")
 
 # Calculate days since updated
 # Handle potential timezone differences (GitHub returns UTC ISO 8601)
