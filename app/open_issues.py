@@ -139,7 +139,7 @@ for label in labels_to_remove:
 filter_labels = st.sidebar.multiselect("Filter by label", list(all_labels), default=default_filters)
 
 worth_working_on = st.sidebar.checkbox(
-    "🎯 Only issues worth working on",
+    "Issues worth working on",
     value=False,
     help=(
         "Show only confirmed, non-upstream bugs prioritized up to P3, plus papercut "
