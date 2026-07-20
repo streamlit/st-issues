@@ -15,6 +15,12 @@ from requests.exceptions import (
 from requests.exceptions import (
     ConnectionError as RequestsConnectionError,
 )
+from requests.exceptions import (
+    JSONDecodeError as RequestsJSONDecodeError,
+)
+from requests.exceptions import (
+    Timeout as RequestsTimeout,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -39,8 +45,10 @@ def _run_graphql_query(
     """Execute a GraphQL query with retry and rate-limit handling."""
     headers = get_graphql_headers()
     retryable_status = {502, 503, 504, 429}
+    max_attempts = 5
+    last_error: str | None = None
 
-    for attempt in range(5):
+    for attempt in range(max_attempts):
         try:
             response = requests.post(
                 GITHUB_GRAPHQL_ENDPOINT,
@@ -48,12 +56,25 @@ def _run_graphql_query(
                 json={"query": query, "variables": variables},
                 timeout=40,
             )
-        except (ChunkedEncodingError, RequestsConnectionError):
+        except (ChunkedEncodingError, RequestsConnectionError, RequestsTimeout) as exc:
+            last_error = f"request failed ({type(exc).__name__}): {exc}"
+            print(f"[GitHub GraphQL] {last_error} (attempt {attempt + 1}/{max_attempts})")
             wait_seconds = 1.5 * (attempt + 1)
             time.sleep(wait_seconds)
             continue
         if response.status_code == 200:
-            payload = response.json()
+            try:
+                payload = response.json()
+            except (RequestsJSONDecodeError, ValueError):
+                # GitHub occasionally returns a 200 with an empty or non-JSON
+                # body (transient gateway/CDN hiccups). Treat it as retryable
+                # instead of letting the JSONDecodeError crash the app.
+                snippet = (response.text or "").strip()[:200]
+                last_error = f"received 200 with non-JSON body: {snippet!r}"
+                print(f"[GitHub GraphQL] {last_error} (attempt {attempt + 1}/{max_attempts})")
+                wait_seconds = 1.5 * (attempt + 1)
+                time.sleep(wait_seconds)
+                continue
             cost_info = payload.get("extensions", {}).get("cost")
             if cost_info:
                 actual_cost = cost_info.get("actualQueryCost")
@@ -117,6 +138,8 @@ def _run_graphql_query(
                 continue
 
         if response.status_code in retryable_status:
+            last_error = f"received retryable status {response.status_code}"
+            print(f"[GitHub GraphQL] {last_error} (attempt {attempt + 1}/{max_attempts})")
             wait_seconds = 1.5 * (attempt + 1)
             time.sleep(wait_seconds)
             continue
@@ -124,6 +147,8 @@ def _run_graphql_query(
         response.raise_for_status()
 
     msg = "GitHub GraphQL request failed after retries."
+    if last_error:
+        msg = f"{msg} Last error: {last_error}"
     raise RuntimeError(msg)
 
 

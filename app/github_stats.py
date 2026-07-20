@@ -104,7 +104,23 @@ with st.sidebar:
     exclude_bot_prs = st.toggle("Exclude Bot PRs")
 
 
-merged_prs_df = fetch_pr_metrics(merged_since=since_input)
+try:
+    merged_prs_df = fetch_pr_metrics(merged_since=since_input)
+except Exception as ex:
+    # The GitHub GraphQL API can occasionally fail transiently (e.g. non-JSON
+    # responses, timeouts, or rate limiting). Show a friendly error and let the
+    # user retry instead of crashing the whole app with a traceback.
+    fetch_pr_metrics.clear()
+    fetch_merged_pr_metrics.clear()
+    st.error(
+        "Failed to load PR metrics from the GitHub API. This is usually a "
+        "temporary issue - please try refreshing.\n\n"
+        f"Details: `{ex}`"
+    )
+    if st.button(":material/refresh: Retry"):
+        st.rerun()
+    st.stop()
+
 if exclude_bot_prs:
     merged_prs_df = merged_prs_df[~merged_prs_df["from_bot"]]
 
