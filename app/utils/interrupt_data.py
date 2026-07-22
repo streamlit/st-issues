@@ -150,7 +150,7 @@ def _build_interrupt_action_items(
                     }
                 )
 
-            if any(label in {"priority:P0", "priority:P1"} for label in labels):
+            if any(label in {"priority:P0", "priority:P1", "priority:P2"} for label in labels):
                 priority = next((label for label in labels if label.startswith("priority:P")), "Unknown")
                 high_priority_bugs.append(
                     {
@@ -238,7 +238,7 @@ def _build_interrupt_action_items(
         "missing_labels_issues": pd.DataFrame(missing_label_issues),
         "waiting_for_team_response": pd.DataFrame(waiting_for_team_response),
         "unprioritized_bugs": pd.DataFrame(unprioritized),
-        "p0_p1_bugs": pd.DataFrame(high_priority_bugs),
+        "high_priority_bugs": pd.DataFrame(high_priority_bugs),
         "missing_labels_prs": pd.DataFrame(missing_label_prs),
         "prs_needing_approval": pd.DataFrame(needs_approval_prs),
         "open_dependabot_prs": pd.DataFrame(dependabot_prs),
@@ -581,10 +581,10 @@ def get_unprioritized_bugs(refresh_nonce: int = 0) -> pd.DataFrame:
     return data["unprioritized_bugs"].copy()
 
 
-def get_p0_p1_bugs(refresh_nonce: int = 0) -> pd.DataFrame:
-    """Get all P0 and P1 priority bugs."""
+def get_high_priority_bugs(refresh_nonce: int = 0) -> pd.DataFrame:
+    """Get all high-priority (P0, P1, P2) bugs."""
     data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
-    return data["p0_p1_bugs"].copy()
+    return data["high_priority_bugs"].copy()
 
 
 def get_confirmed_bugs_without_repro_script(since_date: date, refresh_nonce: int = 0) -> pd.DataFrame:

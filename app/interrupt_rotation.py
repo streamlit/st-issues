@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import humanize
+import pandas as pd
 import streamlit as st
 
 from app.utils.github_utils import (
@@ -278,6 +279,86 @@ with st.expander("**🔄 Helpful Processes**"):
 # DataFrames
 st.header("Action Items")
 
+# SLA targets (in days) for high-priority bugs, measured from the issue creation date.
+HIGH_PRIORITY_SLA_DAYS = {"priority:P0": 1, "priority:P1": 7, "priority:P2": 14}
+HIGH_PRIORITY_SLA_LABELS = {
+    "priority:P0": "≤ 1 day",
+    "priority:P1": "≤ 1 week",
+    "priority:P2": "≤ 2 weeks",
+}
+
+st.subheader(
+    "High-priority bugs (P0, P1, P2)",
+    help="""
+Lists high-priority bugs that require attention within their SLA.
+Please make sure that these bugs are assigned and are being worked on.
+
+**SLAs (measured from the issue creation date):**
+- **P0:** fix within **1 day**
+- **P1:** fix within **1 week**
+- **P2:** fix within **2 weeks**
+
+The **SLA Due** column shows when the SLA is (or was) due and the **SLA Status** column
+indicates whether a bug is still within its SLA or has already breached it.
+""",
+)
+high_priority_bugs_df = action_items["high_priority_bugs"].copy()
+if high_priority_bugs_df.empty:
+    st.success("Congrats, everything is done here!", icon="🎉")
+else:
+    # Sort by priority (P0 first, then P1, then P2) and then by creation date (oldest first).
+    high_priority_bugs_df["Priority_Sort"] = high_priority_bugs_df["Priority"].map(
+        {"priority:P0": 0, "priority:P1": 1, "priority:P2": 2}
+    )
+    high_priority_bugs_df = high_priority_bugs_df.sort_values(by=["Priority_Sort", "Created"])
+
+    # Compute SLA info based on the creation date and the priority-specific SLA target.
+    created_ts = pd.to_datetime(high_priority_bugs_df["Created"], utc=True)
+    sla_days = high_priority_bugs_df["Priority"].map(HIGH_PRIORITY_SLA_DAYS)
+    sla_due_ts = created_ts + pd.to_timedelta(sla_days, unit="D")
+    is_breached = pd.Timestamp.now(tz="UTC") > sla_due_ts
+
+    high_priority_bugs_df["SLA"] = high_priority_bugs_df["Priority"].map(HIGH_PRIORITY_SLA_LABELS)
+    high_priority_bugs_df["SLA Due"] = sla_due_ts
+    high_priority_bugs_df["SLA Status"] = [["Breached"] if breached else ["Within SLA"] for breached in is_breached]
+
+    high_priority_bugs_df = high_priority_bugs_df.drop("Priority_Sort", axis=1)
+
+    st.dataframe(
+        high_priority_bugs_df,
+        width="stretch",
+        hide_index=True,
+        column_order=[
+            "Title",
+            "URL",
+            "Priority",
+            "Created",
+            "SLA",
+            "SLA Due",
+            "SLA Status",
+            "Assignees",
+        ],
+        column_config={
+            "Title": st.column_config.TextColumn("Title", width="large"),
+            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+            "Priority": st.column_config.TextColumn("Priority"),
+            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+            "SLA": st.column_config.TextColumn("SLA", help="SLA target based on the bug's priority."),
+            "SLA Due": st.column_config.DatetimeColumn(
+                "SLA Due",
+                format="distance",
+                help="When the SLA is (or was) due, based on the creation date.",
+            ),
+            "SLA Status": st.column_config.MultiselectColumn(
+                "SLA Status",
+                options=["Within SLA", "Breached"],
+                color=["green", "red"],
+            ),
+            "Assignees": st.column_config.ListColumn("Assignees"),
+        },
+    )
+st.divider()
+
 st.subheader(
     "Issues that need triage",
     help="""
@@ -402,37 +483,6 @@ else:
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
             "Author": st.column_config.TextColumn("Author"),
-        },
-    )
-st.divider()
-
-st.subheader(
-    "P0 and P1 Bugs",
-    help="""
-Lists high-priority bugs that require immediate attention.
-Please make sure that those bugs are assigned and are being worked on.
-""",
-)
-p0_p1_bugs_df = action_items["p0_p1_bugs"].copy()
-if p0_p1_bugs_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    # Sort by priority (P0 first, then P1) and then by creation date
-    p0_p1_bugs_df["Priority_Sort"] = p0_p1_bugs_df["Priority"].map({"priority:P0": 0, "priority:P1": 1})
-    p0_p1_bugs_df = p0_p1_bugs_df.sort_values(by=["Priority_Sort", "Created"])
-    p0_p1_bugs_df = p0_p1_bugs_df.drop("Priority_Sort", axis=1)
-
-    st.dataframe(
-        p0_p1_bugs_df.drop("Priority_Sort", axis=1, errors="ignore"),
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Author": st.column_config.TextColumn("Author"),
-            "Priority": st.column_config.TextColumn("Priority"),
-            "Assignees": st.column_config.ListColumn("Assignees"),
         },
     )
 st.divider()

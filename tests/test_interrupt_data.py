@@ -71,6 +71,12 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
             title="Multipage bug",
             labels=["type:bug", "status:confirmed", "feature:multipage-apps"],
         ),
+        _issue(
+            number=7,
+            title="P2 confirmed bug",
+            labels=["type:bug", "status:confirmed", "priority:P2", "feature:chat"],
+            created_at="2026-01-15T00:00:00+00:00",
+        ),
     ]
     prs = [
         _pr(number=10, title="Needs labels", labels=["impact:users"], author="community-author"),
@@ -107,7 +113,7 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
     }
     assert set(data["waiting_for_team_response"]["Title"]) == {"Waiting for team"}
     assert set(data["unprioritized_bugs"]["Title"]) == {"Confirmed missing priority", "Multipage bug"}
-    assert set(data["p0_p1_bugs"]["Title"]) == {"P0 confirmed bug"}
+    assert set(data["high_priority_bugs"]["Title"]) == {"P0 confirmed bug", "P2 confirmed bug"}
     assert set(data["confirmed_bugs_without_repro"]["Title"]) == {"Confirmed missing priority"}
 
     assert set(data["missing_labels_prs"]["Title"]) == {"Needs labels"}
