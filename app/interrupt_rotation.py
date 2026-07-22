@@ -322,6 +322,9 @@ else:
     high_priority_bugs_df["SLA Due"] = sla_due_ts
     high_priority_bugs_df["SLA Status"] = [["Breached"] if breached else ["Within SLA"] for breached in is_breached]
 
+    # Wrap the priority in a list so it can be rendered as a colored chip via MultiselectColumn.
+    high_priority_bugs_df["Priority"] = high_priority_bugs_df["Priority"].map(lambda priority: [priority])
+
     high_priority_bugs_df = high_priority_bugs_df.drop("Priority_Sort", axis=1)
 
     st.dataframe(
@@ -341,7 +344,18 @@ else:
         column_config={
             "Title": st.column_config.TextColumn("Title", width="large"),
             "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Priority": st.column_config.TextColumn("Priority"),
+            "Priority": st.column_config.MultiselectColumn(
+                "Priority",
+                options=[
+                    "priority:P0",
+                    "priority:P1",
+                    "priority:P2",
+                    "priority:P3",
+                    "priority:P4",
+                ],
+                color=["red", "orange", "yellow", "blue", "gray"],
+                format_func=lambda label: label.removeprefix("priority:"),
+            ),
             "Created": st.column_config.DatetimeColumn("Created", format="distance"),
             "SLA": st.column_config.TextColumn("SLA", help="SLA target based on the bug's priority."),
             "SLA Due": st.column_config.DatetimeColumn(
