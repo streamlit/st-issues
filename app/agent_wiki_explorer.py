@@ -89,13 +89,6 @@ if selected_label is None:
 
 selected_document = next(document for document in documents if document["path"] == selected_label)
 
-st.link_button(
-    ":material/open_in_new: Open raw file",
-    selected_document["raw_url"],
-    type="tertiary",
-    width="content",
-)
-
 if selected_document["is_markdown"]:
     with st.spinner("Fetching document..."):
         document_text, document_error = fetch_wiki_document_text(selected_document["path"])
