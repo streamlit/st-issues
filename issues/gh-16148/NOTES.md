@@ -72,14 +72,16 @@ the visible tooltip short:
 - **Areas:** frontend — `shared/Toolbar`, consumed via `ElementFullscreen` /
   `withFullScreenWrapper` by ImageList, DataFrame, PlotlyChart,
   DeckGlJsonChart, AudioInput, MermaidChart.
-- **Priority:** **P3** — genuine accessibility defect affecting screen-reader
-  users across all fullscreen-capable elements, but each button *is* labelled
-  (just not uniquely), the impact is limited to distinguishing multiple
-  controls on one page, and an author-side workaround exists. Could be raised
-  to P2 given Streamlit's accessibility commitments. (Note:
-  `wiki/issue-prioritization.md` was not available locally; this follows the
-  standard P0–P4 criteria — reach measured by the broken behavior, not the
-  affected surface.)
+- **Priority:** **P3** (per `wiki/issue-prioritization.md`) — a genuine but
+  minor accessibility defect. It is **not a regression**, an author-side
+  workaround exists, and the reach of the *noticed* behavior is narrow: only
+  screen-reader users, and only when distinguishing multiple fullscreen buttons
+  on one page — each button is still labelled ("Fullscreen"), just not
+  uniquely. This matches the doc's P3 criteria ("small stylistic changes",
+  "specific situations") and the calibration example
+  [#15921](https://github.com/streamlit/streamlit/issues/15921) (a minor,
+  low-reach a11y issue → P3). Meaningful 👍/comment signal could promote it to
+  P2.
 - **Fix complexity:** Small–Medium — thread an optional accessible label
   through `Toolbar`/`ToolbarAction` and populate it from callers that have a
   caption/title; update snapshot/DOM tests.
