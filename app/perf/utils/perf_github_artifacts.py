@@ -38,7 +38,7 @@ def process_artifact(
             continue
         try:
             score = payload["categories"]["performance"]["score"]
-        except Exception:  # noqa: S112
+        except Exception:  # ruff:ignore[try-except-continue]
             continue
 
         parts = member_name.split("_-_")

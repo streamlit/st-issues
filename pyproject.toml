@@ -81,40 +81,40 @@ ignore = [
   "DOC", # Checks for correct docstring format.
   "FBT", # Checks for Boolean-typed positional argument in function definition.
   # Ignored rules (sorted alphabetically):
-  "ANN401",  # Allow Any type in annotations.
-  "COM812",  # Trailing comma missing. Not recommended with formatter.
-  "COM819",  # Trailing comma prohibited. Not recommended with formatter.
-  "D100",    # Missing docstring in public module.
-  "D101",    # Missing docstring in public class.
-  "D103",    # Missing docstring in public function.
-  "D104",    # Missing docstring in public package.
-  "D107",    # Missing docstring in __init__.
-  "E501",    # Line too long. Ignored for user-facing strings and help text.
-  "ERA001",  # Commented out code.
-  "FIX002",  # Disallow TODO comments.
-  "FURB152", # Math constants should use math module.
-  "PLC0415", # Imports not at top-level.
-  "PLC2701", # Import of private name.
-  "PLR0904", # Too many public methods.
-  "PLR0911", # Too many return statements.
-  "PLR0912", # Too many branches.
-  "PLR0913", # Too many arguments.
-  "PLR0914", # Too many local variables.
-  "PLR0915", # Too many statements.
-  "PLR0916", # Too many boolean expressions.
-  "PLR0917", # Too many positional arguments.
-  "PLR1702", # Too many nested blocks.
-  "PLR2004", # Magic value used in comparison.
-  "PLR6301", # Method could be function (no self usage).
-  "PLW0717", # Too many statements in try clause.
-  "RET504",  # Unnecessary assignment before return.
-  "RUF052",  # Dummy variable accessed.
-  "RUF067",  # Non-empty __init__ module.
-  "SIM117",  # Multiple with statements should be combined.
-  "T201",    # Print statement found.
-  "TD002",   # Missing author in TODO.
-  "TD003",   # Missing issue link in TODO.
-  "TRY300",  # Consider else block instead of return in try.
+  "any-type",  # Allow Any type in annotations.
+  "missing-trailing-comma",  # Trailing comma missing. Not recommended with formatter.
+  "prohibited-trailing-comma",  # Trailing comma prohibited. Not recommended with formatter.
+  "undocumented-public-module",    # Missing docstring in public module.
+  "undocumented-public-class",    # Missing docstring in public class.
+  "undocumented-public-function",    # Missing docstring in public function.
+  "undocumented-public-package",    # Missing docstring in public package.
+  "undocumented-public-init",    # Missing docstring in __init__.
+  "line-too-long",    # Line too long. Ignored for user-facing strings and help text.
+  "commented-out-code",  # Commented out code.
+  "line-contains-todo",  # Disallow TODO comments.
+  "math-constant", # Math constants should use math module.
+  "import-outside-top-level", # Imports not at top-level.
+  "import-private-name", # Import of private name.
+  "too-many-public-methods", # Too many public methods.
+  "too-many-return-statements", # Too many return statements.
+  "too-many-branches", # Too many branches.
+  "too-many-arguments", # Too many arguments.
+  "too-many-locals", # Too many local variables.
+  "too-many-statements", # Too many statements.
+  "too-many-boolean-expressions", # Too many boolean expressions.
+  "too-many-positional-arguments", # Too many positional arguments.
+  "too-many-nested-blocks", # Too many nested blocks.
+  "magic-value-comparison", # Magic value used in comparison.
+  "no-self-use", # Method could be function (no self usage).
+  "too-many-statements-in-try-clause", # Too many statements in try clause.
+  "unnecessary-assign",  # Unnecessary assignment before return.
+  "used-dummy-variable",  # Dummy variable accessed.
+  "non-empty-init-module",  # Non-empty __init__ module.
+  "multiple-with-statements",  # Multiple with statements should be combined.
+  "print",    # Print statement found.
+  "missing-todo-author",   # Missing author in TODO.
+  "missing-todo-link",   # Missing issue link in TODO.
+  "try-consider-else",  # Consider else block instead of return in try.
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -128,7 +128,7 @@ ignore = [
   "S",      # Ignore bandit security rules (test code doesn't need security hardening).
   "TRY",    # Ignore tryceratops rules (simpler exception handling in tests).
 ]
-extend-safe-fixes = ["TC002", "TC003"]
+extend-safe-fixes = ["typing-only-third-party-import", "typing-only-standard-library-import"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

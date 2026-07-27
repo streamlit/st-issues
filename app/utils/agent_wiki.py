@@ -4,7 +4,7 @@ import operator
 import posixpath
 import re
 import shutil
-import subprocess  # noqa: S404
+import subprocess  # ruff:ignore[suspicious-subprocess-import]
 import tempfile
 from pathlib import Path
 from typing import TypedDict
@@ -56,8 +56,8 @@ def _run_git_command(
     cwd: Path | None = None,
 ) -> tuple[str | None, str | None]:
     try:
-        completed_process = subprocess.run(  # noqa: S603
-            ["git", *args],  # noqa: S607
+        completed_process = subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
+            ["git", *args],  # ruff:ignore[start-process-with-partial-path]
             cwd=cwd,
             check=False,
             capture_output=True,
