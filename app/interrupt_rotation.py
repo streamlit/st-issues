@@ -26,27 +26,13 @@ from app.utils.interrupt_data import (
 # Set page configuration
 st.set_page_config(page_title="Interrupt rotation", page_icon="🩺", layout="wide")
 
-# Main app
-st.title("🩺 Interrupt rotation")
-st.caption("This dashboard provides an overview of repository health and areas that require attention.")
-
-st.session_state.setdefault("interrupt_refresh_nonce", 0)
-
-timeframe = st.sidebar.selectbox(
-    "Select timeframe",
-    ("Last 7 days", "Last 14 days"),
-    index=0,
-)
-if st.sidebar.button(":material/refresh: Refresh data", width="stretch"):
-    st.session_state.interrupt_refresh_nonce += 1
-
-days = 14 if timeframe == "Last 14 days" else 7
-since = date.today() - timedelta(days=days)
-refresh_nonce = st.session_state.interrupt_refresh_nonce
-action_items = build_interrupt_action_items(
-    since_date=since,
-    refresh_nonce=refresh_nonce,
-)
+# SLA targets (in days) for high-priority bugs, measured from the issue creation date.
+HIGH_PRIORITY_SLA_DAYS = {"priority:P0": 1, "priority:P1": 7, "priority:P2": 14}
+HIGH_PRIORITY_SLA_LABELS = {
+    "priority:P0": "≤ 1 day",
+    "priority:P1": "≤ 1 week",
+    "priority:P2": "≤ 2 weeks",
+}
 
 
 @st.fragment(parallel=True)
@@ -137,6 +123,283 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
 
 
 @st.fragment(parallel=True)
+def render_issue_action_items(selected_since: date, selected_refresh_nonce: int) -> None:
+    """Render the issue-focused action-item tables from the shared snapshot.
+
+    Grouped into a single parallel fragment so the (cached) issue/PR snapshot is
+    fetched once and overlaps with the other parallel fragments during a full rerun.
+    """
+    with st.skeleton(height=600):
+        action_items = build_interrupt_action_items(
+            since_date=selected_since,
+            refresh_nonce=selected_refresh_nonce,
+        )
+
+        st.subheader(
+            "High-priority bugs (P0, P1, P2)",
+            help="""
+Lists high-priority bugs that require attention within their SLA.
+Please make sure that these bugs are assigned and are being worked on.
+
+**SLAs (measured from the issue creation date):**
+- **P0:** fix within **1 day**
+- **P1:** fix within **1 week**
+- **P2:** fix within **2 weeks**
+
+The **SLA Due** column shows when the SLA is (or was) due and the **SLA Status** column
+indicates whether a bug is still within its SLA or has already breached it.
+""",
+        )
+        high_priority_bugs_df = action_items["high_priority_bugs"].copy()
+        if high_priority_bugs_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            # Sort by priority (P0 first, then P1, then P2) and then by creation date (oldest first).
+            high_priority_bugs_df["Priority_Sort"] = high_priority_bugs_df["Priority"].map(
+                {"priority:P0": 0, "priority:P1": 1, "priority:P2": 2}
+            )
+            high_priority_bugs_df = high_priority_bugs_df.sort_values(by=["Priority_Sort", "Created"])
+
+            # Compute SLA info based on the creation date and the priority-specific SLA target.
+            created_ts = pd.to_datetime(high_priority_bugs_df["Created"], utc=True)
+            sla_days = high_priority_bugs_df["Priority"].map(HIGH_PRIORITY_SLA_DAYS)
+            sla_due_ts = created_ts + pd.to_timedelta(sla_days, unit="D")
+            is_breached = pd.Timestamp.now(tz="UTC") > sla_due_ts
+
+            high_priority_bugs_df["SLA"] = high_priority_bugs_df["Priority"].map(HIGH_PRIORITY_SLA_LABELS)
+            high_priority_bugs_df["SLA Due"] = sla_due_ts
+            high_priority_bugs_df["SLA Status"] = [
+                ["Breached"] if breached else ["Within SLA"] for breached in is_breached
+            ]
+
+            # Wrap the priority in a list so it can be rendered as a colored chip via MultiselectColumn.
+            high_priority_bugs_df["Priority"] = high_priority_bugs_df["Priority"].map(lambda priority: [priority])
+
+            high_priority_bugs_df = high_priority_bugs_df.drop("Priority_Sort", axis=1)
+
+            st.dataframe(
+                high_priority_bugs_df,
+                width="stretch",
+                hide_index=True,
+                column_order=[
+                    "Title",
+                    "URL",
+                    "Priority",
+                    "Created",
+                    "SLA",
+                    "SLA Due",
+                    "SLA Status",
+                    "Assignees",
+                ],
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Priority": st.column_config.MultiselectColumn(
+                        "Priority",
+                        options=[
+                            "priority:P0",
+                            "priority:P1",
+                            "priority:P2",
+                            "priority:P3",
+                            "priority:P4",
+                        ],
+                        color=["red", "orange", "yellow", "blue", "gray"],
+                        format_func=lambda label: label.removeprefix("priority:"),
+                    ),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "SLA": st.column_config.TextColumn("SLA", help="SLA target based on the bug's priority."),
+                    "SLA Due": st.column_config.DatetimeColumn(
+                        "SLA Due",
+                        format="distance",
+                        help="When the SLA is (or was) due, based on the creation date.",
+                    ),
+                    "SLA Status": st.column_config.MultiselectColumn(
+                        "SLA Status",
+                        options=["Within SLA", "Breached"],
+                        color=["green", "red"],
+                    ),
+                    "Assignees": st.column_config.ListColumn("Assignees"),
+                },
+            )
+        st.divider()
+
+        st.subheader(
+            "Issues that need triage",
+            help="""
+Lists all issues with the `status:needs-triage` label.
+To triage an issue, you need to try to reproduce the issue.
+
+**If you are able to reproduce the issue:**
+1. Add the `status:confirmed` label
+2. Remove the `status:needs-triage` label
+3. Add the correct priority label `priority:P{0,1,2,3,4}`
+    1. **Important:** If it's a P0 bug, you should either start working on a fix or engaging with the people who can help take immediate action on the bug
+    2. If it's a P1 or P2 bug, consider prioritizing fixing the bug yourself as that is a core responsibility of the Interrupt rotation
+4. Add the corresponding feature(s) label `feature:{the_feature}` or `area:{the_area}`
+5. If it's a regression, add the `type:regression` label
+6. If this is a bug in an upstream library (eg: Base Web, Arrow), please add the `upstream` label
+7. Respond in a comment thanking the user for filing their issue
+
+**If you are unable to repro / they didn't provide enough information to debug:**
+1. Add the `status:cannot-reproduce` and `status:awaiting-user-response` labels
+2. Remove the `status:needs-triage` label
+3. Respond in a comment thanking the user for filing their issue and asking them for more information on how to reproduce the issue. Be clear about what you tried and what results you were seeing.
+
+**If it is not a bug, but intended behavior:**
+1. Change to the type (e.g. to `type:enhancement` , or `type:docs`, …)
+2. Remove the `status:needs-triage` label
+3. Respond in a comment thanking the user for filing their issue, let them know that it is intended behavior, and close the issue.
+""",
+        )
+        needs_triage_df = action_items["needs_triage"]
+        if needs_triage_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                needs_triage_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
+                },
+            )
+        st.divider()
+
+        st.subheader(
+            "Issues missing feature label",
+            help="Every issue is expected to have atleast one `feature:{the_feature}` or `area:{the_area}` label.",
+        )
+        missing_labels_df = action_items["missing_labels_issues"]
+        if missing_labels_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                missing_labels_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
+                    "Labels": st.column_config.ListColumn("Labels"),
+                },
+            )
+        st.divider()
+
+        st.subheader(
+            "Confirmed bugs without a priority",
+            help="""
+Every confirmed bug is expected to be labled with a `priority:P{0,1,2,3,4}` label.
+
+### P0
+
+- A primary Streamlit user journey is effectively broken for nearly all users
+- A high-risk security or compliance issue, even if not immediately user-visible
+
+**Action:** Must be addressed ASAP with a hotfix
+
+### P1
+
+- Streamlit behavior blocks most users from doing something *without* a workaround
+- A new or high profile feature is visibly broken in a common scenario
+- Streamlit behavior causes a Major incident with an internal hosting partner (Community Cloud or SiS)
+- A non-blocking but noticeable regression (>5% of users will notice) in a primary user journey or Streamlit behavior including:
+    - Performance regression
+    - Visual or design issue
+    - Behavior change which breaks backwards compatibility
+
+**Action:** If found pre-release, we will not release. If found after release, we should fix within 2 weeks and will assess a hotfix.
+
+### P2
+
+- Streamlit behavior blocks many users from doing something — but there is a workaround
+- Something is visibly broken in an `experimental_` feature
+- Streamlit behavior blocks many users from doing something specifically with a key dependency.
+- A less noticeable regression (visual/design or performance) or confusing behavior
+
+**Action:** If it's a regression and/or has a straightforward and low-risk fix, we should try to fix it in the next release. Otherwise, assess case by case.
+
+### P3/P4
+
+- Streamlit blocks users in specific situations (e.g. use of an outside dependency)
+- Small stylistic changes
+- Scenarios that have very specific situations and are difficult to reproduce.
+
+*Distinguishing P3/P4 is more of a judgment call. Upvotes/comments in Github can also distinguish these, or even indicate visibility to move to P2.*
+
+**Action:** It can be fixed opportunistically but should not be especially prioritized by core engineers. We may also accept an outside contribution, or fix it as a papercut.
+""",
+        )
+        unprioritized_bugs_df = action_items["unprioritized_bugs"]
+        if unprioritized_bugs_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                unprioritized_bugs_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
+                },
+            )
+        st.divider()
+
+        st.subheader(
+            "Open Dependabot PRs",
+            help="""
+Lists all open dependency update PRs from Dependabot. Please try to review and merge these PRs
+if it requires no or only minor changes.
+
+- In some cases, the PR will require manually updating the `NOTICES` file by checking out the dependency PR, running `yarn install` in `frontend`, and running `make update-notices` from repo root.
+- If our CI indicates that updating the dependency will likely require bigger changes, just close the PR with a brief message and add the dependency to our https://github.com/streamlit/streamlit/blob/develop/.github/dependabot.yml ignore list. [Example PR](https://github.com/streamlit/streamlit/pull/10630)
+ """,
+        )
+        dependabot_prs_df = action_items["open_dependabot_prs"]
+        if dependabot_prs_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                dependabot_prs_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                },
+            )
+        st.divider()
+
+        st.subheader(
+            "Issues waiting for team response",
+            help="Lists all issues that are waiting for a response from the team.",
+        )
+        waiting_for_team_response_df = action_items["waiting_for_team_response"]
+        if waiting_for_team_response_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                waiting_for_team_response_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
+                    "Labels": st.column_config.ListColumn("Labels"),
+                },
+            )
+
+
+@st.fragment(parallel=True)
 def render_flaky_tests(selected_since: date, selected_refresh_nonce: int) -> None:
     st.subheader(
         "Flaky tests with ≥ 10 failures",
@@ -173,6 +436,85 @@ marker as a last resort.
                     "Failures": st.column_config.NumberColumn("Failures"),
                     "Workflow Run": st.column_config.LinkColumn("Last Workflow Run", display_text="Open"),
                     "Last Failure Date": st.column_config.DatetimeColumn(format="distance"),
+                },
+            )
+
+
+@st.fragment(parallel=True)
+def render_monitored_repo_prs(selected_refresh_nonce: int) -> None:
+    monitored_repos_help = "\n".join(f"- `{repo}`" for repo in MONITORED_INTERRUPT_REPOS)
+    st.subheader(
+        "Open PRs in important repos",
+        help=(
+            "Track open pull requests in Streamlit-maintained repos that may need interrupt "
+            "rotation attention.\n\n"
+            "Only PRs that are ready for review appear here. If a PR is not ready, mark it as "
+            "draft so it does not show up in this view.\n\n"
+            "Interrupt may need to review, approve, and merge PRs for these repos.\n\n"
+            "If any PR shown in this view should really be tracked as a GitHub issue in "
+            "`streamlit/streamlit` instead, close the PR (or move it back to draft) and ask the "
+            "user to open an issue or feature request in `streamlit/streamlit`.\n\n"
+            "Monitored repos:\n" + monitored_repos_help
+        ),
+    )
+    with st.skeleton(height=200):
+        monitored_repo_prs_df = get_monitored_repo_open_prs(refresh_nonce=selected_refresh_nonce)
+        monitored_repo_prs_df = (
+            monitored_repo_prs_df[~monitored_repo_prs_df["Draft"]]
+            if not monitored_repo_prs_df.empty
+            else monitored_repo_prs_df
+        )
+        if monitored_repo_prs_df.empty:
+            st.success("No open PRs in the monitored repos right now.", icon="🎉")
+        else:
+            st.dataframe(
+                monitored_repo_prs_df[["Title", "Repository", "URL", "Created", "Updated", "Author"]],
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "Repository": st.column_config.TextColumn("Repository", width="medium"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Updated": st.column_config.DatetimeColumn("Updated", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
+                },
+            )
+
+
+@st.fragment(parallel=True)
+def render_confirmed_bugs_without_repro(selected_since: date, selected_refresh_nonce: int) -> None:
+    st.subheader(
+        "Confirmed bugs without a reproducible script",
+        help="""
+Confirmed bugs (`status:confirmed` & `type:bug`) created in the selected timeframe that don't have a reproducible script.
+
+This isn't a requirement for all issues. If the issue is not easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, you can skip this step.
+
+**How to add a new repro case to [streamlit/st-issues](https://github.com/streamlit/st-issues):**
+1. [Create a new folder in `issues`](https://github.com/streamlit/st-issues/new/main/issues) with this naming pattern: `gh-<GITHUB_ISSUE_ID>`.
+2. Create an `app.py` file in the created issue folder and use it to reproduce the issue.
+3. Once the issue is added, it should be automatically accessible from the deployed issue explorer after a page refresh.
+4. Make sure to link the issue app in the respective issue on Github. Tip: Inside the Issue Description expander, you can find a markdown snippet that allows you to easily add a badge to the GitHub issue. Add this to the issue body in the Steps to reproduce section.
+""",
+    )
+    with st.skeleton(height=200):
+        confirmed_bugs_without_repro_df = get_confirmed_bugs_without_repro_script(
+            selected_since,
+            refresh_nonce=selected_refresh_nonce,
+        )
+        if confirmed_bugs_without_repro_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                confirmed_bugs_without_repro_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
                 },
             )
 
@@ -232,420 +574,68 @@ def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> N
 
 
 @st.fragment(parallel=True)
-def render_confirmed_bugs_without_repro(selected_since: date, selected_refresh_nonce: int) -> None:
-    st.subheader(
-        "Confirmed bugs without a reproducible script",
-        help="""
-Confirmed bugs (`status:confirmed` & `type:bug`) created in the selected timeframe that don't have a reproducible script.
+def render_community_pr_action_items(selected_since: date, selected_refresh_nonce: int) -> None:
+    """Render the community-PR action-item tables from the shared snapshot.
 
-This isn't a requirement for all issues. If the issue is not easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, you can skip this step.
-
-**How to add a new repro case to [streamlit/st-issues](https://github.com/streamlit/st-issues):**
-1. [Create a new folder in `issues`](https://github.com/streamlit/st-issues/new/main/issues) with this naming pattern: `gh-<GITHUB_ISSUE_ID>`.
-2. Create an `app.py` file in the created issue folder and use it to reproduce the issue.
-3. Once the issue is added, it should be automatically accessible from the deployed issue explorer after a page refresh.
-4. Make sure to link the issue app in the respective issue on Github. Tip: Inside the Issue Description expander, you can find a markdown snippet that allows you to easily add a badge to the GitHub issue. Add this to the issue body in the Steps to reproduce section.
-""",
-    )
-    with st.skeleton(height=200):
-        confirmed_bugs_without_repro_df = get_confirmed_bugs_without_repro_script(
-            selected_since,
+    Grouped into a single parallel fragment so the (cached) issue/PR snapshot is
+    fetched once and overlaps with the other parallel fragments during a full rerun.
+    """
+    with st.skeleton(height=400):
+        action_items = build_interrupt_action_items(
+            since_date=selected_since,
             refresh_nonce=selected_refresh_nonce,
         )
-        if confirmed_bugs_without_repro_df.empty:
+
+        st.subheader(
+            "Community PRs missing labels",
+            help="Every community PR is expected to be labeled with a `change:*` and `impact:*` label.",
+        )
+        missing_labels_prs_df = action_items["missing_labels_prs"]
+        if missing_labels_prs_df.empty:
             st.success("Congrats, everything is done here!", icon="🎉")
         else:
             st.dataframe(
-                confirmed_bugs_without_repro_df,
+                missing_labels_prs_df,
                 width="stretch",
                 hide_index=True,
                 column_config={
                     "Title": st.column_config.TextColumn("Title", width="large"),
                     "URL": st.column_config.LinkColumn("URL", display_text="Open"),
                     "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-                    "Author": st.column_config.TextColumn("Author"),
+                    "Labels": st.column_config.ListColumn("Labels"),
                 },
             )
+        st.divider()
 
-
-render_ci_metrics(since, refresh_nonce)
-
-with st.expander("**🔄 Helpful Processes**"):
-    st.markdown("""
-    - [Issues on Community Cloud](https://www.notion.so/snowflake-corp/Streamlit-OS-Issues-Community-Cloud-dfa2c315cafd434081166f33077c3eb2)
-    - [Evaluating Memory Leaks in Streamlit](https://www.notion.so/snowflake-corp/Evaluating-Memory-Leaks-in-Streamlit-2af7170bb41680ed8634dbd5ee414f57)
-    """)
-
-# DataFrames
-st.header("Action Items")
-
-# SLA targets (in days) for high-priority bugs, measured from the issue creation date.
-HIGH_PRIORITY_SLA_DAYS = {"priority:P0": 1, "priority:P1": 7, "priority:P2": 14}
-HIGH_PRIORITY_SLA_LABELS = {
-    "priority:P0": "≤ 1 day",
-    "priority:P1": "≤ 1 week",
-    "priority:P2": "≤ 2 weeks",
-}
-
-st.subheader(
-    "High-priority bugs (P0, P1, P2)",
-    help="""
-Lists high-priority bugs that require attention within their SLA.
-Please make sure that these bugs are assigned and are being worked on.
-
-**SLAs (measured from the issue creation date):**
-- **P0:** fix within **1 day**
-- **P1:** fix within **1 week**
-- **P2:** fix within **2 weeks**
-
-The **SLA Due** column shows when the SLA is (or was) due and the **SLA Status** column
-indicates whether a bug is still within its SLA or has already breached it.
-""",
-)
-high_priority_bugs_df = action_items["high_priority_bugs"].copy()
-if high_priority_bugs_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    # Sort by priority (P0 first, then P1, then P2) and then by creation date (oldest first).
-    high_priority_bugs_df["Priority_Sort"] = high_priority_bugs_df["Priority"].map(
-        {"priority:P0": 0, "priority:P1": 1, "priority:P2": 2}
-    )
-    high_priority_bugs_df = high_priority_bugs_df.sort_values(by=["Priority_Sort", "Created"])
-
-    # Compute SLA info based on the creation date and the priority-specific SLA target.
-    created_ts = pd.to_datetime(high_priority_bugs_df["Created"], utc=True)
-    sla_days = high_priority_bugs_df["Priority"].map(HIGH_PRIORITY_SLA_DAYS)
-    sla_due_ts = created_ts + pd.to_timedelta(sla_days, unit="D")
-    is_breached = pd.Timestamp.now(tz="UTC") > sla_due_ts
-
-    high_priority_bugs_df["SLA"] = high_priority_bugs_df["Priority"].map(HIGH_PRIORITY_SLA_LABELS)
-    high_priority_bugs_df["SLA Due"] = sla_due_ts
-    high_priority_bugs_df["SLA Status"] = [["Breached"] if breached else ["Within SLA"] for breached in is_breached]
-
-    # Wrap the priority in a list so it can be rendered as a colored chip via MultiselectColumn.
-    high_priority_bugs_df["Priority"] = high_priority_bugs_df["Priority"].map(lambda priority: [priority])
-
-    high_priority_bugs_df = high_priority_bugs_df.drop("Priority_Sort", axis=1)
-
-    st.dataframe(
-        high_priority_bugs_df,
-        width="stretch",
-        hide_index=True,
-        column_order=[
-            "Title",
-            "URL",
-            "Priority",
-            "Created",
-            "SLA",
-            "SLA Due",
-            "SLA Status",
-            "Assignees",
-        ],
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Priority": st.column_config.MultiselectColumn(
-                "Priority",
-                options=[
-                    "priority:P0",
-                    "priority:P1",
-                    "priority:P2",
-                    "priority:P3",
-                    "priority:P4",
-                ],
-                color=["red", "orange", "yellow", "blue", "gray"],
-                format_func=lambda label: label.removeprefix("priority:"),
-            ),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "SLA": st.column_config.TextColumn("SLA", help="SLA target based on the bug's priority."),
-            "SLA Due": st.column_config.DatetimeColumn(
-                "SLA Due",
-                format="distance",
-                help="When the SLA is (or was) due, based on the creation date.",
-            ),
-            "SLA Status": st.column_config.MultiselectColumn(
-                "SLA Status",
-                options=["Within SLA", "Breached"],
-                color=["green", "red"],
-            ),
-            "Assignees": st.column_config.ListColumn("Assignees"),
-        },
-    )
-st.divider()
-
-st.subheader(
-    "Issues that need triage",
-    help="""
-Lists all issues with the `status:needs-triage` label.
-To triage an issue, you need to try to reproduce the issue.
-
-**If you are able to reproduce the issue:**
-1. Add the `status:confirmed` label
-2. Remove the `status:needs-triage` label
-3. Add the correct priority label `priority:P{0,1,2,3,4}`
-    1. **Important:** If it's a P0 bug, you should either start working on a fix or engaging with the people who can help take immediate action on the bug
-    2. If it's a P1 or P2 bug, consider prioritizing fixing the bug yourself as that is a core responsibility of the Interrupt rotation
-4. Add the corresponding feature(s) label `feature:{the_feature}` or `area:{the_area}`
-5. If it's a regression, add the `type:regression` label
-6. If this is a bug in an upstream library (eg: Base Web, Arrow), please add the `upstream` label
-7. Respond in a comment thanking the user for filing their issue
-
-**If you are unable to repro / they didn't provide enough information to debug:**
-1. Add the `status:cannot-reproduce` and `status:awaiting-user-response` labels
-2. Remove the `status:needs-triage` label
-3. Respond in a comment thanking the user for filing their issue and asking them for more information on how to reproduce the issue. Be clear about what you tried and what results you were seeing.
-
-**If it is not a bug, but intended behavior:**
-1. Change to the type (e.g. to `type:enhancement` , or `type:docs`, …)
-2. Remove the `status:needs-triage` label
-3. Respond in a comment thanking the user for filing their issue, let them know that it is intended behavior, and close the issue.
-""",
-)
-needs_triage_df = action_items["needs_triage"]
-if needs_triage_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        needs_triage_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Author": st.column_config.TextColumn("Author"),
-        },
-    )
-st.divider()
-
-st.subheader(
-    "Issues missing feature label",
-    help="Every issue is expected to have atleast one `feature:{the_feature}` or `area:{the_area}` label.",
-)
-missing_labels_df = action_items["missing_labels_issues"]
-if missing_labels_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        missing_labels_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Author": st.column_config.TextColumn("Author"),
-            "Labels": st.column_config.ListColumn("Labels"),
-        },
-    )
-st.divider()
-
-st.subheader(
-    "Confirmed bugs without a priority",
-    help="""
-Every confirmed bug is expected to be labled with a `priority:P{0,1,2,3,4}` label.
-
-### P0
-
-- A primary Streamlit user journey is effectively broken for nearly all users
-- A high-risk security or compliance issue, even if not immediately user-visible
-
-**Action:** Must be addressed ASAP with a hotfix
-
-### P1
-
-- Streamlit behavior blocks most users from doing something *without* a workaround
-- A new or high profile feature is visibly broken in a common scenario
-- Streamlit behavior causes a Major incident with an internal hosting partner (Community Cloud or SiS)
-- A non-blocking but noticeable regression (>5% of users will notice) in a primary user journey or Streamlit behavior including:
-    - Performance regression
-    - Visual or design issue
-    - Behavior change which breaks backwards compatibility
-
-**Action:** If found pre-release, we will not release. If found after release, we should fix within 2 weeks and will assess a hotfix.
-
-### P2
-
-- Streamlit behavior blocks many users from doing something — but there is a workaround
-- Something is visibly broken in an `experimental_` feature
-- Streamlit behavior blocks many users from doing something specifically with a key dependency.
-- A less noticeable regression (visual/design or performance) or confusing behavior
-
-**Action:** If it's a regression and/or has a straightforward and low-risk fix, we should try to fix it in the next release. Otherwise, assess case by case.
-
-### P3/P4
-
-- Streamlit blocks users in specific situations (e.g. use of an outside dependency)
-- Small stylistic changes
-- Scenarios that have very specific situations and are difficult to reproduce.
-
-*Distinguishing P3/P4 is more of a judgment call. Upvotes/comments in Github can also distinguish these, or even indicate visibility to move to P2.*
-
-**Action:** It can be fixed opportunistically but should not be especially prioritized by core engineers. We may also accept an outside contribution, or fix it as a papercut.
-""",
-)
-unprioritized_bugs_df = action_items["unprioritized_bugs"]
-if unprioritized_bugs_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        unprioritized_bugs_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Author": st.column_config.TextColumn("Author"),
-        },
-    )
-st.divider()
-
-st.subheader(
-    "Open Dependabot PRs",
-    help="""
-Lists all open dependency update PRs from Dependabot. Please try to review and merge these PRs
-if it requires no or only minor changes.
-
-- In some cases, the PR will require manually updating the `NOTICES` file by checking out the dependency PR, running `yarn install` in `frontend`, and running `make update-notices` from repo root.
-- If our CI indicates that updating the dependency will likely require bigger changes, just close the PR with a brief message and add the dependency to our https://github.com/streamlit/streamlit/blob/develop/.github/dependabot.yml ignore list. [Example PR](https://github.com/streamlit/streamlit/pull/10630)
- """,
-)
-dependabot_prs_df = action_items["open_dependabot_prs"]
-if dependabot_prs_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        dependabot_prs_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-        },
-    )
-st.divider()
-
-st.subheader(
-    "Issues waiting for team response",
-    help="Lists all issues that are waiting for a response from the team.",
-)
-waiting_for_team_response_df = action_items["waiting_for_team_response"]
-if waiting_for_team_response_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        waiting_for_team_response_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Author": st.column_config.TextColumn("Author"),
-            "Labels": st.column_config.ListColumn("Labels"),
-        },
-    )
-st.divider()
-
-render_flaky_tests(since, refresh_nonce)
-st.divider()
-
-monitored_repos_help = "\n".join(f"- `{repo}`" for repo in MONITORED_INTERRUPT_REPOS)
-
-st.subheader(
-    "Open PRs in important repos",
-    help=(
-        "Track open pull requests in Streamlit-maintained repos that may need interrupt "
-        "rotation attention.\n\n"
-        "Only PRs that are ready for review appear here. If a PR is not ready, mark it as "
-        "draft so it does not show up in this view.\n\n"
-        "Interrupt may need to review, approve, and merge PRs for these repos.\n\n"
-        "If any PR shown in this view should really be tracked as a GitHub issue in "
-        "`streamlit/streamlit` instead, close the PR (or move it back to draft) and ask the "
-        "user to open an issue or feature request in `streamlit/streamlit`.\n\n"
-        "Monitored repos:\n" + monitored_repos_help
-    ),
-)
-monitored_repo_prs_df = get_monitored_repo_open_prs(refresh_nonce=refresh_nonce)
-monitored_repo_prs_df = (
-    monitored_repo_prs_df[~monitored_repo_prs_df["Draft"]] if not monitored_repo_prs_df.empty else monitored_repo_prs_df
-)
-if monitored_repo_prs_df.empty:
-    st.success("No open PRs in the monitored repos right now.", icon="🎉")
-else:
-    st.dataframe(
-        monitored_repo_prs_df[["Title", "Repository", "URL", "Created", "Updated", "Author"]],
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "Repository": st.column_config.TextColumn("Repository", width="medium"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Updated": st.column_config.DatetimeColumn("Updated", format="distance"),
-            "Author": st.column_config.TextColumn("Author"),
-        },
-    )
-st.divider()
-
-render_confirmed_bugs_without_repro(since, refresh_nonce)
-st.divider()
-
-render_reported_bugs(since, refresh_nonce)
-st.divider()
-
-st.subheader(
-    "Community PRs missing labels",
-    help="Every community PR is expected to be labeled with a `change:*` and `impact:*` label.",
-)
-missing_labels_prs_df = action_items["missing_labels_prs"]
-if missing_labels_prs_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        missing_labels_prs_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Labels": st.column_config.ListColumn("Labels"),
-        },
-    )
-st.divider()
-
-st.subheader(
-    "Community feature PRs needing product approval labels",
-    help="""
+        st.subheader(
+            "Community feature PRs needing product approval labels",
+            help="""
 Feature PRs from community (`change:feature` and `impact:users`) need to be labeled with:
 - `status:needs-product-approval`: Marks the PR to need a review from product before technical review.
 - `status:product-approved`: PRs that have been approved by product. This is usually applied by a PM.
 - `do-not-merge`: PRs that should not be merged.
 """,
-)
-prs_needing_approval_df = action_items["prs_needing_approval"]
-if prs_needing_approval_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        prs_needing_approval_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Labels": st.column_config.ListColumn("Labels"),
-        },
-    )
-st.divider()
+        )
+        prs_needing_approval_df = action_items["prs_needing_approval"]
+        if prs_needing_approval_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                prs_needing_approval_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Labels": st.column_config.ListColumn("Labels"),
+                },
+            )
+        st.divider()
 
-st.subheader(
-    "Community PRs ready for review",
-    help="""
+        st.subheader(
+            "Community PRs ready for review",
+            help="""
 Lists community PRs that are ready for technical review. These PRs meet all the criteria:
 - Not in draft state
 - No "[WIP]" in the title
@@ -657,21 +647,71 @@ These PRs are ready for code review and can be prioritized for technical feedbac
 Before reviewing, its recommended to approve and run the CI (check that the code doesn't contain obvious
 security issues) and assign Copilot for an automated review.
 """,
+        )
+        community_prs_ready_df = action_items["community_prs_ready_for_review"]
+        if community_prs_ready_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                community_prs_ready_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Updated": st.column_config.DatetimeColumn("Updated", format="distance"),
+                    "Assignees": st.column_config.ListColumn("Assignees"),
+                    "Labels": st.column_config.ListColumn("Labels"),
+                },
+            )
+
+
+# Main app
+st.title("🩺 Interrupt rotation")
+st.caption("This dashboard provides an overview of repository health and areas that require attention.")
+
+st.session_state.setdefault("interrupt_refresh_nonce", 0)
+
+timeframe = st.sidebar.selectbox(
+    "Select timeframe",
+    ("Last 7 days", "Last 14 days"),
+    index=0,
 )
-community_prs_ready_df = action_items["community_prs_ready_for_review"]
-if community_prs_ready_df.empty:
-    st.success("Congrats, everything is done here!", icon="🎉")
-else:
-    st.dataframe(
-        community_prs_ready_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Title": st.column_config.TextColumn("Title", width="large"),
-            "URL": st.column_config.LinkColumn("URL", display_text="Open"),
-            "Created": st.column_config.DatetimeColumn("Created", format="distance"),
-            "Updated": st.column_config.DatetimeColumn("Updated", format="distance"),
-            "Assignees": st.column_config.ListColumn("Assignees"),
-            "Labels": st.column_config.ListColumn("Labels"),
-        },
-    )
+if st.sidebar.button(":material/refresh: Refresh data", width="stretch"):
+    st.session_state.interrupt_refresh_nonce += 1
+
+days = 14 if timeframe == "Last 14 days" else 7
+since = date.today() - timedelta(days=days)
+refresh_nonce = st.session_state.interrupt_refresh_nonce
+
+# All slow sections are `parallel=True` fragments dispatched here. During a full
+# rerun they run concurrently in the coordinator thread pool, so the issue/PR
+# snapshot, CI-artifact downloads, flaky-test annotations, and monitored-repo PR
+# fetches overlap instead of running one after another on the main thread.
+render_ci_metrics(since, refresh_nonce)
+
+with st.expander("**🔄 Helpful Processes**"):
+    st.markdown("""
+    - [Issues on Community Cloud](https://www.notion.so/snowflake-corp/Streamlit-OS-Issues-Community-Cloud-dfa2c315cafd434081166f33077c3eb2)
+    - [Evaluating Memory Leaks in Streamlit](https://www.notion.so/snowflake-corp/Evaluating-Memory-Leaks-in-Streamlit-2af7170bb41680ed8634dbd5ee414f57)
+    """)
+
+st.header("Action Items")
+
+render_issue_action_items(since, refresh_nonce)
+st.divider()
+
+render_flaky_tests(since, refresh_nonce)
+st.divider()
+
+render_monitored_repo_prs(refresh_nonce)
+st.divider()
+
+render_confirmed_bugs_without_repro(since, refresh_nonce)
+st.divider()
+
+render_reported_bugs(since, refresh_nonce)
+st.divider()
+
+render_community_pr_action_items(since, refresh_nonce)
