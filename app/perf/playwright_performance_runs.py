@@ -157,7 +157,11 @@ with st.container(width="content"):
     selected_test = st.selectbox(
         "Select a test:",
         sorted_all_tests,
-        index=(sorted_all_tests.index(selected_test) if selected_test in sorted_all_tests else 0),
+        index=(
+            sorted_all_tests.index(selected_test)
+            if selected_test is not None and selected_test in sorted_all_tests
+            else 0
+        ),
         on_change=on_query_param_change,
         key="selected_test",
     )
