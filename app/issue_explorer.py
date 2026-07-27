@@ -184,4 +184,4 @@ In case the app embedded below is not running, you can deploy it yourself [here]
         script_content = pathlib.Path(selected_issue_folder_path.joinpath(DEFAULT_SCRIPT_NAME)).read_text(
             encoding="utf-8"
         )
-        exec(script_content)  # noqa: S102
+        exec(script_content)  # ruff:ignore[exec-builtin]

@@ -68,7 +68,7 @@ async def upload_to_smokeshow(directory_path: Path) -> str:
         upload_root: str = obj["url"]
 
         # Create a list of files to upload
-        files_to_upload = [(p, p.relative_to(directory_path)) for p in directory_path.glob("**/*") if p.is_file()]  # noqa: ASYNC240
+        files_to_upload = [(p, p.relative_to(directory_path)) for p in directory_path.glob("**/*") if p.is_file()]  # ruff:ignore[blocking-path-method-in-async-function]
 
         # Create a semaphore to limit concurrent uploads to 60
         semaphore = asyncio.Semaphore(SMOKESHOW_MAX_CONCURRENT_UPLOADS)
@@ -105,7 +105,7 @@ async def _upload_file(
     upload_root: str,
     file_path: Path,
     rel_path: Path,
-    timeout: int,  # noqa: ASYNC109
+    timeout: int,  # ruff:ignore[async-function-with-timeout]
 ) -> None:
     """Upload a single file to smokeshow."""
     url_path = str(rel_path)
@@ -119,7 +119,7 @@ async def _upload_file(
     try:
         response = await client.post(
             upload_root + url_path,
-            content=file_path.read_bytes(),  # noqa: ASYNC240
+            content=file_path.read_bytes(),  # ruff:ignore[blocking-path-method-in-async-function]
             headers=headers,
             timeout=timeout,
         )

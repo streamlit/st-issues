@@ -264,7 +264,7 @@ def render_bundle_treemap(title: str, bundle_data: list | None) -> None:
         color_continuous_scale="Blues",
         hover_data={"Size (Human)": True},
     )
-    fig.update_traces(hovertemplate="<b>%{label}</b><br>Size: %{customdata[0]}<extra></extra>")  # noqa: RUF027
+    fig.update_traces(hovertemplate="<b>%{label}</b><br>Size: %{customdata[0]}<extra></extra>")  # ruff:ignore[missing-f-string-syntax]
 
     st.markdown(f"**{title}**")
     st.plotly_chart(fig, width="stretch")

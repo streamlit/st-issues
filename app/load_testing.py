@@ -92,7 +92,7 @@ def _parse_load_test_payload(content: bytes) -> dict[str, Any] | None:
                 if name.endswith(".json"):
                     with zip_file.open(name) as f:
                         return json.load(f)
-    except Exception:  # noqa: S110
+    except Exception:  # ruff:ignore[try-except-pass]
         pass
 
     return None

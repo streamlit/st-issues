@@ -1,6 +1,6 @@
 import operator
 import re
-import subprocess  # noqa: S404
+import subprocess  # ruff:ignore[suspicious-subprocess-import]
 import tempfile
 from datetime import date
 
@@ -32,8 +32,8 @@ def get_git_fame_stats() -> dict:
     # Use a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
         # Clone the repository
-        subprocess.run(  # noqa: S603
-            ["git", "clone", "https://github.com/" + GITHUB_REPO, temp_dir],  # noqa: S607
+        subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
+            ["git", "clone", "https://github.com/" + GITHUB_REPO, temp_dir],  # ruff:ignore[start-process-with-partial-path]
             check=True,
             capture_output=True,
         )

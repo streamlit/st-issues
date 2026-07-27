@@ -69,7 +69,7 @@ def _extract_lighthouse_scores(zip_bytes: bytes) -> dict[str, float]:
             continue
         try:
             score = payload["categories"]["performance"]["score"]
-        except Exception:  # noqa: S112
+        except Exception:  # ruff:ignore[try-except-continue]
             continue
 
         # Keep the same (slightly odd) key derivation behavior as the prior disk-based parser.
