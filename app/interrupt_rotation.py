@@ -124,10 +124,14 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
 
 @st.fragment(parallel=True)
 def render_issue_action_items(selected_since: date, selected_refresh_nonce: int) -> None:
-    """Render the issue-focused action-item tables from the shared snapshot.
+    """Render the issue-focused action-item tables (top of the Action Items list).
 
-    Grouped into a single parallel fragment so the (cached) issue/PR snapshot is
-    fetched once and overlaps with the other parallel fragments during a full rerun.
+    This is one of two parallel fragments that read the shared action-items
+    snapshot; this one renders the issue tables and render_community_pr_action_items
+    renders the PR tables lower on the page. build_interrupt_action_items is memoized
+    by st.cache_data, so it is computed once and the sibling fragment's call is a
+    cache hit rather than a second fetch. Running as a parallel fragment lets the
+    snapshot fetch overlap with the other parallel fragments during a full rerun.
     """
     with st.skeleton(height=600):
         action_items = build_interrupt_action_items(
@@ -575,10 +579,16 @@ def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> N
 
 @st.fragment(parallel=True)
 def render_community_pr_action_items(selected_since: date, selected_refresh_nonce: int) -> None:
-    """Render the community-PR action-item tables from the shared snapshot.
+    """Render the community-PR action-item tables (bottom of the Action Items list).
 
-    Grouped into a single parallel fragment so the (cached) issue/PR snapshot is
-    fetched once and overlaps with the other parallel fragments during a full rerun.
+    This is one of two parallel fragments that read the shared action-items
+    snapshot; render_issue_action_items renders the issue tables higher on the page
+    and this one renders the PR tables. build_interrupt_action_items is memoized by
+    st.cache_data, so it is computed once and this fragment's call is a cache hit
+    rather than a second fetch. Splitting the tables across two fragments keeps the
+    original page order (issue tables at the top, PR tables at the bottom, with the
+    independent-source sections in between) while still overlapping the snapshot
+    fetch with the other parallel fragments.
     """
     with st.skeleton(height=400):
         action_items = build_interrupt_action_items(
