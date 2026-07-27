@@ -29,7 +29,7 @@ def segmented_tabs(
         raise ValueError(msg)
 
     options_list = list(options)
-    default_value = default if default in options_list else options_list[0]
+    default_value = default if default is not None and default in options_list else options_list[0]
 
     qp_value = st.query_params.get(query_param)
     if isinstance(qp_value, str) and qp_value in options_list:
@@ -45,7 +45,7 @@ def segmented_tabs(
     )
 
     # st.segmented_control may return None in some edge cases; normalize.
-    selected = selected if selected in options_list else default_value
+    selected = selected if selected is not None and selected in options_list else default_value
 
     # Keep the URL in sync (shareable links like ?tab=Explorer).
     if st.query_params.get(query_param) != selected:
@@ -56,4 +56,4 @@ def segmented_tabs(
 
 def ensure_one_of(value: str | None, allowed: Iterable[str], fallback: str) -> str:
     allowed_set = set(allowed)
-    return value if value in allowed_set else fallback
+    return value if value is not None and value in allowed_set else fallback
