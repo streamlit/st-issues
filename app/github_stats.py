@@ -45,7 +45,7 @@ def get_git_fame_stats() -> dict:
         stats = gitfame._gitfame._get_auth_stats(
             temp_dir,
             include_files=re.compile(r".*"),
-            exclude_files=re.compile(r".*yarn\.lock|NOTICES"),
+            exclude_files=re.compile(r".*yarn\.lock|.*uv\.lock|NOTICES"),
             churn=gitfame._gitfame.CHURN_SLOC,
             show={"name", "email"},
         )
