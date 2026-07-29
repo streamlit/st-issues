@@ -17,6 +17,23 @@ from app.utils.markdown_rendering import replace_issue_references_with_previews
 
 st.set_page_config(page_title="Agent wiki explorer", page_icon="📚")
 
+# Map extensions of non-markdown text documents to a syntax-highlighting language
+# so artifacts like `repro_app.py` render inline as code.
+CODE_LANGUAGE_BY_EXTENSION = {
+    ".py": "python",
+    ".txt": "text",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".toml": "toml",
+    ".sh": "bash",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".css": "css",
+    ".html": "html",
+    ".sql": "sql",
+}
+
 
 def _render_markdown_document(document: WikiDocument, markdown_content: str) -> None:
     frontmatter, content_without_frontmatter = extract_markdown_frontmatter(markdown_content)
@@ -46,6 +63,19 @@ def _render_image_asset(document: WikiDocument) -> None:
         st.warning("The selected asset could not be loaded.")
         return
     st.image(local_path, caption=document["path"], width="stretch")
+
+
+def _render_code_asset(document: WikiDocument, language: str) -> None:
+    document_text, document_error = fetch_wiki_document_text(document["path"])
+    if document_error:
+        st.error(document_error)
+        return
+    if document_text is None:
+        st.warning("The selected asset could not be loaded.")
+        return
+    st.caption(document["path"])
+    st.code(document_text, language=language)
+    st.link_button("Open asset", document["raw_url"], width="content")
 
 
 def _render_other_asset(document: WikiDocument) -> None:
@@ -101,5 +131,7 @@ if selected_document["is_markdown"]:
     _render_markdown_document(selected_document, document_text)
 elif selected_document["is_image"]:
     _render_image_asset(selected_document)
+elif selected_document["extension"] in CODE_LANGUAGE_BY_EXTENSION:
+    _render_code_asset(selected_document, CODE_LANGUAGE_BY_EXTENSION[selected_document["extension"]])
 else:
     _render_other_asset(selected_document)

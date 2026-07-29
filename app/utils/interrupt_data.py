@@ -16,6 +16,7 @@ from zipfile import ZipFile
 import pandas as pd
 import streamlit as st
 
+from app.utils.agent_wiki import fetch_wiki_issue_repros
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
@@ -534,9 +535,17 @@ def get_reported_bugs(since_date: date, refresh_nonce: int = 0) -> pd.DataFrame:
 
 
 def get_reproducible_example_exists(issue_number: int) -> bool:
-    """Check if a reproducible example exists for an issue."""
+    """Check if a reproducible example exists for an issue.
+
+    Considers both local reproductions merged into st-issues and reproductions
+    published in the agent wiki.
+    """
     issue_folder_name = f"gh-{issue_number}"
-    return PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir()
+    if PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir():
+        return True
+
+    wiki_repros, _ = fetch_wiki_issue_repros()
+    return issue_number in wiki_repros
 
 
 def get_needs_triage_issues(refresh_nonce: int = 0) -> pd.DataFrame:

@@ -1,6 +1,8 @@
 from app.utils.agent_wiki import (
     build_wiki_documents,
     build_wiki_raw_url,
+    build_wiki_tree_url,
+    get_wiki_folder,
     resolve_wiki_relative_path,
     rewrite_wiki_markdown,
 )
@@ -26,6 +28,32 @@ def test_build_wiki_documents_includes_assets_in_supported_sections() -> None:
     assert documents[0]["is_image"] is True
     assert documents[1]["folder"] == "pull-requests/12345"
     assert documents[3]["section"] == "references"
+
+
+def test_build_wiki_documents_includes_issue_artifacts() -> None:
+    documents = build_wiki_documents(
+        [
+            "issues/12345/repro_app.py",
+            "issues/12345/investigation.md",
+            "AGENTS.md",
+        ]
+    )
+
+    assert [document["path"] for document in documents] == [
+        "issues/12345/investigation.md",
+        "issues/12345/repro_app.py",
+    ]
+    assert documents[0]["section"] == "issues"
+    assert documents[1]["folder"] == "issues/12345"
+
+
+def test_get_wiki_folder_groups_issue_artifacts_by_issue_number() -> None:
+    assert get_wiki_folder("issues/12345/repro_app.py") == "issues/12345"
+    assert get_wiki_folder("issues/12345/nested/notes.md") == "issues/12345"
+
+
+def test_build_wiki_tree_url_points_to_folder_on_master() -> None:
+    assert build_wiki_tree_url("issues/12345") == "https://github.com/streamlit/streamlit.wiki/tree/master/issues/12345"
 
 
 def test_resolve_wiki_relative_path_handles_parent_and_root_relative_targets() -> None:

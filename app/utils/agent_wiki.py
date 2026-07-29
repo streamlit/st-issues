@@ -19,11 +19,20 @@ WIKI_LOCAL_CACHE_DIR = Path(tempfile.gettempdir()) / "st-issues-agent-wiki"
 WIKI_LOCAL_REPO_DIR = WIKI_LOCAL_CACHE_DIR / "streamlit-streamlit.wiki"
 WIKI_RAW_URL_PREFIX = "https://raw.githubusercontent.com/wiki/streamlit/streamlit"
 WIKI_SOURCE_URL_PREFIX = f"https://github.com/{WIKI_REPO}/blob/{WIKI_BRANCH}"
+WIKI_TREE_URL_PREFIX = f"https://github.com/{WIKI_REPO}/tree/{WIKI_BRANCH}"
 
-ALLOWED_TOP_LEVEL_SECTIONS = {"pull-requests", "references"}
+ALLOWED_TOP_LEVEL_SECTIONS = {"issues", "pull-requests", "references"}
+# Top-level sections whose direct children group artifacts by a numeric entity
+# (e.g. "issues/12345" or "pull-requests/12345").
+NUMBER_GROUPED_SECTIONS = {"issues", "pull-requests"}
 TEXT_DOCUMENT_EXTENSIONS = {".md", ".markdown", ".mdx", ".txt"}
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdx"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+
+ISSUES_SECTION = "issues"
+# Canonical filenames the agent wiki uses for runnable issue reproductions.
+CANONICAL_REPRO_APP_FILENAME = "repro_app.py"
+CANONICAL_REPRO_VERIFY_FILENAME = "repro_app_verify.py"
 
 FRONTMATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 IMAGE_LINK_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
@@ -41,6 +50,16 @@ class WikiDocument(TypedDict):
     source_url: str
     is_markdown: bool
     is_image: bool
+
+
+class WikiIssueRepro(TypedDict):
+    issue_number: int
+    folder: str
+    folder_url: str
+    repro_app_path: str
+    repro_app_raw_url: str
+    repro_app_source_url: str
+    verify_path: str | None
 
 
 def _compact_error_text(text: str, max_chars: int = 280) -> str:
@@ -152,7 +171,7 @@ def get_wiki_folder(path: str) -> str:
     if not path_parts:
         return "(root)"
 
-    if path_parts[0] == "pull-requests" and len(path_parts) >= 2:
+    if path_parts[0] in NUMBER_GROUPED_SECTIONS and len(path_parts) >= 2:
         return "/".join(path_parts[:2])
 
     parent = posixpath.dirname(path)
@@ -219,6 +238,55 @@ def fetch_wiki_documents() -> tuple[list[WikiDocument], str | None]:
         if file_path.is_file() and ".git" not in file_path.parts
     ]
     return build_wiki_documents(document_paths), None
+
+
+def build_wiki_tree_url(path: str) -> str:
+    return f"{WIKI_TREE_URL_PREFIX}/{quote(path, safe='/')}"
+
+
+@st.cache_data(ttl=60 * 10, show_spinner=False)
+def fetch_wiki_issue_repros() -> tuple[dict[int, WikiIssueRepro], str | None]:
+    """Return runnable issue reproductions published in the agent wiki.
+
+    Scans the wiki's ``issues/<issue-number>/`` folders for the canonical
+    ``repro_app.py`` entrypoint and returns them keyed by issue number.
+    """
+    repo_path, error = get_synced_wiki_repo_path()
+    if error or repo_path is None:
+        return {}, error
+
+    issues_dir = Path(repo_path) / ISSUES_SECTION
+    if not issues_dir.is_dir():
+        return {}, None
+
+    repros: dict[int, WikiIssueRepro] = {}
+    for issue_dir in issues_dir.iterdir():
+        if not issue_dir.is_dir() or not issue_dir.name.isdigit():
+            continue
+
+        repro_app = issue_dir / CANONICAL_REPRO_APP_FILENAME
+        if not repro_app.is_file():
+            continue
+
+        issue_number = int(issue_dir.name)
+        folder = f"{ISSUES_SECTION}/{issue_dir.name}"
+        repro_app_path = f"{folder}/{CANONICAL_REPRO_APP_FILENAME}"
+
+        verify_relative_path: str | None = f"{folder}/{CANONICAL_REPRO_VERIFY_FILENAME}"
+        if not (issue_dir / CANONICAL_REPRO_VERIFY_FILENAME).is_file():
+            verify_relative_path = None
+
+        repros[issue_number] = {
+            "issue_number": issue_number,
+            "folder": folder,
+            "folder_url": build_wiki_tree_url(folder),
+            "repro_app_path": repro_app_path,
+            "repro_app_raw_url": build_wiki_raw_url(repro_app_path),
+            "repro_app_source_url": build_wiki_source_url(repro_app_path),
+            "verify_path": verify_relative_path,
+        }
+
+    return repros, None
 
 
 def get_wiki_document_local_path(path: str) -> tuple[str | None, str | None]:

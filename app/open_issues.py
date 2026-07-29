@@ -7,6 +7,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+from app.utils.agent_wiki import fetch_wiki_issue_repros, get_synced_wiki_repo_path
 from app.utils.github_utils import fetch_issue_reactions, fetch_issue_view_counts, get_all_github_issues
 from app.utils.issue_formatting import labels_to_type_emoji, reactions_to_str
 
@@ -101,6 +102,8 @@ if st.sidebar.button(":material/refresh: Refresh data", width="stretch"):
     get_all_github_issues.clear()
     fetch_issue_reactions.clear()
     fetch_issue_view_counts.clear()
+    get_synced_wiki_repo_path.clear()
+    fetch_wiki_issue_repros.clear()
 
 
 # Add checkbox for showing statistics
@@ -165,9 +168,20 @@ for issue in all_issues:
     filtered_issues.append(issue)
 
 
+wiki_repros, wiki_repros_error = fetch_wiki_issue_repros()
+if wiki_repros_error:
+    print("Failed to load agent wiki reproductions:", wiki_repros_error, flush=True)
+wiki_repro_issue_numbers = set(wiki_repros)
+
+
 def get_reproducible_example(issue_number: int) -> str | None:
+    """Return a link to the issue explorer if a reproduction is available.
+
+    Local reproductions take priority, but issues that only have a reproduction
+    in the agent wiki are linked as well (the issue explorer resolves both).
+    """
     issue_folder_name = f"gh-{issue_number}"
-    if PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir():
+    if PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir() or issue_number in wiki_repro_issue_numbers:
         return "/?issue=" + issue_folder_name
     return None
 
