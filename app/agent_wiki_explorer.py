@@ -53,6 +53,9 @@ def _render_markdown_document(document: WikiDocument, markdown_content: str) -> 
     else:
         st.info("This document is empty.")
 
+    with st.expander("Raw markdown"):
+        st.code(markdown_content, language="markdown")
+
 
 def _render_image_asset(document: WikiDocument) -> None:
     local_path, local_path_error = get_wiki_document_local_path(document["path"])
@@ -75,12 +78,10 @@ def _render_code_asset(document: WikiDocument, language: str) -> None:
         return
     st.caption(document["path"])
     st.code(document_text, language=language)
-    st.link_button("Open asset", document["raw_url"], width="content")
 
 
-def _render_other_asset(document: WikiDocument) -> None:
+def _render_other_asset() -> None:
     st.info("This asset is not rendered inline.")
-    st.link_button("Open asset", document["raw_url"], width="content")
 
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
@@ -134,4 +135,4 @@ elif selected_document["is_image"]:
 elif selected_document["extension"] in CODE_LANGUAGE_BY_EXTENSION:
     _render_code_asset(selected_document, CODE_LANGUAGE_BY_EXTENSION[selected_document["extension"]])
 else:
-    _render_other_asset(selected_document)
+    _render_other_asset()

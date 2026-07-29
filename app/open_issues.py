@@ -7,7 +7,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from app.utils.agent_wiki import fetch_wiki_issue_repros, get_synced_wiki_repo_path
+from app.utils.agent_wiki import build_wiki_explorer_url, fetch_wiki_issue_repros, get_synced_wiki_repo_path
 from app.utils.github_utils import fetch_issue_reactions, fetch_issue_view_counts, get_all_github_issues
 from app.utils.issue_formatting import labels_to_type_emoji, reactions_to_str
 
@@ -171,18 +171,22 @@ for issue in all_issues:
 wiki_repros, wiki_repros_error = fetch_wiki_issue_repros()
 if wiki_repros_error:
     print("Failed to load agent wiki reproductions:", wiki_repros_error, flush=True)
-wiki_repro_issue_numbers = set(wiki_repros)
 
 
 def get_reproducible_example(issue_number: int) -> str | None:
-    """Return a link to the issue explorer if a reproduction is available.
+    """Return a link to the available reproduction for an issue, if any.
 
-    Local reproductions take priority, but issues that only have a reproduction
-    in the agent wiki are linked as well (the issue explorer resolves both).
+    Local reproductions take priority and link to the issue explorer, where they
+    can be run. Issues that only have a reproduction in the agent wiki link to
+    the agent wiki explorer so the repro document can be viewed.
     """
     issue_folder_name = f"gh-{issue_number}"
-    if PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir() or issue_number in wiki_repro_issue_numbers:
+    if PATH_TO_ISSUES.joinpath(issue_folder_name).is_dir():
         return "/?issue=" + issue_folder_name
+
+    wiki_repro = wiki_repros.get(issue_number)
+    if wiki_repro is not None:
+        return build_wiki_explorer_url(wiki_repro["repro_app_path"])
     return None
 
 

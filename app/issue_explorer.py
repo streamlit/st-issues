@@ -6,7 +6,12 @@ from typing import TypedDict
 import streamlit as st
 import streamlit.components.v1 as components
 
-from app.utils.agent_wiki import WikiIssueRepro, fetch_wiki_document_text, fetch_wiki_issue_repros
+from app.utils.agent_wiki import (
+    WikiIssueRepro,
+    build_wiki_explorer_url,
+    fetch_wiki_document_text,
+    fetch_wiki_issue_repros,
+)
 from app.utils.github_utils import get_issue_data
 
 st.set_page_config(page_title="Issue explorer", page_icon="🚧")
@@ -225,7 +230,8 @@ if selected_issue:
             st.info(
                 f"This reproduction is loaded from the "
                 f"[agent wiki]({wiki_repro['folder_url']}) and has not been reviewed. "
-                f"[View `repro_app.py`]({wiki_repro['repro_app_source_url']}).{verify_suffix}",
+                f"[Open `repro_app.py` in the wiki explorer]"
+                f"({build_wiki_explorer_url(wiki_repro['repro_app_path'])}).{verify_suffix}",
                 icon=":material/menu_book:",
             )
 

@@ -20,6 +20,9 @@ WIKI_LOCAL_REPO_DIR = WIKI_LOCAL_CACHE_DIR / "streamlit-streamlit.wiki"
 WIKI_RAW_URL_PREFIX = "https://raw.githubusercontent.com/wiki/streamlit/streamlit"
 WIKI_SOURCE_URL_PREFIX = f"https://github.com/{WIKI_REPO}/blob/{WIKI_BRANCH}"
 WIKI_TREE_URL_PREFIX = f"https://github.com/{WIKI_REPO}/tree/{WIKI_BRANCH}"
+# In-app route of the agent wiki explorer page. The explorer selects a document
+# via the `file` query parameter (bound to its selectbox).
+WIKI_EXPLORER_URL_PATH = "/agent_wiki_explorer"
 
 ALLOWED_TOP_LEVEL_SECTIONS = {"issues", "pull-requests", "references"}
 # Top-level sections whose direct children group artifacts by a numeric entity
@@ -156,6 +159,11 @@ def build_wiki_source_url(path: str) -> str:
 
 def build_wiki_document_query_url(path: str) -> str:
     return f"?doc={quote(path, safe='')}"
+
+
+def build_wiki_explorer_url(path: str) -> str:
+    """Build an in-app link that opens a document in the agent wiki explorer."""
+    return f"{WIKI_EXPLORER_URL_PATH}?file={quote(path, safe='/')}"
 
 
 def get_wiki_section(path: str) -> str:
