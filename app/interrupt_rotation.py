@@ -225,7 +225,6 @@ indicates whether a bug is still within its SLA or has already breached it.
                     "Assignees": st.column_config.ListColumn("Assignees"),
                 },
             )
-        st.divider()
 
         st.subheader(
             "Issues that need triage",
@@ -270,11 +269,10 @@ To triage an issue, you need to try to reproduce the issue.
                     "Author": st.column_config.TextColumn("Author"),
                 },
             )
-        st.divider()
 
         st.subheader(
             "Issues missing feature label",
-            help="Every issue is expected to have atleast one `feature:{the_feature}` or `area:{the_area}` label.",
+            help="Every issue is expected to have at least one `feature:{the_feature}` or `area:{the_area}` label.",
         )
         missing_labels_df = action_items["missing_labels_issues"]
         if missing_labels_df.empty:
@@ -292,12 +290,11 @@ To triage an issue, you need to try to reproduce the issue.
                     "Labels": st.column_config.ListColumn("Labels"),
                 },
             )
-        st.divider()
 
         st.subheader(
             "Confirmed bugs without a priority",
             help="""
-Every confirmed bug is expected to be labled with a `priority:P{0,1,2,3,4}` label.
+Every confirmed bug is expected to be labeled with a `priority:P{0,1,2,3,4}` label.
 
 ### P0
 
@@ -353,7 +350,6 @@ Every confirmed bug is expected to be labled with a `priority:P{0,1,2,3,4}` labe
                     "Author": st.column_config.TextColumn("Author"),
                 },
             )
-        st.divider()
 
         st.subheader(
             "Open Dependabot PRs",
@@ -379,7 +375,6 @@ if it requires no or only minor changes.
                     "Created": st.column_config.DatetimeColumn("Created", format="distance"),
                 },
             )
-        st.divider()
 
         st.subheader(
             "Issues waiting for team response",
@@ -493,7 +488,9 @@ def render_confirmed_bugs_without_repro(selected_since: date, selected_refresh_n
         help="""
 Confirmed bugs (`status:confirmed` & `type:bug`) created in the selected timeframe that don't have a reproducible script.
 
-This isn't a requirement for all issues. If the issue is not easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, you can skip this step.
+**"Reproducible script" here means a runnable repro committed by the team**, either a `gh-<issue-id>` folder in [streamlit/st-issues](https://github.com/streamlit/st-issues) or an `issues/<issue-id>/repro_app.py` in the agent wiki. It does **not** mean the "Reproducible Code Example" snippet in the issue body - most issues have that from the bug-report template, so it doesn't count here.
+
+**Reviewing this list is required during your rotation.** Adding a reproducible script itself is best-effort: if a bug isn't easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, it's fine to skip writing a script, but you should still confirm the bug is triaged and prioritized correctly.
 
 **How to add a new repro case to [streamlit/st-issues](https://github.com/streamlit/st-issues):**
 1. [Create a new folder in `issues`](https://github.com/streamlit/st-issues/new/main/issues) with this naming pattern: `gh-<GITHUB_ISSUE_ID>`.
@@ -596,13 +593,19 @@ def render_community_pr_action_items(selected_since: date, selected_refresh_nonc
             refresh_nonce=selected_refresh_nonce,
         )
 
+        st.info(
+            "We no longer accept new community PRs. The views below are read-only and "
+            "informational - no action is required from the person on Interrupt.",
+            icon=":material/info:",
+        )
+
         st.subheader(
             "Community PRs missing labels",
             help="Every community PR is expected to be labeled with a `change:*` and `impact:*` label.",
         )
         missing_labels_prs_df = action_items["missing_labels_prs"]
         if missing_labels_prs_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.caption("Nothing to show right now.")
         else:
             st.dataframe(
                 missing_labels_prs_df,
@@ -615,7 +618,6 @@ def render_community_pr_action_items(selected_since: date, selected_refresh_nonc
                     "Labels": st.column_config.ListColumn("Labels"),
                 },
             )
-        st.divider()
 
         st.subheader(
             "Community feature PRs needing product approval labels",
@@ -628,7 +630,7 @@ Feature PRs from community (`change:feature` and `impact:users`) need to be labe
         )
         prs_needing_approval_df = action_items["prs_needing_approval"]
         if prs_needing_approval_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.caption("Nothing to show right now.")
         else:
             st.dataframe(
                 prs_needing_approval_df,
@@ -641,7 +643,6 @@ Feature PRs from community (`change:feature` and `impact:users`) need to be labe
                     "Labels": st.column_config.ListColumn("Labels"),
                 },
             )
-        st.divider()
 
         st.subheader(
             "Community PRs ready for review",
@@ -652,15 +653,12 @@ Lists community PRs that are ready for technical review. These PRs meet all the 
 - Has both `change:*` and `impact:*` labels
 - No blocking labels (`do-not-merge`, `status:needs-product-approval`, `status:awaiting-user-response`)
 
-These PRs are ready for code review and can be prioritized for technical feedback.
-
-Before reviewing, its recommended to approve and run the CI (check that the code doesn't contain obvious
-security issues) and assign Copilot for an automated review.
+This view is informational only - no action is required. It is shown for visibility into existing open community PRs.
 """,
         )
         community_prs_ready_df = action_items["community_prs_ready_for_review"]
         if community_prs_ready_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.caption("Nothing to show right now.")
         else:
             st.dataframe(
                 community_prs_ready_df,
@@ -701,27 +699,25 @@ refresh_nonce = st.session_state.interrupt_refresh_nonce
 # fetches overlap instead of running one after another on the main thread.
 render_ci_metrics(since, refresh_nonce)
 
-with st.expander("**🔄 Helpful Processes**"):
+with st.expander("Helpful processes", icon=":material/menu_book:"):
     st.markdown("""
     - [Issues on Community Cloud](https://www.notion.so/snowflake-corp/Streamlit-OS-Issues-Community-Cloud-dfa2c315cafd434081166f33077c3eb2)
     - [Evaluating Memory Leaks in Streamlit](https://www.notion.so/snowflake-corp/Evaluating-Memory-Leaks-in-Streamlit-2af7170bb41680ed8634dbd5ee414f57)
     """)
 
-st.header("Action Items")
+st.header(":material/checklist: Action required")
 
 render_issue_action_items(since, refresh_nonce)
-st.divider()
 
 render_flaky_tests(since, refresh_nonce)
-st.divider()
 
 render_monitored_repo_prs(refresh_nonce)
-st.divider()
 
 render_confirmed_bugs_without_repro(since, refresh_nonce)
-st.divider()
 
-render_reported_bugs(since, refresh_nonce)
-st.divider()
+st.header(":material/visibility: For reference")
+st.caption("Informational views only. No action is required from the person on Interrupt.")
+with st.expander("Show reference views", expanded=False):
+    render_reported_bugs(since, refresh_nonce)
 
-render_community_pr_action_items(since, refresh_nonce)
+    render_community_pr_action_items(since, refresh_nonce)
