@@ -95,19 +95,19 @@ with st.sidebar:
     else:
         default_since = date.fromisoformat("2022-04-01")
 
-    # Get until date from query params. Defaults to today, which effectively
-    # means "no upper bound" so the range behaves like a plain "since" filter.
+    # Get until date from query params. When omitted, the range has no upper
+    # bound and the input is left empty (optional).
     until_param = st.query_params.get("until", None)
+    default_until: date | None = None
     if until_param:
         try:
             default_until = date.fromisoformat(until_param)
         except ValueError:
-            default_until = today
-    else:
-        default_until = today
+            default_until = None
 
     # Clamp the range so the "Until" date is never before the "Since" date.
-    default_until = min(max(default_until, default_since), today)
+    if default_until is not None:
+        default_until = min(max(default_until, default_since), today)
 
     since_input = st.date_input(
         "Since",
@@ -120,7 +120,7 @@ with st.sidebar:
         value=default_until,
         min_value=since_input,
         max_value=today,
-        help="Include PRs and issues on or before this date. Defaults to today.",
+        help="Include PRs and issues on or before this date. Optional - leave empty for no upper bound.",
     )
 
     # Allow configuring the bot PR toggle via the `exclude_bots` query param
@@ -133,25 +133,26 @@ with st.sidebar:
     )
     exclude_bot_prs = st.toggle("Exclude Bot PRs", value=default_exclude_bots)
 
-# Whether an explicit upper bound has been set (i.e. not the default "today").
-has_until_bound = until_input < today
+# Effective upper bound used for filtering; today acts as a no-op bound when no
+# explicit "Until" date is selected.
+effective_until = until_input if until_input is not None else today
 
 # Human-readable description of the selected time range, used in captions.
-if has_until_bound:
+if until_input is not None:
     period_label = f"between {since_input.strftime('%Y/%m/%d')} and {until_input.strftime('%Y/%m/%d')}"
 else:
     period_label = f"since {since_input.strftime('%Y/%m/%d')}"
 
 # GitHub search query fragment for the selected merged-date range.
 merged_query_suffix = f"merged%3A>={since_input.strftime('%Y-%m-%d')}"
-if has_until_bound:
+if until_input is not None:
     merged_query_suffix += f"+merged%3A<={until_input.strftime('%Y-%m-%d')}"
 
 
 try:
     merged_prs_df = fetch_pr_metrics(
         merged_since=since_input,
-        merged_until=until_input if has_until_bound else None,
+        merged_until=until_input,
     )
 except Exception as ex:
     # The GitHub GraphQL API can occasionally fail transiently (e.g. non-JSON
@@ -476,7 +477,7 @@ if selected_metrics == "Contribution Metrics":
     # Closers who closed issues with the most reactions
     closers_df = all_issues_df.copy()
     closers_df = closers_df[
-        (closers_df["closed_at"].dt.date >= since_input) & (closers_df["closed_at"].dt.date <= until_input)
+        (closers_df["closed_at"].dt.date >= since_input) & (closers_df["closed_at"].dt.date <= effective_until)
     ]
 
     closers_df["closed_by_login"] = closers_df["closed_by"].apply(
@@ -637,7 +638,7 @@ if selected_metrics == "Contribution Metrics":
     authors_df = authors_df[authors_df["author"] != ""]
 
     authors_df = authors_df[
-        (authors_df["created_at"].dt.date >= since_input) & (authors_df["created_at"].dt.date <= until_input)
+        (authors_df["created_at"].dt.date >= since_input) & (authors_df["created_at"].dt.date <= effective_until)
     ]
 
     st.caption(
@@ -1384,7 +1385,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 closed_reactions_df = reactions_issues_df[
                     (reactions_issues_df["closed_at"].notna())
                     & (reactions_issues_df["closed_at"].dt.date >= since_input)
-                    & (reactions_issues_df["closed_at"].dt.date <= until_input)
+                    & (reactions_issues_df["closed_at"].dt.date <= effective_until)
                 ].copy()
 
                 if not closed_reactions_df.empty:
@@ -1523,14 +1524,15 @@ elif selected_metrics == "Team Productivity Metrics":
 
         # Filter by date for "Created" metrics
         created_in_period = all_issues_df[
-            (all_issues_df["created_at"].dt.date >= since_input) & (all_issues_df["created_at"].dt.date <= until_input)
+            (all_issues_df["created_at"].dt.date >= since_input)
+            & (all_issues_df["created_at"].dt.date <= effective_until)
         ]
 
         # Filter by date for "Closed" metrics
         closed_in_period = all_issues_df[
             (all_issues_df["closed_at"].notna())
             & (all_issues_df["closed_at"].dt.date >= since_input)
-            & (all_issues_df["closed_at"].dt.date <= until_input)
+            & (all_issues_df["closed_at"].dt.date <= effective_until)
         ]
 
         total_created = len(created_in_period)
