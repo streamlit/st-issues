@@ -57,8 +57,8 @@ def get_git_fame_stats() -> dict:
     ttl=60 * 60 * 72,
     show_spinner="Fetching PR metrics (this may take a couple of minutes)...",
 )
-def fetch_pr_metrics(merged_since: date) -> pd.DataFrame:
-    return fetch_merged_pr_metrics(merged_since=merged_since)
+def fetch_pr_metrics(merged_since: date, merged_until: date | None = None) -> pd.DataFrame:
+    return fetch_merged_pr_metrics(merged_since=merged_since, merged_until=merged_until)
 
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
@@ -95,17 +95,64 @@ with st.sidebar:
     else:
         default_since = date.fromisoformat("2022-04-01")
 
+    # Get until date from query params. Defaults to today, which effectively
+    # means "no upper bound" so the range behaves like a plain "since" filter.
+    until_param = st.query_params.get("until", None)
+    if until_param:
+        try:
+            default_until = date.fromisoformat(until_param)
+        except ValueError:
+            default_until = today
+    else:
+        default_until = today
+
+    # Clamp the range so the "Until" date is never before the "Since" date.
+    default_until = min(max(default_until, default_since), today)
+
     since_input = st.date_input(
         "Since",
         value=default_since,
         max_value=today,
-        help="Include PRs and issues closed on or after this date.",
+        help="Include PRs and issues on or after this date.",
     )
-    exclude_bot_prs = st.toggle("Exclude Bot PRs")
+    until_input = st.date_input(
+        "Until",
+        value=default_until,
+        min_value=since_input,
+        max_value=today,
+        help="Include PRs and issues on or before this date. Defaults to today.",
+    )
+
+    # Allow configuring the bot PR toggle via the `exclude_bots` query param
+    # (e.g. `?exclude_bots=true`).
+    exclude_bots_param = st.query_params.get("exclude_bots", None)
+    default_exclude_bots = (
+        str(exclude_bots_param).strip().lower() in {"true", "1", "yes", "on"}
+        if exclude_bots_param is not None
+        else False
+    )
+    exclude_bot_prs = st.toggle("Exclude Bot PRs", value=default_exclude_bots)
+
+# Whether an explicit upper bound has been set (i.e. not the default "today").
+has_until_bound = until_input < today
+
+# Human-readable description of the selected time range, used in captions.
+if has_until_bound:
+    period_label = f"between {since_input.strftime('%Y/%m/%d')} and {until_input.strftime('%Y/%m/%d')}"
+else:
+    period_label = f"since {since_input.strftime('%Y/%m/%d')}"
+
+# GitHub search query fragment for the selected merged-date range.
+merged_query_suffix = f"merged%3A>={since_input.strftime('%Y-%m-%d')}"
+if has_until_bound:
+    merged_query_suffix += f"+merged%3A<={until_input.strftime('%Y-%m-%d')}"
 
 
 try:
-    merged_prs_df = fetch_pr_metrics(merged_since=since_input)
+    merged_prs_df = fetch_pr_metrics(
+        merged_since=since_input,
+        merged_until=until_input if has_until_bound else None,
+    )
 except Exception as ex:
     # The GitHub GraphQL API can occasionally fail transiently (e.g. non-JSON
     # responses, timeouts, or rate limiting). Show a friendly error and let the
@@ -128,7 +175,7 @@ if selected_metrics == "Contribution Metrics":
     st.markdown("#### :material/merge: Merged PRs by Authors")
 
     st.caption(
-        f"GitHub users who have authored the most merged pull requests on `streamlit/streamlit` merged into `develop` since {since_input.strftime('%Y/%m/%d')}. "
+        f"GitHub users who have authored the most merged pull requests on `streamlit/streamlit` merged into `develop` {period_label}. "
         f"Total merged PRs: **{len(merged_prs_df)}.**"
     )
 
@@ -175,7 +222,7 @@ if selected_metrics == "Contribution Metrics":
         # Add links
         author_stats["Show PRs"] = author_stats["author"].apply(
             lambda x: (
-                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+author%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
+                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+author%3A{x}+{merged_query_suffix}"
             )
         )
         author_stats["author"] = author_stats["author"].apply(lambda x: f"https://github.com/{x}")
@@ -218,7 +265,7 @@ if selected_metrics == "Contribution Metrics":
     st.markdown("#### :material/rate_review: Merged PRs by Reviewers")
 
     st.caption(
-        f"GitHub users who have reviewed the most pull requests on `streamlit/streamlit` merged into `develop` since {since_input.strftime('%Y/%m/%d')}. "
+        f"GitHub users who have reviewed the most pull requests on `streamlit/streamlit` merged into `develop` {period_label}. "
         f"Total merged PRs: **{len(merged_prs_df)} {'(including bot PRs)' if not exclude_bot_prs else ''}.**"
     )
 
@@ -259,7 +306,7 @@ if selected_metrics == "Contribution Metrics":
         # Add links
         reviewer_counts["Show PRs"] = reviewer_counts["reviewers"].apply(
             lambda x: (
-                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
+                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+{merged_query_suffix}"
             )
         )
         reviewer_counts["reviewers"] = reviewer_counts["reviewers"].apply(lambda x: f"https://github.com/{x}")
@@ -328,7 +375,7 @@ if selected_metrics == "Contribution Metrics":
         community_prs_df = community_prs_df[~community_prs_df["from_bot"]]
 
         st.caption(
-            f"GitHub users who have reviewed the most pull requests on `streamlit/streamlit` merged into `develop` since {since_input.strftime('%Y/%m/%d')} that were authored by community members. "
+            f"GitHub users who have reviewed the most pull requests on `streamlit/streamlit` merged into `develop` {period_label} that were authored by community members. "
             f"Total merged community PRs: **{len(community_prs_df)}.**"
         )
 
@@ -357,7 +404,7 @@ if selected_metrics == "Contribution Metrics":
             # Add links
             community_reviewer_counts["Show PRs"] = community_reviewer_counts["reviewers"].apply(
                 lambda x: (
-                    f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+merged%3A>={since_input.strftime('%Y-%m-%d')}"
+                    f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+{merged_query_suffix}"
                 )
             )
             community_reviewer_counts["reviewers"] = community_reviewer_counts["reviewers"].apply(
@@ -428,8 +475,9 @@ if selected_metrics == "Contribution Metrics":
 
     # Closers who closed issues with the most reactions
     closers_df = all_issues_df.copy()
-    if since_input:
-        closers_df = closers_df[closers_df["closed_at"].dt.date >= since_input]
+    closers_df = closers_df[
+        (closers_df["closed_at"].dt.date >= since_input) & (closers_df["closed_at"].dt.date <= until_input)
+    ]
 
     closers_df["closed_by_login"] = closers_df["closed_by"].apply(
         lambda x: x.get("login", "") if isinstance(x, dict) else ""
@@ -494,7 +542,7 @@ if selected_metrics == "Contribution Metrics":
 
         with title_container:
             st.caption(
-                f"GitHub users sorted by total reactions on issues they closed - via pull request or manual closing - since {since_input.strftime('%Y/%m/%d')}. "
+                f"GitHub users sorted by total reactions on issues they closed - via pull request or manual closing - {period_label}. "
                 f"Total closed reactions: **{closers_stats['Total reactions'].sum()}**. Total closed issues: **{closers_stats['Issues closed'].sum()}**. "
                 f"Total closed bugs: **{closers_stats['Bugs closed'].sum()}**. Total closed enhancements: **{closers_stats['Enhancements closed'].sum()}**. "
             )
@@ -588,11 +636,12 @@ if selected_metrics == "Contribution Metrics":
     authors_df["author"] = authors_df["user"].apply(lambda x: x.get("login", "") if isinstance(x, dict) else "")
     authors_df = authors_df[authors_df["author"] != ""]
 
-    if since_input:
-        authors_df = authors_df[authors_df["created_at"].dt.date >= since_input]
+    authors_df = authors_df[
+        (authors_df["created_at"].dt.date >= since_input) & (authors_df["created_at"].dt.date <= until_input)
+    ]
 
     st.caption(
-        f"GitHub users who created the most issues on `streamlit/streamlit` since {since_input.strftime('%Y/%m/%d')}. "
+        f"GitHub users who created the most issues on `streamlit/streamlit` {period_label}. "
         f"Total issues created: **{len(authors_df)}**."
     )
 
@@ -887,9 +936,7 @@ if selected_metrics == "Contribution Metrics":
 elif selected_metrics == "Team Productivity Metrics":
     # --- PR Metrics ---
     st.markdown("##### :material/merge: Pull Request Metrics")
-    st.caption(
-        f"Metrics based on merged pull requests on `streamlit/streamlit` merged into `develop` since {since_input.strftime('%Y/%m/%d')}."
-    )
+    st.caption(f"Metrics based on merged pull requests on `streamlit/streamlit` merged into `develop` {period_label}.")
 
     if not merged_prs_df.empty:
         # Calculate PR metrics
@@ -1337,6 +1384,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 closed_reactions_df = reactions_issues_df[
                     (reactions_issues_df["closed_at"].notna())
                     & (reactions_issues_df["closed_at"].dt.date >= since_input)
+                    & (reactions_issues_df["closed_at"].dt.date <= until_input)
                 ].copy()
 
                 if not closed_reactions_df.empty:
@@ -1474,18 +1522,22 @@ elif selected_metrics == "Team Productivity Metrics":
         all_issues_df["closed_at"] = pd.to_datetime(all_issues_df["closed_at"])
 
         # Filter by date for "Created" metrics
-        created_in_period = all_issues_df[all_issues_df["created_at"].dt.date >= since_input]
+        created_in_period = all_issues_df[
+            (all_issues_df["created_at"].dt.date >= since_input) & (all_issues_df["created_at"].dt.date <= until_input)
+        ]
 
         # Filter by date for "Closed" metrics
         closed_in_period = all_issues_df[
-            (all_issues_df["closed_at"].notna()) & (all_issues_df["closed_at"].dt.date >= since_input)
+            (all_issues_df["closed_at"].notna())
+            & (all_issues_df["closed_at"].dt.date >= since_input)
+            & (all_issues_df["closed_at"].dt.date <= until_input)
         ]
 
         total_created = len(created_in_period)
         total_closed = len(closed_in_period)
 
         st.caption(
-            f"Metrics based on issues from `streamlit/streamlit` since {since_input.strftime('%Y/%m/%d')}. "
+            f"Metrics based on issues from `streamlit/streamlit` {period_label}. "
             f"Total issues created: **{total_created}**."
         )
 
