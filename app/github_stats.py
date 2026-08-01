@@ -124,12 +124,12 @@ with st.sidebar:
     )
 
     # Allow configuring the bot PR toggle via the `exclude_bots` query param
-    # (e.g. `?exclude_bots=true`).
+    # (e.g. `?exclude_bots=false`). Defaults to excluding bot PRs.
     exclude_bots_param = st.query_params.get("exclude_bots", None)
     default_exclude_bots = (
         str(exclude_bots_param).strip().lower() in {"true", "1", "yes", "on"}
         if exclude_bots_param is not None
-        else False
+        else True
     )
     exclude_bot_prs = st.toggle("Exclude Bot PRs", value=default_exclude_bots)
 
