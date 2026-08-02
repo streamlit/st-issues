@@ -61,6 +61,341 @@ def fetch_pr_metrics(merged_since: date, merged_until: date | None = None) -> pd
     return fetch_merged_pr_metrics(merged_since=merged_since, merged_until=merged_until)
 
 
+@st.fragment(parallel=True)
+def render_issue_closers_by_reactions(since_input: date, effective_until: date, period_label: str) -> None:
+    st.markdown("#### :material/thumbs_up_double: Issue Closers by Reactions")
+
+    with st.skeleton(height=440):
+        # Process the data
+        all_issues_df = pd.DataFrame([issue for issue in get_all_github_issues() if "pull_request" not in issue])
+
+        all_issues_df["closed_at"] = pd.to_datetime(all_issues_df["closed_at"])
+        all_issues_df["created_at"] = pd.to_datetime(all_issues_df["created_at"])
+
+        all_issues_df["total_reactions"] = all_issues_df["reactions"].apply(operator.itemgetter("total_count"))
+
+        # Closers who closed issues with the most reactions
+        closers_df = all_issues_df.copy()
+        closers_df = closers_df[
+            (closers_df["closed_at"].dt.date >= since_input) & (closers_df["closed_at"].dt.date <= effective_until)
+        ]
+
+        closers_df["closed_by_login"] = closers_df["closed_by"].apply(
+            lambda x: x.get("login", "") if isinstance(x, dict) else ""
+        )
+        # Remove entries without a valid closer
+        closers_df = closers_df[closers_df["closed_by_login"] != ""]
+
+        # Calculate issue types
+        closers_df["is_bug"] = closers_df["labels"].apply(
+            lambda x: 1 if any(lbl["name"] == "type:bug" for lbl in x) else 0
+        )
+        closers_df["is_enhancement"] = closers_df["labels"].apply(
+            lambda x: 1 if any(lbl["name"] == "type:enhancement" for lbl in x) else 0
+        )
+        closers_df["is_other"] = closers_df["labels"].apply(
+            lambda x: 1 if not any(lbl["name"] in {"type:bug", "type:enhancement"} for lbl in x) else 0
+        )
+
+        closers_container = st.container(gap=None)
+        row = closers_container.container(horizontal=True)
+        title_container = row.container()
+
+        filtered_closers_df = closers_df
+
+        if filtered_closers_df.empty:
+            with title_container:
+                st.caption(":material/person: No issues found for the current filters and closer selection.")
+        else:
+            closers_stats = (
+                filtered_closers_df.groupby("closed_by_login")
+                .agg(
+                    total_reactions=("total_reactions", "sum"),
+                    issues_closed=("total_reactions", "count"),
+                    bugs_closed=("is_bug", "sum"),
+                    enhancements_closed=("is_enhancement", "sum"),
+                    others_closed=("is_other", "sum"),
+                )
+                .reset_index()
+                .rename(
+                    columns={
+                        "closed_by_login": "Closer",
+                        "total_reactions": "Total reactions",
+                        "issues_closed": "Issues closed",
+                        "bugs_closed": "Bugs closed",
+                        "enhancements_closed": "Enhancements closed",
+                        "others_closed": "Others closed",
+                    }
+                )
+            )
+
+            # Calculate percentage of total reactions
+            total_closed_reactions = closers_stats["Total reactions"].sum()
+            closers_stats["pct_total_reactions"] = (
+                closers_stats["Total reactions"] / total_closed_reactions * 100 if total_closed_reactions > 0 else 0
+            )
+
+            closers_stats["Average reactions per issue"] = (
+                closers_stats["Total reactions"] / closers_stats["Issues closed"]
+            )
+            closers_stats = closers_stats.sort_values("Total reactions", ascending=False).reset_index(drop=True)
+
+            # Transform Closer to URL
+            closers_stats["Closer"] = closers_stats["Closer"].apply(lambda x: f"https://github.com/{x}")
+
+            with title_container:
+                st.caption(
+                    f"GitHub users sorted by total reactions on issues they closed - via pull request or manual closing - {period_label}. "
+                    f"Total closed reactions: **{closers_stats['Total reactions'].sum()}**. Total closed issues: **{closers_stats['Issues closed'].sum()}**. "
+                    f"Total closed bugs: **{closers_stats['Bugs closed'].sum()}**. Total closed enhancements: **{closers_stats['Enhancements closed'].sum()}**. "
+                )
+
+            selection = st.dataframe(
+                closers_stats,
+                column_config={
+                    "Closer": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
+                    "Total reactions": st.column_config.NumberColumn(),
+                    "pct_total_reactions": st.column_config.NumberColumn("% of Total", format="%.1f%%"),
+                    "Issues closed": st.column_config.NumberColumn(),
+                    "Bugs": st.column_config.NumberColumn(),
+                    "Enhancements": st.column_config.NumberColumn(),
+                    "Others": st.column_config.NumberColumn(),
+                    "Average reactions per issue": st.column_config.NumberColumn(format="%.2f"),
+                },
+                column_order=[
+                    "Closer",
+                    "Total reactions",
+                    "pct_total_reactions",
+                    "Issues closed",
+                    "Bugs",
+                    "Enhancements",
+                    "Others",
+                    "Average reactions per issue",
+                ],
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row",
+            )
+
+            if selection["selection"]["rows"]:
+                selected_index = selection["selection"]["rows"][0]
+                selected_closer_url = closers_stats.iloc[selected_index]["Closer"]
+                selected_closer = selected_closer_url.split("/")[-1]
+
+                # Filter issues closed by the selected user
+                # We need to go back to the filtered_closers_df which has the raw data
+                closer_issues = filtered_closers_df[filtered_closers_df["closed_by_login"] == selected_closer].copy()
+
+                if not closer_issues.empty:
+                    issues_container = st.container(gap=None)
+                    issues_row = issues_container.container(horizontal=True)
+                    issues_title_container = issues_row.container()
+
+                    with issues_row.popover("Modify", width="content"):
+                        min_reactions = st.number_input("Minimum reactions", min_value=0, value=0, step=1)
+
+                    if min_reactions > 0:
+                        closer_issues = closer_issues[closer_issues["total_reactions"] >= min_reactions]
+
+                    with issues_title_container:
+                        st.markdown(f"##### Issues closed by {selected_closer}")
+
+                    # Prepare the detailed dataframe
+                    detailed_df = pd.DataFrame(
+                        {
+                            "Title": closer_issues.apply(
+                                lambda x: f"{get_issue_emoji(x['labels'])} {x['title']}",
+                                axis=1,
+                            ),
+                            "Reactions": closer_issues["total_reactions"],
+                            "Closed on": closer_issues["closed_at"].dt.date,
+                            "Link": closer_issues["html_url"],
+                            "Comments": closer_issues["comments"],
+                            "Reaction Types": closer_issues["reactions"].apply(reactions_to_str),
+                            "Type": closer_issues["labels"].apply(get_issue_type),
+                        }
+                    )
+
+                    # Sort by date
+                    detailed_df = detailed_df.sort_values("Closed on", ascending=False)
+
+                    st.dataframe(
+                        detailed_df,
+                        column_config={
+                            "Title": st.column_config.TextColumn(width="large"),
+                            "Link": st.column_config.LinkColumn(display_text="Open Issue"),
+                            "Type": st.column_config.ListColumn(),
+                            "Closed on": st.column_config.DateColumn(format="MMM DD, YYYY"),
+                            "Reactions": st.column_config.NumberColumn(
+                                format="%d 🫶", help="Total number of reactions"
+                            ),
+                            "Comments": st.column_config.NumberColumn(format="%d 💬"),
+                        },
+                        hide_index=True,
+                    )
+
+
+@st.fragment(parallel=True)
+def render_issue_authors(since_input: date, effective_until: date, period_label: str) -> None:
+    st.markdown("#### :material/contract_edit: Issue Authors")
+
+    with st.skeleton(height=300):
+        # Calculate top issue authors
+        all_issues_df = pd.DataFrame([issue for issue in get_all_github_issues() if "pull_request" not in issue])
+        all_issues_df["created_at"] = pd.to_datetime(all_issues_df["created_at"])
+
+        authors_df = all_issues_df.copy()
+        authors_df["author"] = authors_df["user"].apply(lambda x: x.get("login", "") if isinstance(x, dict) else "")
+        authors_df = authors_df[authors_df["author"] != ""]
+
+        authors_df = authors_df[
+            (authors_df["created_at"].dt.date >= since_input) & (authors_df["created_at"].dt.date <= effective_until)
+        ]
+
+        st.caption(
+            f"GitHub users who created the most issues on `streamlit/streamlit` {period_label}. "
+            f"Total issues created: **{len(authors_df)}**."
+        )
+
+        if not authors_df.empty:
+            author_counts = (
+                authors_df.groupby("author")
+                .size()
+                .reset_index(name="Issue Count")
+                .sort_values("Issue Count", ascending=False)
+                .reset_index(drop=True)
+            )
+
+            # Calculate percentage of total
+            total_issues = author_counts["Issue Count"].sum()
+            author_counts["% of Total"] = author_counts["Issue Count"] / total_issues * 100
+
+            # Add links
+            author_counts["Show Issues"] = author_counts["author"].apply(
+                lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue+author%3A{x}"
+            )
+            author_counts["author"] = author_counts["author"].apply(lambda x: f"https://github.com/{x}")
+
+            st.dataframe(
+                author_counts,
+                column_config={
+                    "author": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
+                    "Issue Count": st.column_config.NumberColumn(format="%d 📝"),
+                    "% of Total": st.column_config.NumberColumn(format="%.1f%%"),
+                    "Show Issues": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
+                },
+                hide_index=True,
+                column_order=["author", "Issue Count", "% of Total", "Show Issues"],
+            )
+        else:
+            st.info("No issue authors found.")
+
+
+@st.fragment(parallel=True)
+def render_issue_commenters() -> None:
+    st.markdown("#### :material/comment: Issue Commenters")
+
+    with st.skeleton(height=260):
+        st.caption(
+            "The number of unique [GitHub issues](https://github.com/streamlit/streamlit/issues) commented on by Streamlit team members."
+        )
+        # Fetch data for all team members
+        comment_counts = []
+        for member in ACTIVE_STREAMLIT_TEAM_MEMBERS:
+            count = get_count_issues_commented_by_user(member)
+            if count > 0:
+                comment_counts.append({"User": member, "Issues Commented On": count})
+
+        # Create DataFrame
+        commenters_df = pd.DataFrame(comment_counts)
+        commenters_df["Show Issues"] = commenters_df["User"].apply(
+            lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue%20commenter%3A{x}"
+        )
+        commenters_df["User"] = commenters_df["User"].apply(lambda x: f"https://github.com/{x}")
+
+        if not commenters_df.empty:
+            commenters_df = commenters_df.sort_values("Issues Commented On", ascending=False).reset_index(drop=True)
+            st.dataframe(
+                commenters_df,
+                column_config={
+                    "User": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
+                    "Issues Commented On": st.column_config.NumberColumn(format="%d 💬"),
+                    "Show Issues": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
+                },
+                hide_index=True,
+            )
+        else:
+            st.info("No data found for team members.")
+
+
+@st.fragment(parallel=True)
+def render_surviving_lines_of_code() -> None:
+    st.markdown("#### :material/donut_small: Surviving Lines of Code")
+
+    with st.skeleton(height=400):
+        stats = get_git_fame_stats()
+
+        # Process stats into a DataFrame
+        # stats is a dict where keys are authors and values are dicts with 'loc', 'commits', 'files'
+        data = []
+        total_loc = 0
+        total_commits = 0
+        total_files = 0
+
+        # First pass to calculate totals
+        for metrics in stats.values():
+            total_loc += metrics.get("loc", 0)
+            total_commits += metrics.get("commits", 0)
+            total_files += len(metrics.get("files", []))
+
+        for author_key, metrics in stats.items():
+            # author_key is "Name <Email>"
+            match = re.match(r"(.*) <(.*)>", author_key)
+            name = match.group(1) if match else author_key
+
+            loc = metrics.get("loc", 0)
+            commits = metrics.get("commits", 0)
+            files = len(metrics.get("files", []))
+
+            loc_pct = (loc / total_loc * 100) if total_loc > 0 else 0
+            commits_pct = (commits / total_commits * 100) if total_commits > 0 else 0
+            files_pct = (files / total_files * 100) if total_files > 0 else 0
+
+            data.append(
+                {
+                    "User": name,
+                    "Surviving LOC": loc,
+                    "Surviving LOC %": round(loc_pct, 1),
+                    "Commits to Main": commits,
+                    "Commits to Main %": round(commits_pct, 1),
+                    "Touched Files": files,
+                    "Touched Files %": round(files_pct, 1),
+                }
+            )
+
+        df = pd.DataFrame(data)
+        if not df.empty:
+            st.caption(
+                "Surviving lines of code (LOC) measures the number of lines of code currently present "
+                "in the [codebase](https://github.com/streamlit/streamlit) that were authored by each user. "
+                "This is calculated by [git-fame](https://github.com/casperdcl/git-fame). "
+                f"Total LOC: **{total_loc}**; Total Commits: **{total_commits}**."
+            )
+            df = df.sort_values(by="Surviving LOC", ascending=False).reset_index(drop=True)
+            st.dataframe(
+                df,
+                width="stretch",
+                column_config={
+                    "Surviving LOC %": st.column_config.NumberColumn(format="%.1f%%"),
+                    "Commits to Main %": st.column_config.NumberColumn(format="%.1f%%"),
+                    "Touched Files %": st.column_config.NumberColumn(format="%.1f%%"),
+                },
+                hide_index=True,
+            )
+        else:
+            st.warning("No data found.")
+
+
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("📊 GitHub stats")
@@ -464,252 +799,11 @@ if selected_metrics == "Contribution Metrics":
     else:
         st.info("No merged PRs found for the selected period.")
 
-    st.markdown("#### :material/thumbs_up_double: Issue Closers by Reactions")
+    render_issue_closers_by_reactions(since_input, effective_until, period_label)
 
-    # Process the data
-    all_issues_df = pd.DataFrame([issue for issue in get_all_github_issues() if "pull_request" not in issue])
+    render_issue_authors(since_input, effective_until, period_label)
 
-    all_issues_df["closed_at"] = pd.to_datetime(all_issues_df["closed_at"])
-    all_issues_df["created_at"] = pd.to_datetime(all_issues_df["created_at"])
-
-    all_issues_df["total_reactions"] = all_issues_df["reactions"].apply(operator.itemgetter("total_count"))
-
-    # Closers who closed issues with the most reactions
-    closers_df = all_issues_df.copy()
-    closers_df = closers_df[
-        (closers_df["closed_at"].dt.date >= since_input) & (closers_df["closed_at"].dt.date <= effective_until)
-    ]
-
-    closers_df["closed_by_login"] = closers_df["closed_by"].apply(
-        lambda x: x.get("login", "") if isinstance(x, dict) else ""
-    )
-    # Remove entries without a valid closer
-    closers_df = closers_df[closers_df["closed_by_login"] != ""]
-
-    # Calculate issue types
-    closers_df["is_bug"] = closers_df["labels"].apply(lambda x: 1 if any(lbl["name"] == "type:bug" for lbl in x) else 0)
-    closers_df["is_enhancement"] = closers_df["labels"].apply(
-        lambda x: 1 if any(lbl["name"] == "type:enhancement" for lbl in x) else 0
-    )
-    closers_df["is_other"] = closers_df["labels"].apply(
-        lambda x: 1 if not any(lbl["name"] in {"type:bug", "type:enhancement"} for lbl in x) else 0
-    )
-
-    closers_container = st.container(gap=None)
-    row = closers_container.container(horizontal=True)
-    title_container = row.container()
-
-    filtered_closers_df = closers_df
-
-    if filtered_closers_df.empty:
-        with title_container:
-            st.caption(":material/person: No issues found for the current filters and closer selection.")
-    else:
-        closers_stats = (
-            filtered_closers_df.groupby("closed_by_login")
-            .agg(
-                total_reactions=("total_reactions", "sum"),
-                issues_closed=("total_reactions", "count"),
-                bugs_closed=("is_bug", "sum"),
-                enhancements_closed=("is_enhancement", "sum"),
-                others_closed=("is_other", "sum"),
-            )
-            .reset_index()
-            .rename(
-                columns={
-                    "closed_by_login": "Closer",
-                    "total_reactions": "Total reactions",
-                    "issues_closed": "Issues closed",
-                    "bugs_closed": "Bugs closed",
-                    "enhancements_closed": "Enhancements closed",
-                    "others_closed": "Others closed",
-                }
-            )
-        )
-
-        # Calculate percentage of total reactions
-        total_closed_reactions = closers_stats["Total reactions"].sum()
-        closers_stats["pct_total_reactions"] = (
-            closers_stats["Total reactions"] / total_closed_reactions * 100 if total_closed_reactions > 0 else 0
-        )
-
-        closers_stats["Average reactions per issue"] = closers_stats["Total reactions"] / closers_stats["Issues closed"]
-        closers_stats = closers_stats.sort_values("Total reactions", ascending=False).reset_index(drop=True)
-
-        # Transform Closer to URL
-        closers_stats["Closer"] = closers_stats["Closer"].apply(lambda x: f"https://github.com/{x}")
-
-        unique_closers = len(closers_stats)
-
-        with title_container:
-            st.caption(
-                f"GitHub users sorted by total reactions on issues they closed - via pull request or manual closing - {period_label}. "
-                f"Total closed reactions: **{closers_stats['Total reactions'].sum()}**. Total closed issues: **{closers_stats['Issues closed'].sum()}**. "
-                f"Total closed bugs: **{closers_stats['Bugs closed'].sum()}**. Total closed enhancements: **{closers_stats['Enhancements closed'].sum()}**. "
-            )
-
-        selection = st.dataframe(
-            closers_stats,
-            column_config={
-                "Closer": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
-                "Total reactions": st.column_config.NumberColumn(),
-                "pct_total_reactions": st.column_config.NumberColumn("% of Total", format="%.1f%%"),
-                "Issues closed": st.column_config.NumberColumn(),
-                "Bugs": st.column_config.NumberColumn(),
-                "Enhancements": st.column_config.NumberColumn(),
-                "Others": st.column_config.NumberColumn(),
-                "Average reactions per issue": st.column_config.NumberColumn(format="%.2f"),
-            },
-            column_order=[
-                "Closer",
-                "Total reactions",
-                "pct_total_reactions",
-                "Issues closed",
-                "Bugs",
-                "Enhancements",
-                "Others",
-                "Average reactions per issue",
-            ],
-            hide_index=True,
-            on_select="rerun",
-            selection_mode="single-row",
-        )
-
-        if selection["selection"]["rows"]:
-            selected_index = selection["selection"]["rows"][0]
-            selected_closer_url = closers_stats.iloc[selected_index]["Closer"]
-            selected_closer = selected_closer_url.split("/")[-1]
-
-            # Filter issues closed by the selected user
-            # We need to go back to the filtered_closers_df which has the raw data
-            closer_issues = filtered_closers_df[filtered_closers_df["closed_by_login"] == selected_closer].copy()
-
-            if not closer_issues.empty:
-                issues_container = st.container(gap=None)
-                issues_row = issues_container.container(horizontal=True)
-                issues_title_container = issues_row.container()
-
-                with issues_row.popover("Modify", width="content"):
-                    min_reactions = st.number_input("Minimum reactions", min_value=0, value=0, step=1)
-
-                if min_reactions > 0:
-                    closer_issues = closer_issues[closer_issues["total_reactions"] >= min_reactions]
-
-                with issues_title_container:
-                    st.markdown(f"##### Issues closed by {selected_closer}")
-
-                # Prepare the detailed dataframe
-                detailed_df = pd.DataFrame(
-                    {
-                        "Title": closer_issues.apply(
-                            lambda x: f"{get_issue_emoji(x['labels'])} {x['title']}",
-                            axis=1,
-                        ),
-                        "Reactions": closer_issues["total_reactions"],
-                        "Closed on": closer_issues["closed_at"].dt.date,
-                        "Link": closer_issues["html_url"],
-                        "Comments": closer_issues["comments"],
-                        "Reaction Types": closer_issues["reactions"].apply(reactions_to_str),
-                        "Type": closer_issues["labels"].apply(get_issue_type),
-                    }
-                )
-
-                # Sort by date
-                detailed_df = detailed_df.sort_values("Closed on", ascending=False)
-
-                st.dataframe(
-                    detailed_df,
-                    column_config={
-                        "Title": st.column_config.TextColumn(width="large"),
-                        "Link": st.column_config.LinkColumn(display_text="Open Issue"),
-                        "Type": st.column_config.ListColumn(),
-                        "Closed on": st.column_config.DateColumn(format="MMM DD, YYYY"),
-                        "Reactions": st.column_config.NumberColumn(format="%d 🫶", help="Total number of reactions"),
-                        "Comments": st.column_config.NumberColumn(format="%d 💬"),
-                    },
-                    hide_index=True,
-                )
-
-    st.markdown("#### :material/contract_edit: Issue Authors")
-
-    # Calculate top issue authors
-    authors_df = all_issues_df.copy()
-    authors_df["author"] = authors_df["user"].apply(lambda x: x.get("login", "") if isinstance(x, dict) else "")
-    authors_df = authors_df[authors_df["author"] != ""]
-
-    authors_df = authors_df[
-        (authors_df["created_at"].dt.date >= since_input) & (authors_df["created_at"].dt.date <= effective_until)
-    ]
-
-    st.caption(
-        f"GitHub users who created the most issues on `streamlit/streamlit` {period_label}. "
-        f"Total issues created: **{len(authors_df)}**."
-    )
-
-    if not authors_df.empty:
-        author_counts = (
-            authors_df.groupby("author")
-            .size()
-            .reset_index(name="Issue Count")
-            .sort_values("Issue Count", ascending=False)
-            .reset_index(drop=True)
-        )
-
-        # Calculate percentage of total
-        total_issues = author_counts["Issue Count"].sum()
-        author_counts["% of Total"] = author_counts["Issue Count"] / total_issues * 100
-
-        # Add links
-        author_counts["Show Issues"] = author_counts["author"].apply(
-            lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue+author%3A{x}"
-        )
-        author_counts["author"] = author_counts["author"].apply(lambda x: f"https://github.com/{x}")
-
-        st.dataframe(
-            author_counts,
-            column_config={
-                "author": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
-                "Issue Count": st.column_config.NumberColumn(format="%d 📝"),
-                "% of Total": st.column_config.NumberColumn(format="%.1f%%"),
-                "Show Issues": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
-            },
-            hide_index=True,
-            column_order=["author", "Issue Count", "% of Total", "Show Issues"],
-        )
-    else:
-        st.info("No issue authors found.")
-
-    st.markdown("#### :material/comment: Issue Commenters")
-    st.caption(
-        "The number of unique [GitHub issues](https://github.com/streamlit/streamlit/issues) commented on by Streamlit team members."
-    )
-    # Fetch data for all team members
-    comment_counts = []
-    for member in ACTIVE_STREAMLIT_TEAM_MEMBERS:
-        count = get_count_issues_commented_by_user(member)
-        if count > 0:
-            comment_counts.append({"User": member, "Issues Commented On": count})
-
-    # Create DataFrame
-    commenters_df = pd.DataFrame(comment_counts)
-    commenters_df["Show Issues"] = commenters_df["User"].apply(
-        lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue%20commenter%3A{x}"
-    )
-    commenters_df["User"] = commenters_df["User"].apply(lambda x: f"https://github.com/{x}")
-
-    if not commenters_df.empty:
-        commenters_df = commenters_df.sort_values("Issues Commented On", ascending=False).reset_index(drop=True)
-        st.dataframe(
-            commenters_df,
-            column_config={
-                "User": st.column_config.LinkColumn(display_text="github.com/([^/]+)"),
-                "Issues Commented On": st.column_config.NumberColumn(format="%d 💬"),
-                "Show Issues": st.column_config.LinkColumn(display_text=":material/open_in_new:"),
-            },
-            hide_index=True,
-        )
-    else:
-        st.info("No data found for team members.")
+    render_issue_commenters()
 
     st.markdown("#### :material/person: Team Member Timeline")
     st.caption("View individual timeline metrics for Streamlit team members.")
@@ -866,74 +960,7 @@ if selected_metrics == "Contribution Metrics":
     elif merged_prs_df.empty:
         st.info("No merged PRs found for the selected period.")
 
-    st.markdown("#### :material/donut_small: Surviving Lines of Code")
-
-    stats = get_git_fame_stats()
-
-    # Process stats into a DataFrame
-    # stats is a dict where keys are authors and values are dicts with 'loc', 'commits', 'files'
-    data = []
-    total_loc = 0
-    total_commits = 0
-    total_files = 0
-
-    # First pass to calculate totals
-    for metrics in stats.values():
-        total_loc += metrics.get("loc", 0)
-        total_commits += metrics.get("commits", 0)
-        total_files += len(metrics.get("files", []))
-
-    for author_key, metrics in stats.items():
-        # author_key is "Name <Email>"
-        match = re.match(r"(.*) <(.*)>", author_key)
-        if match:
-            name = match.group(1)
-            email = match.group(2)
-        else:
-            name = author_key
-            email = ""
-
-        loc = metrics.get("loc", 0)
-        commits = metrics.get("commits", 0)
-        files = len(metrics.get("files", []))
-
-        loc_pct = (loc / total_loc * 100) if total_loc > 0 else 0
-        commits_pct = (commits / total_commits * 100) if total_commits > 0 else 0
-        files_pct = (files / total_files * 100) if total_files > 0 else 0
-
-        data.append(
-            {
-                "User": name,
-                "Surviving LOC": loc,
-                "Surviving LOC %": round(loc_pct, 1),
-                "Commits to Main": commits,
-                "Commits to Main %": round(commits_pct, 1),
-                "Touched Files": files,
-                "Touched Files %": round(files_pct, 1),
-            }
-        )
-
-    df = pd.DataFrame(data)
-    if not df.empty:
-        st.caption(
-            "Surviving lines of code (LOC) measures the number of lines of code currently present "
-            "in the [codebase](https://github.com/streamlit/streamlit) that were authored by each user. "
-            "This is calculated by [git-fame](https://github.com/casperdcl/git-fame). "
-            f"Total LOC: **{total_loc}**; Total Commits: **{total_commits}**."
-        )
-        df = df.sort_values(by="Surviving LOC", ascending=False).reset_index(drop=True)
-        st.dataframe(
-            df,
-            width="stretch",
-            column_config={
-                "Surviving LOC %": st.column_config.NumberColumn(format="%.1f%%"),
-                "Commits to Main %": st.column_config.NumberColumn(format="%.1f%%"),
-                "Touched Files %": st.column_config.NumberColumn(format="%.1f%%"),
-            },
-            hide_index=True,
-        )
-    else:
-        st.warning("No data found.")
+    render_surviving_lines_of_code()
 elif selected_metrics == "Team Productivity Metrics":
     # --- PR Metrics ---
     st.markdown("##### :material/merge: Pull Request Metrics")
