@@ -97,6 +97,9 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
             draft=True,
         ),
         _pr(number=15, title="Internal PR", labels=["change:enhancement", "impact:users"], author="sfc-gh-bnisco"),
+        _pr(number=16, title="[chore] Release v1.61.0", labels=["change:chore"], author="github-actions[bot]"),
+        _pr(number=17, title="[snapshots] Update E2E snapshots for #15693", labels=[], author="github-actions[bot]"),
+        _pr(number=18, title="[chore] Release v1.62.0", labels=[], author="sfc-gh-release-manager"),
     ]
 
     monkeypatch.setattr(interrupt_data, "get_interrupt_data_snapshot", lambda refresh_nonce=0: (issues, prs))
@@ -120,6 +123,9 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
     assert set(data["prs_needing_approval"]["Title"]) == {"Needs approval"}
     assert set(data["community_prs_ready_for_review"]["Title"]) == {"Needs approval", "Ready for review"}
     assert set(data["open_dependabot_prs"]["Title"]) == {"Dependabot update"}
+    # Only `github-actions[bot]` PRs with the release title prefix count: the snapshot-update bot
+    # PR and the human-authored release PR are both excluded.
+    assert set(data["open_release_prs"]["Title"]) == {"[chore] Release v1.61.0"}
 
 
 def test_build_interrupt_action_items_refresh_nonce_busts_cache(monkeypatch: pytest.MonkeyPatch) -> None:
