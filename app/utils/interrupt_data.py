@@ -41,6 +41,10 @@ MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
     "streamlit/st-issues",
 )
 
+# Title prefix of the automated release PRs that bump the version identifiers
+# (for example "[chore] Release v1.61.0").
+RELEASE_PR_TITLE_PREFIX = "[chore] Release"
+
 
 def _issue_row(issue: dict[str, Any], labels: set[str]) -> dict[str, Any]:
     return {
@@ -115,6 +119,7 @@ def _build_interrupt_action_items(
     needs_approval_prs: list[dict[str, Any]] = []
     ready_for_review: list[dict[str, Any]] = []
     dependabot_prs: list[dict[str, Any]] = []
+    release_prs: list[dict[str, Any]] = []
 
     for issue in issues:
         if "pull_request" in issue:
@@ -191,6 +196,17 @@ def _build_interrupt_action_items(
                 }
             )
 
+        # Mirrors the GitHub search `is:pr "[chore] Release" author:app/github-actions is:open`,
+        # where `app/github-actions` is the `github-actions[bot]` login in the REST payload.
+        if author == "github-actions[bot]" and pr["title"].startswith(RELEASE_PR_TITLE_PREFIX):
+            release_prs.append(
+                {
+                    "Title": pr["title"],
+                    "URL": pr["html_url"],
+                    "Created": pr["created_at"],
+                }
+            )
+
         if not author or not is_community_author(author):
             continue
 
@@ -243,6 +259,7 @@ def _build_interrupt_action_items(
         "missing_labels_prs": pd.DataFrame(missing_label_prs),
         "prs_needing_approval": pd.DataFrame(needs_approval_prs),
         "open_dependabot_prs": pd.DataFrame(dependabot_prs),
+        "open_release_prs": pd.DataFrame(release_prs),
         "community_prs_ready_for_review": pd.DataFrame(ready_for_review),
         "confirmed_bugs_without_repro": pd.DataFrame(bugs_without_repro),
     }
@@ -647,3 +664,9 @@ def get_open_dependabot_prs(refresh_nonce: int = 0) -> pd.DataFrame:
     """Get open Dependabot PRs without 'do-not-merge' label."""
     data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
     return data["open_dependabot_prs"].copy()
+
+
+def get_open_release_prs(refresh_nonce: int = 0) -> pd.DataFrame:
+    """Get open automated release PRs that bump the version identifiers."""
+    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    return data["open_release_prs"].copy()

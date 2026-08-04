@@ -352,6 +352,33 @@ Every confirmed bug is expected to be labeled with a `priority:P{0,1,2,3,4}` lab
             )
 
         st.subheader(
+            "Open release PRs",
+            help="""
+Lists open automated release PRs (`[chore] Release vX.Y.Z` from `github-actions[bot]`).
+These back-merge the release branch into `develop` and only update version identifiers
+(`lib/pyproject.toml`, `uv.lock`, `frontend/package.json` and the frontend workspace packages).
+
+These PRs need a human approval before they become mergeable and are not assigned to anyone
+by default, so they can sit unnoticed. The Interrupt should make sure each one gets reviewed
+and merged.
+""",
+        )
+        release_prs_df = action_items["open_release_prs"]
+        if release_prs_df.empty:
+            st.success("Congrats, everything is done here!", icon="🎉")
+        else:
+            st.dataframe(
+                release_prs_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Title", width="large"),
+                    "URL": st.column_config.LinkColumn("URL", display_text="Open"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                },
+            )
+
+        st.subheader(
             "Open Dependabot PRs",
             help="""
 Lists all open dependency update PRs from Dependabot. Please try to review and merge these PRs
