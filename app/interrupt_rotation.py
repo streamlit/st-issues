@@ -156,7 +156,7 @@ indicates whether a bug is still within its SLA or has already breached it.
         )
         high_priority_bugs_df = action_items["high_priority_bugs"].copy()
         if high_priority_bugs_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
             # Sort by priority (P0 first, then P1, then P2) and then by creation date (oldest first).
             high_priority_bugs_df["Priority_Sort"] = high_priority_bugs_df["Priority"].map(
@@ -256,7 +256,7 @@ To triage an issue, you need to try to reproduce the issue.
         )
         needs_triage_df = action_items["needs_triage"]
         if needs_triage_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
             st.dataframe(
                 needs_triage_df,
@@ -276,7 +276,7 @@ To triage an issue, you need to try to reproduce the issue.
         )
         missing_labels_df = action_items["missing_labels_issues"]
         if missing_labels_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
             st.dataframe(
                 missing_labels_df,
@@ -337,7 +337,7 @@ Every confirmed bug is expected to be labeled with a `priority:P{0,1,2,3,4}` lab
         )
         unprioritized_bugs_df = action_items["unprioritized_bugs"]
         if unprioritized_bugs_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
             st.dataframe(
                 unprioritized_bugs_df,
@@ -365,7 +365,7 @@ and merged.
         )
         release_prs_df = action_items["open_release_prs"]
         if release_prs_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
             st.dataframe(
                 release_prs_df,
@@ -392,7 +392,7 @@ For Dependabot dependency updates:
         )
         bot_prs_df = action_items["open_bot_prs"]
         if bot_prs_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
             st.dataframe(
                 bot_prs_df,
@@ -412,7 +412,7 @@ For Dependabot dependency updates:
         )
         waiting_for_team_response_df = action_items["waiting_for_team_response"]
         if waiting_for_team_response_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
             st.dataframe(
                 waiting_for_team_response_df,
@@ -453,7 +453,7 @@ marker as a last resort.
             flaky_tests_df = flaky_tests_df[mask_not_expected]
 
         if flaky_tests_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
             flaky_tests_df = flaky_tests_df.sort_values(by="Failures", ascending=False)
             st.dataframe(
@@ -494,7 +494,7 @@ def render_monitored_repo_prs(selected_refresh_nonce: int) -> None:
             else monitored_repo_prs_df
         )
         if monitored_repo_prs_df.empty:
-            st.success("No open PRs in the monitored repos right now.", icon="🎉")
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
             st.dataframe(
                 monitored_repo_prs_df[["Title", "Repository", "URL", "Created", "Updated", "Author"]],
@@ -520,7 +520,7 @@ Confirmed bugs (`status:confirmed` & `type:bug`) created in the selected timefra
 
 **"Reproducible script" here means a runnable repro committed by the team**, either a `gh-<issue-id>` folder in [streamlit/st-issues](https://github.com/streamlit/st-issues) or an `issues/<issue-id>/repro_app.py` in the agent wiki. It does **not** mean the "Reproducible Code Example" snippet in the issue body - most issues have that from the bug-report template, so it doesn't count here.
 
-**Reviewing this list is required during your rotation.** Adding a reproducible script itself is best-effort: if a bug isn't easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, it's fine to skip writing a script, but you should still confirm the bug is triaged and prioritized correctly.
+This view is informational only - no action is required. Adding a reproducible script is best-effort: if a bug isn't easily reproducible via the [streamlit/st-issues](https://github.com/streamlit/st-issues) app, it's fine to skip writing a script.
 
 **How to add a new repro case to [streamlit/st-issues](https://github.com/streamlit/st-issues):**
 1. [Create a new folder in `issues`](https://github.com/streamlit/st-issues/new/main/issues) with this naming pattern: `gh-<GITHUB_ISSUE_ID>`.
@@ -535,7 +535,7 @@ Confirmed bugs (`status:confirmed` & `type:bug`) created in the selected timefra
             refresh_nonce=selected_refresh_nonce,
         )
         if confirmed_bugs_without_repro_df.empty:
-            st.success("Congrats, everything is done here!", icon="🎉")
+            st.caption("Nothing to show right now.")
         else:
             st.dataframe(
                 confirmed_bugs_without_repro_df,
@@ -566,7 +566,7 @@ def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> N
             refresh_nonce=selected_refresh_nonce,
         )
         if reported_bugs_df.empty:
-            st.success("No bugs were reported in the selected timeframe.", icon="🎉")
+            st.success("No bugs were reported in the selected timeframe.", icon=":material/celebration:")
         else:
             st.dataframe(
                 reported_bugs_df,
@@ -743,11 +743,11 @@ render_flaky_tests(since, refresh_nonce)
 
 render_monitored_repo_prs(refresh_nonce)
 
-render_confirmed_bugs_without_repro(since, refresh_nonce)
-
 st.header(":material/visibility: For reference")
 st.caption("Informational views only. No action is required from the person on Interrupt.")
 with st.expander("Show reference views", expanded=False):
+    render_confirmed_bugs_without_repro(since, refresh_nonce)
+
     render_reported_bugs(since, refresh_nonce)
 
     render_community_pr_action_items(since, refresh_nonce)
