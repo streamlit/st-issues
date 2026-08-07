@@ -122,9 +122,13 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
     assert set(data["missing_labels_prs"]["Title"]) == {"Needs labels"}
     assert set(data["prs_needing_approval"]["Title"]) == {"Needs approval"}
     assert set(data["community_prs_ready_for_review"]["Title"]) == {"Needs approval", "Ready for review"}
-    assert set(data["open_dependabot_prs"]["Title"]) == {"Dependabot update"}
+    # All bot PRs except automated release PRs (those have their own section).
+    assert set(data["open_bot_prs"]["Title"]) == {
+        "Dependabot update",
+        "[snapshots] Update E2E snapshots for #15693",
+    }
     # Only `github-actions[bot]` PRs with the release title prefix count: the snapshot-update bot
-    # PR and the human-authored release PR are both excluded.
+    # PR lands in open_bot_prs instead, and the human-authored release PR is excluded.
     assert set(data["open_release_prs"]["Title"]) == {"[chore] Release v1.61.0"}
 
 

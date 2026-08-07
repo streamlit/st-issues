@@ -379,27 +379,30 @@ and merged.
             )
 
         st.subheader(
-            "Open Dependabot PRs",
+            "Open bot PRs",
             help="""
-Lists all open dependency update PRs from Dependabot. Please try to review and merge these PRs
-if it requires no or only minor changes.
+Lists all open PRs from bots (Dependabot, GitHub Actions, etc.), excluding automated release PRs
+which have their own section above. Please try to review and merge these PRs if it requires no or
+only minor changes.
 
+For Dependabot dependency updates:
 - In some cases, the PR will require manually updating the `NOTICES` file by checking out the dependency PR, running `yarn install` in `frontend`, and running `make update-notices` from repo root.
 - If our CI indicates that updating the dependency will likely require bigger changes, just close the PR with a brief message and add the dependency to our https://github.com/streamlit/streamlit/blob/develop/.github/dependabot.yml ignore list. [Example PR](https://github.com/streamlit/streamlit/pull/10630)
  """,
         )
-        dependabot_prs_df = action_items["open_dependabot_prs"]
-        if dependabot_prs_df.empty:
+        bot_prs_df = action_items["open_bot_prs"]
+        if bot_prs_df.empty:
             st.success("Congrats, everything is done here!", icon="🎉")
         else:
             st.dataframe(
-                dependabot_prs_df,
+                bot_prs_df,
                 width="stretch",
                 hide_index=True,
                 column_config={
                     "Title": st.column_config.TextColumn("Title", width="large"),
                     "URL": st.column_config.LinkColumn("URL", display_text="Open"),
                     "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
                 },
             )
 

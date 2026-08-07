@@ -118,7 +118,7 @@ def _build_interrupt_action_items(
     missing_label_prs: list[dict[str, Any]] = []
     needs_approval_prs: list[dict[str, Any]] = []
     ready_for_review: list[dict[str, Any]] = []
-    dependabot_prs: list[dict[str, Any]] = []
+    bot_prs: list[dict[str, Any]] = []
     release_prs: list[dict[str, Any]] = []
 
     for issue in issues:
@@ -187,23 +187,25 @@ def _build_interrupt_action_items(
         author = pr.get("user", {}).get("login")
         labels = {label["name"] for label in pr["labels"]}
 
-        if author == "dependabot[bot]" and "do-not-merge" not in labels:
-            dependabot_prs.append(
+        # Mirrors the GitHub search `is:pr "[chore] Release" author:app/github-actions is:open`,
+        # where `app/github-actions` is the `github-actions[bot]` login in the REST payload.
+        is_release_pr = author == "github-actions[bot]" and pr["title"].startswith(RELEASE_PR_TITLE_PREFIX)
+        if is_release_pr:
+            release_prs.append(
                 {
                     "Title": pr["title"],
                     "URL": pr["html_url"],
                     "Created": pr["created_at"],
                 }
             )
-
-        # Mirrors the GitHub search `is:pr "[chore] Release" author:app/github-actions is:open`,
-        # where `app/github-actions` is the `github-actions[bot]` login in the REST payload.
-        if author == "github-actions[bot]" and pr["title"].startswith(RELEASE_PR_TITLE_PREFIX):
-            release_prs.append(
+        elif author and author.endswith("[bot]") and "do-not-merge" not in labels:
+            # Dependabot, github-actions, and other bots — release PRs are listed separately above.
+            bot_prs.append(
                 {
                     "Title": pr["title"],
                     "URL": pr["html_url"],
                     "Created": pr["created_at"],
+                    "Author": author,
                 }
             )
 
@@ -258,7 +260,7 @@ def _build_interrupt_action_items(
         "high_priority_bugs": pd.DataFrame(high_priority_bugs),
         "missing_labels_prs": pd.DataFrame(missing_label_prs),
         "prs_needing_approval": pd.DataFrame(needs_approval_prs),
-        "open_dependabot_prs": pd.DataFrame(dependabot_prs),
+        "open_bot_prs": pd.DataFrame(bot_prs),
         "open_release_prs": pd.DataFrame(release_prs),
         "community_prs_ready_for_review": pd.DataFrame(ready_for_review),
         "confirmed_bugs_without_repro": pd.DataFrame(bugs_without_repro),
@@ -660,10 +662,13 @@ def get_flaky_tests(since_date: date, min_failures: int = 10, refresh_nonce: int
     return pd.DataFrame(data)
 
 
-def get_open_dependabot_prs(refresh_nonce: int = 0) -> pd.DataFrame:
-    """Get open Dependabot PRs without 'do-not-merge' label."""
+def get_open_bot_prs(refresh_nonce: int = 0) -> pd.DataFrame:
+    """Get open bot PRs (Dependabot, GitHub Actions, etc.) without 'do-not-merge' label.
+
+    Automated release PRs are excluded; use `get_open_release_prs` for those.
+    """
     data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
-    return data["open_dependabot_prs"].copy()
+    return data["open_bot_prs"].copy()
 
 
 def get_open_release_prs(refresh_nonce: int = 0) -> pd.DataFrame:
