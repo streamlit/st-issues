@@ -702,7 +702,7 @@ def create_trend_chart(df: pd.DataFrame, metric_suffix: str, title: str) -> alt.
     chart = (
         alt.Chart(chart_data)
         .mark_line(point=True)
-        .encode(
+        .encode(  # ty: ignore[unresolved-attribute]
             x=alt.X("created_at", title="Date"),
             y=alt.Y("Size", title="Size (Bytes)"),
             color="Category",

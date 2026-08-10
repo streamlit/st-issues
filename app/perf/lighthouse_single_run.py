@@ -78,7 +78,7 @@ df = pd.DataFrame(data)
 chart = (
     alt.Chart(df)
     .mark_point()
-    .encode(
+    .encode(  # ty: ignore[unresolved-attribute]
         x="datetime:T",
         y=alt.Y("score:Q", scale=alt.Scale(domain=[0, 100])),
         color="app_name:N",
