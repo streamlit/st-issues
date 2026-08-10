@@ -219,7 +219,7 @@ if not workflow_df.empty:
     line_chart = (
         alt.Chart(workflow_daily_df)
         .mark_line(point=True)
-        .encode(
+        .encode(  # ty: ignore[unresolved-attribute]
             x=alt.X("date:T", title="Date", axis=alt.Axis(format="%b %d")),
             y=alt.Y(
                 "rolling_avg:Q",
@@ -247,7 +247,10 @@ if not workflow_df.empty:
             strokeWidth=1,
             color="red",
         )
-        .encode(y="y:Q", tooltip=[alt.Tooltip("y:Q", title="Overall Average", format=".1%")])
+        .encode(  # ty: ignore[unresolved-attribute]
+            y="y:Q",
+            tooltip=[alt.Tooltip("y:Q", title="Overall Average", format=".1%")],
+        )
     )
 
     # Combine the charts

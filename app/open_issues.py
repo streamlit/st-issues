@@ -381,7 +381,7 @@ else:
                         cornerRadiusBottomRight=3,
                         height=bar_height,
                     )
-                    .encode(
+                    .encode(  # ty: ignore[unresolved-attribute]
                         x=alt.X(f"{x_field}:Q", title="Count"),
                         y=alt.Y(
                             f"{y_field}:N",

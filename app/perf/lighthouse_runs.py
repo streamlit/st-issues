@@ -145,7 +145,7 @@ points_selection = alt.selection_point(
 chart = (
     alt.Chart(df)
     .mark_point()
-    .encode(
+    .encode(  # ty: ignore[unresolved-attribute]
         x=alt.X(
             "index:Q",
             # Ensure x-axis shows only integers
@@ -162,7 +162,7 @@ chart = (
 rolling_mean_line = (
     alt.Chart(df)
     .mark_line()
-    .encode(
+    .encode(  # ty: ignore[unresolved-attribute]
         x=alt.X(
             "index:Q",
             # Ensure x-axis shows only integers
