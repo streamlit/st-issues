@@ -48,6 +48,23 @@ def test_build_wiki_documents_includes_issue_artifacts() -> None:
     assert documents[1]["folder"] == "issues/12345"
 
 
+def test_build_wiki_documents_flags_html_artifacts_as_html() -> None:
+    documents = build_wiki_documents(
+        [
+            "pull-requests/12345/report.html",
+            "pull-requests/12345/notes.txt",
+        ]
+    )
+
+    report = documents[1]
+    assert report["path"] == "pull-requests/12345/report.html"
+    assert report["is_html"] is True
+    assert report["is_markdown"] is False
+    assert report["is_image"] is False
+    # Plain text artifacts keep rendering as code, not in an iframe.
+    assert documents[0]["is_html"] is False
+
+
 def test_get_wiki_folder_groups_issue_artifacts_by_issue_number() -> None:
     assert get_wiki_folder("issues/12345/repro_app.py") == "issues/12345"
     assert get_wiki_folder("issues/12345/nested/notes.md") == "issues/12345"

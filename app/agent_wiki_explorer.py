@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from app.utils.agent_wiki import (
     WikiDocument,
@@ -17,6 +18,10 @@ from app.utils.markdown_rendering import replace_issue_references_with_previews
 
 st.set_page_config(page_title="Agent wiki explorer", page_icon="📚")
 
+# Viewport height for embedded HTML artifacts. Tall enough that a report's first
+# screen is visible without scrolling the iframe; the iframe scrolls beyond that.
+HTML_ASSET_IFRAME_HEIGHT = 900
+
 # Map extensions of non-markdown text documents to a syntax-highlighting language
 # so artifacts like `repro_app.py` render inline as code.
 CODE_LANGUAGE_BY_EXTENSION = {
@@ -30,7 +35,6 @@ CODE_LANGUAGE_BY_EXTENSION = {
     ".js": "javascript",
     ".ts": "typescript",
     ".css": "css",
-    ".html": "html",
     ".sql": "sql",
 }
 
@@ -78,6 +82,22 @@ def _render_code_asset(document: WikiDocument, language: str) -> None:
         return
     st.caption(document["path"])
     st.code(document_text, language=language)
+
+
+def _render_html_asset(document: WikiDocument) -> None:
+    document_text, document_error = fetch_wiki_document_text(document["path"])
+    if document_error:
+        st.error(document_error)
+        return
+    if document_text is None:
+        st.warning("The selected asset could not be loaded.")
+        return
+    st.caption(document["path"])
+    # A sandboxed iframe, so the artifact's own stylesheet cannot leak into the
+    # app chrome and its scripts (e.g. an interactive quiz) still run.
+    components.html(document_text, height=HTML_ASSET_IFRAME_HEIGHT, scrolling=True)
+    with st.expander("View source"):
+        st.code(document_text, language="html")
 
 
 def _render_other_asset() -> None:
@@ -132,6 +152,8 @@ if selected_document["is_markdown"]:
     _render_markdown_document(selected_document, document_text)
 elif selected_document["is_image"]:
     _render_image_asset(selected_document)
+elif selected_document["is_html"]:
+    _render_html_asset(selected_document)
 elif selected_document["extension"] in CODE_LANGUAGE_BY_EXTENSION:
     _render_code_asset(selected_document, CODE_LANGUAGE_BY_EXTENSION[selected_document["extension"]])
 else:

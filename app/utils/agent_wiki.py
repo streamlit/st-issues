@@ -31,6 +31,9 @@ NUMBER_GROUPED_SECTIONS = {"issues", "pull-requests"}
 TEXT_DOCUMENT_EXTENSIONS = {".md", ".markdown", ".mdx", ".txt"}
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdx"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+# Self-contained HTML artifacts (e.g. visual PR reports). Rendered in a sandboxed
+# iframe rather than as source, so their own styling and scripts stay intact.
+HTML_EXTENSIONS = {".html", ".htm"}
 
 ISSUES_SECTION = "issues"
 # Canonical filenames the agent wiki uses for runnable issue reproductions.
@@ -53,6 +56,7 @@ class WikiDocument(TypedDict):
     source_url: str
     is_markdown: bool
     is_image: bool
+    is_html: bool
 
 
 class WikiIssueRepro(TypedDict):
@@ -149,6 +153,10 @@ def is_image_path(path: str) -> bool:
     return _get_extension(path) in IMAGE_EXTENSIONS
 
 
+def is_html_path(path: str) -> bool:
+    return _get_extension(path) in HTML_EXTENSIONS
+
+
 def build_wiki_raw_url(path: str) -> str:
     return f"{WIKI_RAW_URL_PREFIX}/{quote(path, safe='/')}"
 
@@ -204,6 +212,7 @@ def build_wiki_documents(paths: list[str]) -> list[WikiDocument]:
                 "source_url": build_wiki_source_url(path),
                 "is_markdown": is_markdown_path(path),
                 "is_image": is_image_path(path),
+                "is_html": is_html_path(path),
             }
         )
 
