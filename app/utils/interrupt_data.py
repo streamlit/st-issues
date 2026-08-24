@@ -34,9 +34,8 @@ PATH_OF_SCRIPT = pathlib.Path(__file__).parent.parent.resolve()
 PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 STREAMLIT_REPO = "streamlit/streamlit"
 DOCS_REPO = "streamlit/docs"
-DEPENDABOT_LOGIN = "dependabot[bot]"
 GITHUB_ACTIONS_LOGIN = "github-actions[bot]"
-DOCS_BOT_LOGINS = frozenset({DEPENDABOT_LOGIN, GITHUB_ACTIONS_LOGIN})
+DOCS_BOT_LOGINS = frozenset({"dependabot[bot]", GITHUB_ACTIONS_LOGIN})
 MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
     "streamlit/gallery",
     "streamlit/component-template",
@@ -71,50 +70,43 @@ def _pr_row(pr: dict[str, Any], labels: set[str], author: str | None) -> dict[st
     }
 
 
-def _bot_pr_row(pr: dict[str, Any], *, repo: str, author: str) -> dict[str, Any]:
+def _monitored_pr_row(pr: dict[str, Any], repo: str) -> dict[str, Any]:
     return {
+        "Repository": repo,
         "Title": pr["title"],
         "URL": pr["html_url"],
         "Created": pr["created_at"],
-        "Author": author,
-        "Repository": repo,
+        "Updated": pr["updated_at"],
+        "Author": pr.get("user", {}).get("login"),
+        "Draft": pr.get("draft", False),
     }
 
 
 @st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False)
-def get_interrupt_data_snapshot(
-    refresh_nonce: int = 0,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    """Fetch the open issue/PR snapshot used by the Interrupt Rotation page.
-
-    Returns open issues and PRs from `streamlit/streamlit`, plus open PRs from
-    `streamlit/docs` (used for Dependabot and GitHub Actions tracking).
-    """
+def get_interrupt_data_snapshot(refresh_nonce: int = 0) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fetch the open issue/PR snapshot used by the Interrupt Rotation page."""
     issues = get_all_github_issues(state="open", refresh_nonce=refresh_nonce)
     prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=STREAMLIT_REPO)
-    docs_prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=DOCS_REPO)
-    return issues, prs, docs_prs
+    return issues, prs
 
 
 @st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False)
 def get_monitored_repo_open_prs(refresh_nonce: int = 0) -> pd.DataFrame:
-    """Fetch open PRs from Streamlit-managed repos that the interrupt rotation should monitor."""
+    """Fetch open PRs from Streamlit-managed repos that the interrupt rotation should monitor.
+
+    Includes every open PR in `MONITORED_INTERRUPT_REPOS`, plus Dependabot and GitHub Actions
+    PRs from `streamlit/docs`.
+    """
     rows: list[dict[str, Any]] = []
 
     for repo in MONITORED_INTERRUPT_REPOS:
         repo_prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=repo)
-        rows.extend(
-            {
-                "Repository": repo,
-                "Title": pr["title"],
-                "URL": pr["html_url"],
-                "Created": pr["created_at"],
-                "Updated": pr["updated_at"],
-                "Author": pr.get("user", {}).get("login"),
-                "Draft": pr.get("draft", False),
-            }
-            for pr in repo_prs
-        )
+        rows.extend(_monitored_pr_row(pr, repo) for pr in repo_prs)
+
+    docs_prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=DOCS_REPO)
+    rows.extend(
+        _monitored_pr_row(pr, DOCS_REPO) for pr in docs_prs if pr.get("user", {}).get("login") in DOCS_BOT_LOGINS
+    )
 
     monitored_prs = pd.DataFrame(rows)
     if monitored_prs.empty:
@@ -129,7 +121,6 @@ def get_monitored_repo_open_prs(refresh_nonce: int = 0) -> pd.DataFrame:
 def _build_interrupt_action_items(
     issues: list[dict[str, Any]],
     prs: list[dict[str, Any]],
-    docs_prs: list[dict[str, Any]],
     since_date: date,
 ) -> dict[str, pd.DataFrame]:
     needs_triage: list[dict[str, Any]] = []
@@ -223,7 +214,14 @@ def _build_interrupt_action_items(
             )
         elif author and author.endswith("[bot]") and "do-not-merge" not in labels:
             # Dependabot, github-actions, and other bots — release PRs are listed separately above.
-            bot_prs.append(_bot_pr_row(pr, repo=STREAMLIT_REPO, author=author))
+            bot_prs.append(
+                {
+                    "Title": pr["title"],
+                    "URL": pr["html_url"],
+                    "Created": pr["created_at"],
+                    "Author": author,
+                }
+            )
 
         if not author or not is_community_author(author):
             continue
@@ -268,12 +266,6 @@ def _build_interrupt_action_items(
             }
         )
 
-    for pr in docs_prs:
-        author = pr.get("user", {}).get("login")
-        labels = {label["name"] for label in pr["labels"]}
-        if author in DOCS_BOT_LOGINS and "do-not-merge" not in labels:
-            bot_prs.append(_bot_pr_row(pr, repo=DOCS_REPO, author=author))
-
     return {
         "needs_triage": pd.DataFrame(needs_triage),
         "missing_labels_issues": pd.DataFrame(missing_label_issues),
@@ -292,13 +284,8 @@ def _build_interrupt_action_items(
 @st.cache_data(ttl=60 * 5, max_entries=64, show_spinner=False)
 def build_interrupt_action_items(since_date: date, refresh_nonce: int = 0) -> dict[str, pd.DataFrame]:
     """Build all interrupt action-item tables from a shared issue/PR snapshot."""
-    issues, prs, docs_prs = get_interrupt_data_snapshot(refresh_nonce=refresh_nonce)
-    return _build_interrupt_action_items(
-        issues=issues,
-        prs=prs,
-        docs_prs=docs_prs,
-        since_date=since_date,
-    )
+    issues, prs = get_interrupt_data_snapshot(refresh_nonce=refresh_nonce)
+    return _build_interrupt_action_items(issues=issues, prs=prs, since_date=since_date)
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching python test coverage...")  # cache for 6 hours
@@ -690,11 +677,9 @@ def get_flaky_tests(since_date: date, min_failures: int = 10, refresh_nonce: int
 
 
 def get_open_bot_prs(refresh_nonce: int = 0) -> pd.DataFrame:
-    """Get open bot PRs without 'do-not-merge' label.
+    """Get open bot PRs (Dependabot, GitHub Actions, etc.) without 'do-not-merge' label.
 
-    Includes Dependabot, GitHub Actions, and other bots in `streamlit/streamlit`
-    (excluding automated release PRs; use `get_open_release_prs` for those) plus
-    Dependabot and GitHub Actions PRs in `streamlit/docs`.
+    Automated release PRs are excluded; use `get_open_release_prs` for those.
     """
     data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
     return data["open_bot_prs"].copy()

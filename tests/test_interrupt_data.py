@@ -101,49 +101,8 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
         _pr(number=17, title="[snapshots] Update E2E snapshots for #15693", labels=[], author="github-actions[bot]"),
         _pr(number=18, title="[chore] Release v1.62.0", labels=[], author="sfc-gh-release-manager"),
     ]
-    docs_prs = [
-        _pr(
-            number=201,
-            title="Bump mkdocs in docs",
-            labels=["dependencies"],
-            author="dependabot[bot]",
-            repo="streamlit/docs",
-        ),
-        _pr(
-            number=202,
-            title="Docs github-actions PR",
-            labels=[],
-            author="github-actions[bot]",
-            repo="streamlit/docs",
-        ),
-        _pr(
-            number=203,
-            title="Human docs PR",
-            labels=[],
-            author="docs-author",
-            repo="streamlit/docs",
-        ),
-        _pr(
-            number=204,
-            title="Ignored docs dependabot",
-            labels=["do-not-merge"],
-            author="dependabot[bot]",
-            repo="streamlit/docs",
-        ),
-        _pr(
-            number=205,
-            title="Ignored docs github-actions",
-            labels=["do-not-merge"],
-            author="github-actions[bot]",
-            repo="streamlit/docs",
-        ),
-    ]
 
-    monkeypatch.setattr(
-        interrupt_data,
-        "get_interrupt_data_snapshot",
-        lambda refresh_nonce=0: (issues, prs, docs_prs),
-    )
+    monkeypatch.setattr(interrupt_data, "get_interrupt_data_snapshot", lambda refresh_nonce=0: (issues, prs))
     monkeypatch.setattr(interrupt_data, "get_reproducible_example_exists", lambda issue_number: issue_number == 3)
     interrupt_data.build_interrupt_action_items.clear()
 
@@ -163,19 +122,11 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
     assert set(data["missing_labels_prs"]["Title"]) == {"Needs labels"}
     assert set(data["prs_needing_approval"]["Title"]) == {"Needs approval"}
     assert set(data["community_prs_ready_for_review"]["Title"]) == {"Needs approval", "Ready for review"}
-    # All streamlit/streamlit bot PRs except automated release PRs (those have their own
-    # section), plus Dependabot and GitHub Actions PRs from streamlit/docs. Human docs PRs
-    # and docs bot PRs labeled do-not-merge are excluded.
+    # All bot PRs except automated release PRs (those have their own section).
     assert set(data["open_bot_prs"]["Title"]) == {
         "Dependabot update",
         "[snapshots] Update E2E snapshots for #15693",
-        "Bump mkdocs in docs",
-        "Docs github-actions PR",
     }
-    bot_prs_by_title = data["open_bot_prs"].set_index("Title")
-    assert bot_prs_by_title.loc["Dependabot update", "Repository"] == "streamlit/streamlit"
-    assert bot_prs_by_title.loc["Bump mkdocs in docs", "Repository"] == "streamlit/docs"
-    assert bot_prs_by_title.loc["Docs github-actions PR", "Repository"] == "streamlit/docs"
     # Only `github-actions[bot]` PRs with the release title prefix count: the snapshot-update bot
     # PR lands in open_bot_prs instead, and the human-authored release PR is excluded.
     assert set(data["open_release_prs"]["Title"]) == {"[chore] Release v1.61.0"}
@@ -184,9 +135,9 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
 def test_build_interrupt_action_items_refresh_nonce_busts_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     call_count = {"value": 0}
 
-    def fake_snapshot(refresh_nonce: int = 0) -> tuple[list[dict], list[dict], list[dict]]:
+    def fake_snapshot(refresh_nonce: int = 0) -> tuple[list[dict], list[dict]]:
         call_count["value"] += 1
-        return [], [], []
+        return [], []
 
     monkeypatch.setattr(interrupt_data, "get_interrupt_data_snapshot", fake_snapshot)
     interrupt_data.build_interrupt_action_items.clear()
@@ -202,6 +153,32 @@ def test_build_interrupt_action_items_refresh_nonce_busts_cache(monkeypatch: pyt
 
 def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
     repo_payloads = {
+        "streamlit/docs": [
+            _pr(
+                number=201,
+                repo="streamlit/docs",
+                title="Automated sitemap update",
+                labels=[],
+                author="github-actions[bot]",
+                updated_at="2026-02-14T10:00:00+00:00",
+            ),
+            _pr(
+                number=202,
+                repo="streamlit/docs",
+                title="Bump mkdocs in docs",
+                labels=["dependencies"],
+                author="dependabot[bot]",
+                updated_at="2026-02-13T12:00:00+00:00",
+            ),
+            _pr(
+                number=203,
+                repo="streamlit/docs",
+                title="Human docs PR",
+                labels=[],
+                author="docs-author",
+                updated_at="2026-02-15T10:00:00+00:00",
+            ),
+        ],
         "streamlit/gallery": [
             _pr(
                 number=101,
@@ -261,17 +238,31 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monitored_prs = interrupt_data.get_monitored_repo_open_prs(refresh_nonce=3)
 
-    assert calls == [(repo, "open", 3) for repo in interrupt_data.MONITORED_INTERRUPT_REPOS]
+    assert calls == [(repo, "open", 3) for repo in interrupt_data.MONITORED_INTERRUPT_REPOS] + [
+        ("streamlit/docs", "open", 3)
+    ]
     assert list(monitored_prs["Title"]) == [
+        "Automated sitemap update",
+        "Bump mkdocs in docs",
         "Issues cleanup",
         "Pdf fix",
         "Gallery draft",
         "Bokeh cleanup",
     ]
     assert list(monitored_prs["Repository"]) == [
+        "streamlit/docs",
+        "streamlit/docs",
         "streamlit/st-issues",
         "streamlit/streamlit-pdf",
         "streamlit/gallery",
         "streamlit/streamlit-bokeh",
     ]
-    assert list(monitored_prs["Draft"]) == [False, False, True, False]
+    assert list(monitored_prs["Draft"]) == [False, False, False, False, True, False]
+    assert list(monitored_prs["Author"]) == [
+        "github-actions[bot]",
+        "dependabot[bot]",
+        "dave",
+        "carol",
+        "alice",
+        "bob",
+    ]

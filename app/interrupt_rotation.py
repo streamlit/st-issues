@@ -381,12 +381,11 @@ and merged.
         st.subheader(
             "Open bot PRs",
             help="""
-Lists all open PRs from bots (Dependabot, GitHub Actions, etc.) in `streamlit/streamlit`, excluding
-automated release PRs which have their own section above, plus open Dependabot and GitHub Actions
-PRs in `streamlit/docs`. Please try to review and merge these PRs if it requires no or only minor
-changes.
+Lists all open PRs from bots (Dependabot, GitHub Actions, etc.), excluding automated release PRs
+which have their own section above. Please try to review and merge these PRs if it requires no or
+only minor changes.
 
-For Dependabot dependency updates in `streamlit/streamlit`:
+For Dependabot dependency updates:
 - In some cases, the PR will require manually updating the `NOTICES` file by checking out the dependency PR, running `yarn install` in `frontend`, and running `make update-notices` from repo root.
 - If our CI indicates that updating the dependency will likely require bigger changes, just close the PR with a brief message and add the dependency to our https://github.com/streamlit/streamlit/blob/develop/.github/dependabot.yml ignore list. [Example PR](https://github.com/streamlit/streamlit/pull/10630)
  """,
@@ -399,10 +398,8 @@ For Dependabot dependency updates in `streamlit/streamlit`:
                 bot_prs_df,
                 width="stretch",
                 hide_index=True,
-                column_order=["Title", "Repository", "URL", "Created", "Author"],
                 column_config={
                     "Title": st.column_config.TextColumn("Title", width="large"),
-                    "Repository": st.column_config.TextColumn("Repository", width="medium"),
                     "URL": st.column_config.LinkColumn("URL", display_text="Open"),
                     "Created": st.column_config.DatetimeColumn("Created", format="distance"),
                     "Author": st.column_config.TextColumn("Author"),
@@ -486,7 +483,9 @@ def render_monitored_repo_prs(selected_refresh_nonce: int) -> None:
             "If any PR shown in this view should really be tracked as a GitHub issue in "
             "`streamlit/streamlit` instead, close the PR (or move it back to draft) and ask the "
             "user to open an issue or feature request in `streamlit/streamlit`.\n\n"
-            "Monitored repos:\n" + monitored_repos_help
+            "Monitored repos:\n"
+            + monitored_repos_help
+            + "\n- `streamlit/docs` (Dependabot and GitHub Actions PRs only)"
         ),
     )
     with st.skeleton(height=200):
