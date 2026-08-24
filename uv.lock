@@ -395,16 +395,17 @@ wheels = [
 
 [[package]]
 name = "git-fame"
-version = "3.1.2"
+version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argopt" },
+    { name = "shtab" },
     { name = "tabulate" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/ba/2cc93777644b8f7baf6bb7fe0ae1a173d982480ca1e8f357e61223317641/git_fame-3.1.2.tar.gz", hash = "sha256:781823b6e709f7f556ce36bc53c8d88017413525c54a024cdccd00bc031fd15b", size = 27336, upload-time = "2026-05-05T01:01:46.134Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/14/b1528d5050446401b3492d31a88eccde0f117a7230ed233ce3047a29f92f/git_fame-4.0.0.tar.gz", hash = "sha256:752d30e80eb452c6a3ef32b00a97e8da019706e6ae7a99436f24a7200707423b", size = 28447, upload-time = "2026-08-07T18:15:18.809Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/60/5c/81f1b408d30db0836cc26bb710bd39348e2e94bd42aa9e59f5fdea14655e/git_fame-3.1.2-py3-none-any.whl", hash = "sha256:79d89e217743da9e54abc311543b1b564881714741b2eb28ea6bce068d30f558", size = 19995, upload-time = "2026-05-05T01:01:44.425Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/88/2f63d3b75e021a164dd086c7c2176939b6c5ed68f22c5454a29f3963c57a/git_fame-4.0.0-py3-none-any.whl", hash = "sha256:3d86001859976a741b9ff3fbac14478e3efdc19ca3def593635995cb38efe8b6", size = 18847, upload-time = "2026-08-07T18:15:17.373Z" },
 ]
 
 [[package]]
@@ -1520,6 +1521,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/86/59/a451d7420a77ab0b98f7affa3a1d78a313d2f7281a57afb1a34bae8ab412/seaborn-0.13.2.tar.gz", hash = "sha256:93e60a40988f4d65e9f4885df477e2fdaff6b73a9ded434c1ab356dd57eefff7", size = 1457696, upload-time = "2024-01-25T13:21:52.551Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/83/11/00d3c3dfc25ad54e731d91449895a79e4bf2384dc3ac01809010ba88f6d5/seaborn-0.13.2-py3-none-any.whl", hash = "sha256:636f8336facf092165e27924f223d3c62ca560b1f2bb5dff7ab7fad265361987", size = 294914, upload-time = "2024-01-25T13:21:49.598Z" },
+]
+
+[[package]]
+name = "shtab"
+version = "1.11.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/db/1e/6abd32b6c79e64b8e2e2027b05a65ff5215d913997de4fb973f248f79350/shtab-1.11.0.tar.gz", hash = "sha256:57df8a646484b3f00517a42934b173554f827976a77b605ceb6a1a0e649e9266", size = 58653, upload-time = "2026-08-15T21:56:22.304Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/15/81365f3f0e06614bfabdf5b86bc0c4dc0753bdcce29229a40c5742dee2b2/shtab-1.11.0-py3-none-any.whl", hash = "sha256:87c4ccd586a0d98f41c5d15a4a2da4957ea67ba2ec588561fdb803b612bfd032", size = 17483, upload-time = "2026-08-15T21:56:20.874Z" },
 ]
 
 [[package]]
