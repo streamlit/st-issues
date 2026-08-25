@@ -100,6 +100,13 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
         _pr(number=16, title="[chore] Release v1.61.0", labels=["change:chore"], author="github-actions[bot]"),
         _pr(number=17, title="[snapshots] Update E2E snapshots for #15693", labels=[], author="github-actions[bot]"),
         _pr(number=18, title="[chore] Release v1.62.0", labels=[], author="sfc-gh-release-manager"),
+        _pr(
+            number=201,
+            title="Docs github-actions PR",
+            labels=[],
+            author="github-actions[bot]",
+            repo="streamlit/docs",
+        ),
     ]
 
     monkeypatch.setattr(interrupt_data, "get_interrupt_data_snapshot", lambda refresh_nonce=0: (issues, prs))
@@ -122,7 +129,8 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
     assert set(data["missing_labels_prs"]["Title"]) == {"Needs labels"}
     assert set(data["prs_needing_approval"]["Title"]) == {"Needs approval"}
     assert set(data["community_prs_ready_for_review"]["Title"]) == {"Needs approval", "Ready for review"}
-    # All bot PRs except automated release PRs (those have their own section).
+    # Only streamlit/streamlit bot PRs, excluding automated release PRs (those have their
+    # own section). Docs bot PRs belong in the important-repos table instead.
     assert set(data["open_bot_prs"]["Title"]) == {
         "Dependabot update",
         "[snapshots] Update E2E snapshots for #15693",
@@ -179,6 +187,50 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
                 updated_at="2026-02-15T10:00:00+00:00",
             ),
         ],
+        "streamlit/streamlit-pivot-table": [
+            _pr(
+                number=301,
+                repo="streamlit/streamlit-pivot-table",
+                title="Bump frontend deps in pivot-table",
+                labels=["dependencies"],
+                author="dependabot[bot]",
+                updated_at="2026-02-16T10:00:00+00:00",
+            ),
+            _pr(
+                number=302,
+                repo="streamlit/streamlit-pivot-table",
+                title="Human pivot-table PR",
+                labels=[],
+                author="pivot-author",
+                updated_at="2026-02-17T10:00:00+00:00",
+            ),
+            _pr(
+                number=303,
+                repo="streamlit/streamlit-pivot-table",
+                title="Pivot-table github-actions PR",
+                labels=[],
+                author="github-actions[bot]",
+                updated_at="2026-02-15T10:00:00+00:00",
+            ),
+        ],
+        "streamlit/blank-app-template": [
+            _pr(
+                number=401,
+                repo="streamlit/blank-app-template",
+                title="Bump uv in blank-app-template",
+                labels=["dependencies"],
+                author="dependabot[bot]",
+                updated_at="2026-02-18T10:00:00+00:00",
+            ),
+            _pr(
+                number=402,
+                repo="streamlit/blank-app-template",
+                title="Human blank-app PR",
+                labels=[],
+                author="template-author",
+                updated_at="2026-02-19T10:00:00+00:00",
+            ),
+        ],
         "streamlit/gallery": [
             _pr(
                 number=101,
@@ -199,7 +251,15 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
                 labels=[],
                 author="bob",
                 updated_at="2026-02-09T10:00:00+00:00",
-            )
+            ),
+            _pr(
+                number=105,
+                repo="streamlit/streamlit-bokeh",
+                title="Bump bokeh in streamlit-bokeh",
+                labels=["dependencies"],
+                author="dependabot[bot]",
+                updated_at="2026-02-10T12:00:00+00:00",
+            ),
         ],
         "streamlit/streamlit-pdf": [
             _pr(
@@ -209,7 +269,15 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
                 labels=[],
                 author="carol",
                 updated_at="2026-02-12T10:00:00+00:00",
-            )
+            ),
+            _pr(
+                number=106,
+                repo="streamlit/streamlit-pdf",
+                title="Bump pdf.js in streamlit-pdf",
+                labels=["dependencies"],
+                author="dependabot[bot]",
+                updated_at="2026-02-12T12:00:00+00:00",
+            ),
         ],
         "streamlit/agent-skills": [],
         "streamlit/st-issues": [
@@ -238,31 +306,61 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monitored_prs = interrupt_data.get_monitored_repo_open_prs(refresh_nonce=3)
 
+    expected_bot_only_repos = [
+        repo for repo in interrupt_data.BOT_PR_INTERRUPT_REPOS if repo not in interrupt_data.MONITORED_INTERRUPT_REPOS
+    ]
     assert calls == [(repo, "open", 3) for repo in interrupt_data.MONITORED_INTERRUPT_REPOS] + [
-        ("streamlit/docs", "open", 3)
+        (repo, "open", 3) for repo in expected_bot_only_repos
     ]
     assert list(monitored_prs["Title"]) == [
+        "Bump uv in blank-app-template",
+        "Bump frontend deps in pivot-table",
+        "Pivot-table github-actions PR",
         "Automated sitemap update",
         "Bump mkdocs in docs",
         "Issues cleanup",
+        "Bump pdf.js in streamlit-pdf",
         "Pdf fix",
         "Gallery draft",
+        "Bump bokeh in streamlit-bokeh",
         "Bokeh cleanup",
     ]
     assert list(monitored_prs["Repository"]) == [
+        "streamlit/blank-app-template",
+        "streamlit/streamlit-pivot-table",
+        "streamlit/streamlit-pivot-table",
         "streamlit/docs",
         "streamlit/docs",
         "streamlit/st-issues",
         "streamlit/streamlit-pdf",
+        "streamlit/streamlit-pdf",
         "streamlit/gallery",
         "streamlit/streamlit-bokeh",
+        "streamlit/streamlit-bokeh",
     ]
-    assert list(monitored_prs["Draft"]) == [False, False, False, False, True, False]
+    assert list(monitored_prs["Draft"]) == [
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        True,
+        False,
+        False,
+    ]
     assert list(monitored_prs["Author"]) == [
+        "dependabot[bot]",
+        "dependabot[bot]",
+        "github-actions[bot]",
         "github-actions[bot]",
         "dependabot[bot]",
         "dave",
+        "dependabot[bot]",
         "carol",
         "alice",
+        "dependabot[bot]",
         "bob",
     ]

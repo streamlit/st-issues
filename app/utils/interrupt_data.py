@@ -33,9 +33,8 @@ DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.parent.resolve()
 PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 STREAMLIT_REPO = "streamlit/streamlit"
-DOCS_REPO = "streamlit/docs"
 GITHUB_ACTIONS_LOGIN = "github-actions[bot]"
-DOCS_BOT_LOGINS = frozenset({"dependabot[bot]", GITHUB_ACTIONS_LOGIN})
+BOT_PR_LOGINS = frozenset({"dependabot[bot]", GITHUB_ACTIONS_LOGIN})
 MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
     "streamlit/gallery",
     "streamlit/component-template",
@@ -43,6 +42,16 @@ MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
     "streamlit/streamlit-pdf",
     "streamlit/agent-skills",
     "streamlit/st-issues",
+)
+# Repos that are not fully monitored, but whose Dependabot and GitHub Actions PRs
+# should still appear in the important-repos table. Repos already listed in
+# MONITORED_INTERRUPT_REPOS are skipped during the extra fetch to avoid duplicates.
+BOT_PR_INTERRUPT_REPOS: tuple[str, ...] = (
+    "streamlit/docs",
+    "streamlit/streamlit-pivot-table",
+    "streamlit/streamlit-bokeh",
+    "streamlit/streamlit-pdf",
+    "streamlit/blank-app-template",
 )
 
 # Title prefix of the automated release PRs that bump the version identifiers
@@ -58,6 +67,10 @@ def _issue_row(issue: dict[str, Any], labels: set[str]) -> dict[str, Any]:
         "Author": issue["user"]["login"],
         "Labels": list(labels),
     }
+
+
+def _is_streamlit_repo_pr(pr: dict[str, Any]) -> bool:
+    return f"github.com/{STREAMLIT_REPO}/" in pr.get("html_url", "")
 
 
 def _pr_row(pr: dict[str, Any], labels: set[str], author: str | None) -> dict[str, Any]:
@@ -95,18 +108,22 @@ def get_monitored_repo_open_prs(refresh_nonce: int = 0) -> pd.DataFrame:
     """Fetch open PRs from Streamlit-managed repos that the interrupt rotation should monitor.
 
     Includes every open PR in `MONITORED_INTERRUPT_REPOS`, plus Dependabot and GitHub Actions
-    PRs from `streamlit/docs`.
+    PRs from `BOT_PR_INTERRUPT_REPOS` (repos already fully monitored are not fetched twice).
     """
     rows: list[dict[str, Any]] = []
+    fetched_repos: set[str] = set()
 
     for repo in MONITORED_INTERRUPT_REPOS:
         repo_prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=repo)
         rows.extend(_monitored_pr_row(pr, repo) for pr in repo_prs)
+        fetched_repos.add(repo)
 
-    docs_prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=DOCS_REPO)
-    rows.extend(
-        _monitored_pr_row(pr, DOCS_REPO) for pr in docs_prs if pr.get("user", {}).get("login") in DOCS_BOT_LOGINS
-    )
+    for repo in BOT_PR_INTERRUPT_REPOS:
+        if repo in fetched_repos:
+            continue
+        repo_prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=repo)
+        rows.extend(_monitored_pr_row(pr, repo) for pr in repo_prs if pr.get("user", {}).get("login") in BOT_PR_LOGINS)
+        fetched_repos.add(repo)
 
     monitored_prs = pd.DataFrame(rows)
     if monitored_prs.empty:
@@ -203,7 +220,11 @@ def _build_interrupt_action_items(
 
         # Mirrors the GitHub search `is:pr "[chore] Release" author:app/github-actions is:open`,
         # where `app/github-actions` is the `github-actions[bot]` login in the REST payload.
-        is_release_pr = author == GITHUB_ACTIONS_LOGIN and pr["title"].startswith(RELEASE_PR_TITLE_PREFIX)
+        is_release_pr = (
+            author == GITHUB_ACTIONS_LOGIN
+            and pr["title"].startswith(RELEASE_PR_TITLE_PREFIX)
+            and _is_streamlit_repo_pr(pr)
+        )
         if is_release_pr:
             release_prs.append(
                 {
@@ -212,8 +233,9 @@ def _build_interrupt_action_items(
                     "Created": pr["created_at"],
                 }
             )
-        elif author and author.endswith("[bot]") and "do-not-merge" not in labels:
-            # Dependabot, github-actions, and other bots — release PRs are listed separately above.
+        elif author and author.endswith("[bot]") and "do-not-merge" not in labels and _is_streamlit_repo_pr(pr):
+            # Dependabot, github-actions, and other bots from streamlit/streamlit only.
+            # Release PRs are listed separately above; docs bot PRs are in important repos.
             bot_prs.append(
                 {
                     "Title": pr["title"],
@@ -677,9 +699,11 @@ def get_flaky_tests(since_date: date, min_failures: int = 10, refresh_nonce: int
 
 
 def get_open_bot_prs(refresh_nonce: int = 0) -> pd.DataFrame:
-    """Get open bot PRs (Dependabot, GitHub Actions, etc.) without 'do-not-merge' label.
+    """Get open bot PRs from `streamlit/streamlit` without 'do-not-merge' label.
 
     Automated release PRs are excluded; use `get_open_release_prs` for those.
+    Dependabot and GitHub Actions PRs from other Streamlit repos appear in the
+    important-repos table instead.
     """
     data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
     return data["open_bot_prs"].copy()

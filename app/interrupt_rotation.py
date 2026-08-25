@@ -10,6 +10,7 @@ from app.utils.github_utils import (
     EXPECTED_FLAKY_TESTS,
 )
 from app.utils.interrupt_data import (
+    BOT_PR_INTERRUPT_REPOS,
     MONITORED_INTERRUPT_REPOS,
     build_interrupt_action_items,
     get_bundle_size_metrics,
@@ -381,9 +382,10 @@ and merged.
         st.subheader(
             "Open bot PRs",
             help="""
-Lists all open PRs from bots (Dependabot, GitHub Actions, etc.), excluding automated release PRs
-which have their own section above. Please try to review and merge these PRs if it requires no or
-only minor changes.
+Lists all open PRs from bots (Dependabot, GitHub Actions, etc.) in `streamlit/streamlit`, excluding
+automated release PRs which have their own section above. Please try to review and merge these PRs
+if it requires no or only minor changes. Dependabot and GitHub Actions PRs from other Streamlit
+repos such as `streamlit/docs` are listed under Open PRs in important repos instead.
 
 For Dependabot dependency updates:
 - In some cases, the PR will require manually updating the `NOTICES` file by checking out the dependency PR, running `yarn install` in `frontend`, and running `make update-notices` from repo root.
@@ -472,6 +474,11 @@ marker as a last resort.
 @st.fragment(parallel=True)
 def render_monitored_repo_prs(selected_refresh_nonce: int) -> None:
     monitored_repos_help = "\n".join(f"- `{repo}`" for repo in MONITORED_INTERRUPT_REPOS)
+    bot_only_repos_help = "\n".join(
+        f"- `{repo}` (Dependabot and GitHub Actions PRs only)"
+        for repo in BOT_PR_INTERRUPT_REPOS
+        if repo not in MONITORED_INTERRUPT_REPOS
+    )
     st.subheader(
         "Open PRs in important repos",
         help=(
@@ -483,9 +490,7 @@ def render_monitored_repo_prs(selected_refresh_nonce: int) -> None:
             "If any PR shown in this view should really be tracked as a GitHub issue in "
             "`streamlit/streamlit` instead, close the PR (or move it back to draft) and ask the "
             "user to open an issue or feature request in `streamlit/streamlit`.\n\n"
-            "Monitored repos:\n"
-            + monitored_repos_help
-            + "\n- `streamlit/docs` (Dependabot and GitHub Actions PRs only)"
+            "Monitored repos:\n" + monitored_repos_help + ("\n" + bot_only_repos_help if bot_only_repos_help else "")
         ),
     )
     with st.skeleton(height=200):
