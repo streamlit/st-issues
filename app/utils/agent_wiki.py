@@ -211,7 +211,7 @@ def build_wiki_documents(paths: list[str]) -> list[WikiDocument]:
     return documents
 
 
-@st.cache_data(ttl=60 * 10, show_spinner=False)
+@st.cache_data(ttl=60 * 10, show_spinner=False, refresh_mode="background")
 def get_synced_wiki_repo_path() -> tuple[str | None, str | None]:
     repo_dir = WIKI_LOCAL_REPO_DIR
 
@@ -233,7 +233,7 @@ def get_synced_wiki_repo_path() -> tuple[str | None, str | None]:
     return str(repo_dir), None
 
 
-@st.cache_data(ttl=60 * 10, show_spinner=False)
+@st.cache_data(ttl=60 * 10, show_spinner=False, refresh_mode="background")
 def fetch_wiki_documents() -> tuple[list[WikiDocument], str | None]:
     repo_path, error = get_synced_wiki_repo_path()
     if error or repo_path is None:
@@ -252,7 +252,7 @@ def build_wiki_tree_url(path: str) -> str:
     return f"{WIKI_TREE_URL_PREFIX}/{quote(path, safe='/')}"
 
 
-@st.cache_data(ttl=60 * 10, show_spinner=False)
+@st.cache_data(ttl=60 * 10, show_spinner=False, refresh_mode="background")
 def fetch_wiki_issue_repros() -> tuple[dict[int, WikiIssueRepro], str | None]:
     """Return runnable issue reproductions published in the agent wiki.
 
@@ -309,7 +309,7 @@ def get_wiki_document_local_path(path: str) -> tuple[str | None, str | None]:
     return str(document_path), None
 
 
-@st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False, refresh_mode="background")
 def fetch_wiki_document_text(path: str) -> tuple[str | None, str | None]:
     local_path, error = get_wiki_document_local_path(path)
     if error or local_path is None:

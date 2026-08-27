@@ -39,7 +39,7 @@ if not st.session_state.run_id:
     st.stop()
 
 
-@st.cache_data(ttl=60 * 60 * 12)
+@st.cache_data(ttl=60 * 60 * 12, refresh_mode="background")
 def get_and_extract_performance_for_run(run_id: str | int) -> dict:
     artifacts = {"artifacts": fetch_artifacts(int(run_id))}
 

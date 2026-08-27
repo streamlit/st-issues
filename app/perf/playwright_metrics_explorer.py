@@ -40,13 +40,13 @@ def render_metrics_explorer() -> None:
         "phases": get_phases_for_all_profiles(json_file_as_dict),
     }
 
-    @st.cache_data(ttl=60 * 60 * 12)
+    @st.cache_data(ttl=60 * 60 * 12, refresh_mode="background")
     def get_json_data(the_file: Any) -> dict:
         return json.load(the_file)
 
     data = get_json_data(json_file)
 
-    @st.cache_data(ttl=60 * 60 * 12)
+    @st.cache_data(ttl=60 * 60 * 12, refresh_mode="background")
     def get_gantt_data(the_data: dict) -> dict:
         timestamp_parsed = datetime.datetime.strptime(json_file.name.split("_")[0], "%Y%m%d%H%M%S")
 

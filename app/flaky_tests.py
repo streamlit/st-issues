@@ -53,7 +53,7 @@ def extract_playwright_test_name(annotation: dict[str, Any]) -> str | None:
     return f"{path.replace('e2e_playwright/', '')}::{message.split('\n\n', maxsplit=1)[0]}"
 
 
-@st.cache_data(ttl=60 * 60 * 6, max_entries=1024, show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 6, max_entries=1024, show_spinner=False, refresh_mode="background")
 def fetch_check_suite_playwright_tests(check_suite_id: str) -> list[str]:
     """Fetch all Playwright test names attached to a check suite."""
     test_names: list[str] = []

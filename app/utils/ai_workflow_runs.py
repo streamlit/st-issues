@@ -226,7 +226,7 @@ def _fetch_runs_for_status(
     return summarized, last_error
 
 
-@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching AI workflow runs...")
+@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching AI workflow runs...", refresh_mode="background")
 def fetch_ai_workflow_runs() -> tuple[list[dict[str, Any]], list[str]]:
     """Fetch completed AI PR review, QA, and issue-triage workflow runs."""
     headers = get_headers()

@@ -174,7 +174,7 @@ class _PullRequestFilesPayloadFetcher(Protocol):
     clear: Callable[..., None]
 
 
-@st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False, refresh_mode="background")
 def fetch_issue_payload(repo: str, issue_number: int | str) -> tuple[dict[str, Any] | None, str | None]:
     """Fetch issue payload and return (data, error_message)."""
     payload, error, status = _request_json(
@@ -189,7 +189,7 @@ def fetch_issue_payload(repo: str, issue_number: int | str) -> tuple[dict[str, A
     return cast("dict[str, Any]", payload), None
 
 
-@st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=60 * 10, max_entries=256, show_spinner=False, refresh_mode="background")
 def _fetch_issue_comments_payload_cached(repo: str, issue_number: int | str) -> list[dict[str, Any]]:
     """Fetch all issue comments, raising if a later page fails."""
     comments: list[dict[str, Any]] = []
@@ -237,7 +237,7 @@ class _IssueCommentsPayloadFetcher:
 fetch_issue_comments_payload = _IssueCommentsPayloadFetcher()
 
 
-@st.cache_data(ttl=60 * 60, max_entries=1024, show_spinner=False)
+@st.cache_data(ttl=60 * 60, max_entries=1024, show_spinner=False, refresh_mode="background")
 def _fetch_issue_reactions_cached(repo: str, issue_number: int) -> list[dict[str, Any]]:
     """Fetch all issue reactions, raising if a later page fails."""
     reactions: list[dict[str, Any]] = []
@@ -285,7 +285,7 @@ class _IssueReactionsFetcher:
 fetch_issue_reactions = _IssueReactionsFetcher()
 
 
-@st.cache_data(ttl=60 * 60, max_entries=2048, show_spinner=False)
+@st.cache_data(ttl=60 * 60, max_entries=2048, show_spinner=False, refresh_mode="background")
 def fetch_github_user_profile(username: str) -> tuple[dict[str, Any] | None, str | None]:
     """Fetch a GitHub user profile by login."""
     if not username:
@@ -303,7 +303,7 @@ def fetch_github_user_profile(username: str) -> tuple[dict[str, Any] | None, str
     return cast("dict[str, Any]", payload), None
 
 
-@st.cache_data(ttl=60 * 60, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=60 * 60, max_entries=256, show_spinner=False, refresh_mode="background")
 def fetch_github_user_profiles(usernames: tuple[str, ...]) -> tuple[dict[str, dict[str, Any] | None], list[str]]:
     """Fetch user profiles for a set of usernames with one request per unique login."""
     profiles: dict[str, dict[str, Any] | None] = {}
@@ -316,7 +316,7 @@ def fetch_github_user_profiles(usernames: tuple[str, ...]) -> tuple[dict[str, di
     return profiles, errors
 
 
-@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False, refresh_mode="background")
 def fetch_pull_request_payload(repo: str, pr_number: int) -> tuple[dict[str, Any] | None, str | None]:
     """Fetch pull request details and return (data, error_message)."""
     payload, error, status = _request_json(
@@ -331,7 +331,7 @@ def fetch_pull_request_payload(repo: str, pr_number: int) -> tuple[dict[str, Any
     return cast("dict[str, Any]", payload), None
 
 
-@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False, refresh_mode="background")
 def _fetch_pull_request_files_payload_cached(repo: str, pr_number: int) -> list[dict[str, Any]]:
     """Fetch all changed files for a pull request, raising on later-page failures."""
     files: list[dict[str, Any]] = []
@@ -372,7 +372,7 @@ fetch_pull_request_files_payload = cast("_PullRequestFilesPayloadFetcher", _fetc
 fetch_pull_request_files_payload.clear = _fetch_pull_request_files_payload_cached.clear
 
 
-@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False, refresh_mode="background")
 def fetch_repo_file_text_at_ref(repo: str, path: str, ref: str) -> tuple[str | None, str | None]:
     """Fetch text content for a repository file at a specific ref."""
     payload, error, status = _request_json(
@@ -396,7 +396,7 @@ def fetch_repo_file_text_at_ref(repo: str, path: str, ref: str) -> tuple[str | N
         return None, f"Failed decoding content for {path}: {exc!s}"
 
 
-@st.cache_data(ttl=60 * 60 * 12, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 12, max_entries=128, show_spinner=False, refresh_mode="background")
 def _fetch_issue_view_counts_cached(issue_numbers: tuple[int, ...]) -> dict[int, int | None]:
     """Fetch view counts from views-badge.org in batches, raising on any batch failure."""
     unique_issues = sorted(set(issue_numbers))
@@ -476,7 +476,7 @@ class _IssueViewCountsFetcher:
 fetch_issue_view_counts = _IssueViewCountsFetcher()
 
 
-@st.cache_data(ttl=60 * 5)  # cache for 5 minutes
+@st.cache_data(ttl=60 * 5, refresh_mode="background")  # cache for 5 minutes
 def get_issue_data(repo: str, issue_number: str) -> dict[str, Any] | None:
     """Fetch issue data from GitHub API.
 
@@ -521,7 +521,7 @@ def extract_issue_metadata(issue_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-@st.cache_data(ttl=60 * 5)  # cache for 5 minutes
+@st.cache_data(ttl=60 * 5, refresh_mode="background")  # cache for 5 minutes
 def get_issue_comments(repo: str, issue_number: str) -> list[dict[str, Any]] | None:
     """Fetch comments for a GitHub issue.
 
@@ -636,7 +636,7 @@ def load_issue_data() -> bool:
         return False
 
 
-@st.cache_data(ttl=60 * 15, max_entries=24)  # cache for 15 minutes
+@st.cache_data(ttl=60 * 15, max_entries=24, refresh_mode="background")  # cache for 15 minutes
 def get_all_github_issues(
     state: Literal["open", "closed", "all"] = "all",
     refresh_nonce: int = 0,
@@ -682,7 +682,7 @@ def get_all_github_issues(
     return issues
 
 
-@st.cache_data(ttl=60 * 15, max_entries=128)  # cache for 15 minutes
+@st.cache_data(ttl=60 * 15, max_entries=128, refresh_mode="background")  # cache for 15 minutes
 def get_all_github_prs(
     state: Literal["open", "closed", "all"] = "all",
     refresh_nonce: int = 0,
@@ -889,7 +889,9 @@ def _workflow_run_matches(
     return wanted in {conclusion, run_status}
 
 
-@st.cache_data(ttl=60 * 60 * 24, show_spinner="Fetching workflow runs...")  # cache for 24 hours
+@st.cache_data(
+    ttl=60 * 60 * 24, show_spinner="Fetching workflow runs...", refresh_mode="background"
+)  # cache for 24 hours
 def fetch_workflow_runs(
     workflow_name: str,
     limit: int = 50,
@@ -962,7 +964,7 @@ def fetch_workflow_runs(
     return matching_runs[:limit]
 
 
-@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner="Fetching artifacts...")
+@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner="Fetching artifacts...", refresh_mode="background")
 def fetch_artifacts(run_id: int) -> list[dict[str, Any]]:
     """Fetch artifacts for a specific workflow run."""
     try:
@@ -982,7 +984,7 @@ def fetch_artifacts(run_id: int) -> list[dict[str, Any]]:
         return []
 
 
-@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False, refresh_mode="background")
 def download_artifact(artifact_url: str) -> bytes | None:
     """Download an artifact from GitHub Actions."""
     try:
@@ -1066,7 +1068,7 @@ def fetch_pr_info(pr_number: str) -> dict[str, Any] | None:
         return None
 
 
-@st.cache_data(ttl=60 * 60 * 3, show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 3, show_spinner=False, refresh_mode="background")
 def fetch_pr_reviews(pr_number: int) -> list[dict[str, Any]]:
     """Fetch all reviews for a given PR."""
     reviews: list[dict[str, Any]] = []
@@ -1121,7 +1123,7 @@ def fetch_workflow_runs_for_commit(commit_sha: str, workflow_name: str) -> list[
         return []
 
 
-@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False, refresh_mode="background")
 def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
     annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-runs/{check_run_id}/annotations"
     response = requests.get(annotations_url, headers=get_headers(), timeout=30)
@@ -1132,7 +1134,7 @@ def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
     return []
 
 
-@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False, refresh_mode="background")
 def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
     annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-suites/{check_suite_id}/check-runs"
     response = requests.get(annotations_url, headers=get_headers(), timeout=30)
@@ -1145,7 +1147,7 @@ def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
     return []
 
 
-@st.cache_data(ttl=60 * 60 * 6)  # cache for 6 hours
+@st.cache_data(ttl=60 * 60 * 6, refresh_mode="background")  # cache for 6 hours
 def get_count_issues_commented_by_user(username: str, _repo: str = "streamlit/streamlit") -> int:
     """Get the number of issues commented on by a user."""
     headers = get_headers()

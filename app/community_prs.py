@@ -20,7 +20,7 @@ st.set_page_config(
 
 
 # Helper to fetch the user who merged a PR (cached)
-@st.cache_data(ttl=60 * 60 * 24, show_spinner=False)
+@st.cache_data(ttl=60 * 60 * 24, show_spinner=False, refresh_mode="background")
 def get_merged_by_login(pr_number: int) -> str | None:
     pr_info = fetch_pr_info(str(pr_number))
     if not pr_info:

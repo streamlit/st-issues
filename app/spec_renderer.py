@@ -34,7 +34,7 @@ def filter_spec_prs(prs: list[dict]) -> list[dict]:
     return spec_prs
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=600, refresh_mode="background")
 def fetch_merged_specs() -> list[dict]:
     """Fetch list of merged spec folders from the specs directory on develop branch."""
     url = "https://api.github.com/repos/streamlit/streamlit/contents/specs"
@@ -75,7 +75,7 @@ def fetch_merged_spec_content(spec_path: str) -> tuple[str | None, str | None]:
     return fetch_repo_file_text_at_ref("streamlit/streamlit", spec_path, "develop")
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300, refresh_mode="background")
 def fetch_pr_files(pr_number: int) -> tuple[list[dict], str | None]:
     """Fetch files changed in a PR."""
     return fetch_pull_request_files_payload("streamlit/streamlit", pr_number)

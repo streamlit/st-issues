@@ -56,6 +56,7 @@ def get_git_fame_stats() -> dict:
 @st.cache_data(
     ttl=60 * 60 * 72,
     show_spinner="Fetching PR metrics (this may take a couple of minutes)...",
+    refresh_mode="background",
 )
 def fetch_pr_metrics(merged_since: date, merged_until: date | None = None) -> pd.DataFrame:
     return fetch_merged_pr_metrics(merged_since=merged_since, merged_until=merged_until)

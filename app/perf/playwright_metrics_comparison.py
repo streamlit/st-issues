@@ -16,7 +16,7 @@ st.set_page_config(page_title=TITLE)
 st.header(TITLE)
 
 
-@st.cache_data(ttl=60 * 60 * 12)
+@st.cache_data(ttl=60 * 60 * 12, refresh_mode="background")
 def get_metrics_data(all_phases: list, file_1_calculations: dict, file_2_calculations: dict) -> pd.DataFrame:
     # Create a DataFrame for the metrics
     metrics_data: dict[str, list] = {

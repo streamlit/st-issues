@@ -334,7 +334,7 @@ def _incremental_cache_path(base_branch: str) -> Path:
     return cache_dir / "merged_prs.parquet"
 
 
-@st.cache_data(ttl=60 * 60 * 24, show_spinner="Loading merged PR metrics via GraphQL...")
+@st.cache_data(ttl=60 * 60 * 24, show_spinner="Loading merged PR metrics via GraphQL...", refresh_mode="background")
 def fetch_merged_pr_metrics(
     repo: str = "streamlit/streamlit",
     base_branch: str = "develop",

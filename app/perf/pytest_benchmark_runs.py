@@ -51,12 +51,12 @@ reset_selection_on_page_change("perf_pytest_runs")
 render_selected_commit_sidebar()
 
 
-@st.cache_data(ttl=60 * 60 * 12)
+@st.cache_data(ttl=60 * 60 * 12, refresh_mode="background")
 def get_commits(branch_name: str, limit: int = 50) -> list[str]:
     return get_commit_hashes_for_branch_name(branch_name, limit=limit)
 
 
-@st.cache_data(ttl=60 * 60 * 12)
+@st.cache_data(ttl=60 * 60 * 12, refresh_mode="background")
 def get_pytest_results(commit_hash: str) -> tuple:
     return get_artifact_results(commit_hash, "pytest")
 

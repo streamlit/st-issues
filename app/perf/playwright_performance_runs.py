@@ -59,12 +59,12 @@ reset_selection_on_page_change("perf_playwright_runs")
 render_selected_commit_sidebar()
 
 
-@st.cache_data(ttl=60 * 60 * 12)
+@st.cache_data(ttl=60 * 60 * 12, refresh_mode="background")
 def get_commits(branch_name: str, until_date: str | None = None, limit: int = 50) -> list[str]:
     return get_commit_hashes_for_branch_name(branch_name, limit=limit, until_date=until_date)
 
 
-@st.cache_data(ttl=60 * 60 * 12)
+@st.cache_data(ttl=60 * 60 * 12, refresh_mode="background")
 def get_everything_by_hash(commit_hash: str, load_all_metrics: bool) -> tuple:
     return get_artifact_results(commit_hash, "playwright", load_all_metrics=load_all_metrics)
 

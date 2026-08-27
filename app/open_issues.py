@@ -61,7 +61,7 @@ def worth_working_on_category(label_names: list[str]) -> int:
     return 1
 
 
-@st.cache_data(ttl=60 * 60 * 72, show_spinner=False)  # 3 days
+@st.cache_data(ttl=60 * 60 * 72, show_spinner=False, refresh_mode="background")  # 3 days
 def get_issue_reactions(issue_number: int) -> pd.DataFrame:
     reactions, error = fetch_issue_reactions("streamlit/streamlit", issue_number)
     if error:

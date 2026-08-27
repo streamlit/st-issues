@@ -95,7 +95,7 @@ def _monitored_pr_row(pr: dict[str, Any], repo: str) -> dict[str, Any]:
     }
 
 
-@st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False)
+@st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False, refresh_mode="background")
 def get_interrupt_data_snapshot(refresh_nonce: int = 0) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Fetch the open issue/PR snapshot used by the Interrupt Rotation page."""
     issues = get_all_github_issues(state="open", refresh_nonce=refresh_nonce)
@@ -103,7 +103,7 @@ def get_interrupt_data_snapshot(refresh_nonce: int = 0) -> tuple[list[dict[str, 
     return issues, prs
 
 
-@st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False)
+@st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False, refresh_mode="background")
 def get_monitored_repo_open_prs(refresh_nonce: int = 0) -> pd.DataFrame:
     """Fetch open PRs from Streamlit-managed repos that the interrupt rotation should monitor.
 
@@ -303,14 +303,16 @@ def _build_interrupt_action_items(
     }
 
 
-@st.cache_data(ttl=60 * 5, max_entries=64, show_spinner=False)
+@st.cache_data(ttl=60 * 5, max_entries=64, show_spinner=False, refresh_mode="background")
 def build_interrupt_action_items(since_date: date, refresh_nonce: int = 0) -> dict[str, pd.DataFrame]:
     """Build all interrupt action-item tables from a shared issue/PR snapshot."""
     issues, prs = get_interrupt_data_snapshot(refresh_nonce=refresh_nonce)
     return _build_interrupt_action_items(issues=issues, prs=prs, since_date=since_date)
 
 
-@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching python test coverage...")  # cache for 6 hours
+@st.cache_data(
+    ttl=60 * 60 * 6, show_spinner="Fetching python test coverage...", refresh_mode="background"
+)  # cache for 6 hours
 def get_python_test_coverage_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[float, float]:
     """Get the python test coverage and the change over a period."""
     _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
@@ -348,7 +350,9 @@ def get_python_test_coverage_metrics(since_date: date, refresh_nonce: int = 0) -
     return latest_coverage, latest_coverage - oldest_coverage
 
 
-@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching frontend test coverage...")  # cache for 6 hours
+@st.cache_data(
+    ttl=60 * 60 * 6, show_spinner="Fetching frontend test coverage...", refresh_mode="background"
+)  # cache for 6 hours
 def get_frontend_test_coverage_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[float, float]:
     """Get the frontend test coverage and the change over a period."""
     _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
@@ -389,7 +393,7 @@ def get_frontend_test_coverage_metrics(since_date: date, refresh_nonce: int = 0)
     return latest_coverage, latest_coverage - oldest_coverage
 
 
-@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching wheel size...")  # cache for 6 hours
+@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching wheel size...", refresh_mode="background")  # cache for 6 hours
 def get_wheel_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[int, int]:
     """Get the wheel size and the change over a period."""
     _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
@@ -419,7 +423,9 @@ def get_wheel_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[in
     return latest_size, latest_size - oldest_size
 
 
-@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching bundle size metrics...")  # cache for 6 hours
+@st.cache_data(
+    ttl=60 * 60 * 6, show_spinner="Fetching bundle size metrics...", refresh_mode="background"
+)  # cache for 6 hours
 def get_bundle_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[int, int, int, int]:
     """Get the total and entry gzip size and the change over a period.
 
@@ -482,7 +488,9 @@ def get_bundle_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[i
     )
 
 
-@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching Playwright test count...")  # cache for 6 hours
+@st.cache_data(
+    ttl=60 * 60 * 6, show_spinner="Fetching Playwright test count...", refresh_mode="background"
+)  # cache for 6 hours
 def get_playwright_test_count_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[int, int]:
     """Get the Playwright E2E test count and the change over a period."""
     _ = refresh_nonce
@@ -551,7 +559,7 @@ def get_bug_metrics(since_date: date) -> tuple[int, int]:
     return open_bugs, closed_bugs_in_period
 
 
-@st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False)
+@st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False, refresh_mode="background")
 def get_reported_bugs(since_date: date, refresh_nonce: int = 0) -> pd.DataFrame:
     """Get all bugs (`type:bug`) reported in the given timeframe, regardless of state.
 
@@ -657,7 +665,7 @@ def get_confirmed_bugs_without_repro_script(since_date: date, refresh_nonce: int
     return data["confirmed_bugs_without_repro"].copy()
 
 
-@st.cache_data(ttl=60 * 60 * 6, show_spinner=False)  # cache for 6 hours
+@st.cache_data(ttl=60 * 60 * 6, show_spinner=False, refresh_mode="background")  # cache for 6 hours
 def get_flaky_tests(since_date: date, min_failures: int = 10, refresh_nonce: int = 0) -> pd.DataFrame:
     """Get flaky tests with >= min_failures."""
     _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.

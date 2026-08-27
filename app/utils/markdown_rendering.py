@@ -36,7 +36,7 @@ def _get_optional_github_headers() -> dict[str, str]:
     return headers
 
 
-@st.cache_data(ttl=300, max_entries=512, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=512, show_spinner=False, refresh_mode="background")
 def fetch_issue_preview_details(repo: str, issue_number: int) -> tuple[IssuePreviewDetails | None, str | None]:
     """Fetch issue details used for markdown issue previews."""
     try:
