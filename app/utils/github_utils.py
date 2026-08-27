@@ -889,6 +889,31 @@ def _workflow_run_matches(
     return wanted in {conclusion, run_status}
 
 
+@st.cache_data(ttl=60 * 10, max_entries=32, show_spinner=False, refresh_mode="background")
+def fetch_commit_shas(branch: str = "develop", limit: int = 10, refresh_nonce: int = 0) -> list[str]:
+    """Fetch the newest commit SHAs for a branch, newest first."""
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
+    payload, error, _status = _request_json(
+        "https://api.github.com/repos/streamlit/streamlit/commits",
+        params={"sha": branch, "per_page": min(limit, 100)},
+    )
+    if error:
+        st.error(error)
+        return []
+    if not isinstance(payload, list):
+        st.error(f"Unexpected commits payload for {branch}.")
+        return []
+
+    shas: list[str] = []
+    for commit in payload:
+        if not isinstance(commit, dict):
+            continue
+        sha = commit.get("sha")
+        if isinstance(sha, str) and sha:
+            shas.append(sha)
+    return shas
+
+
 @st.cache_data(
     ttl=60 * 60 * 24, show_spinner="Fetching workflow runs...", refresh_mode="background"
 )  # cache for 24 hours

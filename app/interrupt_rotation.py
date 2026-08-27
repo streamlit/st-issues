@@ -11,9 +11,12 @@ from app.utils.github_utils import (
 )
 from app.utils.interrupt_data import (
     BOT_PR_INTERRUPT_REPOS,
+    DEVELOP_COMMIT_WINDOW,
     MONITORED_INTERRUPT_REPOS,
+    TEST_CI_WORKFLOWS,
     build_interrupt_action_items,
     get_bundle_size_metrics,
+    get_ci_failing_test_run_metrics,
     get_confirmed_bugs_without_repro_script,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
@@ -42,6 +45,8 @@ FRONTEND_COVERAGE_WARNING_PCT = 94.0
 WHEEL_SIZE_WARNING_BYTES = 12 * 1024 * 1024
 TOTAL_BUNDLE_WARNING_BYTES = 10 * 1024 * 1024
 ENTRY_BUNDLE_WARNING_BYTES = 500 * 1024
+CI_FAILING_TEST_WARNING_PCT = 50.0
+FLAKY_TEST_MIN_FAILURES = 5
 
 
 def _metric_value(value: str, *, warn: bool) -> str:
@@ -160,6 +165,36 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             delta_color="off",
             border=True,
             help="Total number of Playwright E2E tests (across all browsers).",
+        )
+
+
+@st.fragment(parallel=True)
+def render_ci_failing_test_metric(selected_refresh_nonce: int) -> None:
+    """Render the share of recent develop test CI runs that had a failing test."""
+    col1, *_ = st.columns(3)
+    with col1, st.skeleton(height=110):
+        failing_pct, failing_runs, total_runs, run_flags = get_ci_failing_test_run_metrics(
+            refresh_nonce=selected_refresh_nonce,
+        )
+        failing_pct_warn = total_runs > 0 and failing_pct >= CI_FAILING_TEST_WARNING_PCT
+        workflow_labels = ", ".join(f"`{name}`" for name in TEST_CI_WORKFLOWS)
+        st.metric(
+            "CI Runs With a Failing Test",
+            _metric_value(f"{failing_pct:.0f}%", warn=failing_pct_warn),
+            f"{failing_runs}/{total_runs} runs",
+            delta_color="off",
+            border=True,
+            icon=_metric_icon(warn=failing_pct_warn),
+            chart_data=run_flags or None,
+            chart_type="bar",
+            help=(
+                "Percentage of Python, frontend, and Playwright test CI runs for the last "
+                f"{DEVELOP_COMMIT_WINDOW} commits to `develop` that had at least one failing "
+                "test. Playwright runs that later passed still count if a test failed on a "
+                "prior attempt. This uses the latest completed run of "
+                f"{workflow_labels} per commit and ignores the timeframe selector. "
+                f"A warning is shown when the rate is at or above {CI_FAILING_TEST_WARNING_PCT:.0f}%."
+            ),
         )
 
 
@@ -473,9 +508,9 @@ For Dependabot dependency updates:
 @st.fragment(parallel=True)
 def render_flaky_tests(selected_since: date, selected_refresh_nonce: int) -> None:
     st.subheader(
-        "Flaky tests with ≥ 10 failures",
-        help="""
-Lists flaky tests with ≥ 10 failures in the selected timeframe.
+        f"Flaky tests with ≥ {FLAKY_TEST_MIN_FAILURES} failures",
+        help=f"""
+Lists flaky tests with ≥ {FLAKY_TEST_MIN_FAILURES} failures in the selected timeframe.
 
 Please try to investigate and stabilize these tests or add a `@pytest.mark.flaky(reruns=3)`
 marker as a last resort.
@@ -484,7 +519,7 @@ marker as a last resort.
     with st.skeleton(height=200):
         flaky_tests_df = get_flaky_tests(
             selected_since,
-            min_failures=10,
+            min_failures=FLAKY_TEST_MIN_FAILURES,
             refresh_nonce=selected_refresh_nonce,
         )
         # Always hide expected flaky tests
@@ -775,6 +810,7 @@ refresh_nonce = st.session_state.interrupt_refresh_nonce
 # snapshot, CI-artifact downloads, flaky-test annotations, and monitored-repo PR
 # fetches overlap instead of running one after another on the main thread.
 render_ci_metrics(since, refresh_nonce)
+render_ci_failing_test_metric(refresh_nonce)
 
 with st.expander("Helpful processes", icon=":material/menu_book:"):
     st.markdown("""

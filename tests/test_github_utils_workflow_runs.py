@@ -222,3 +222,25 @@ def test_fetch_workflow_runs_without_branch_keeps_other_heads(monkeypatch: Monke
     runs = github_utils.fetch_workflow_runs("playwright.yml", limit=10, branch=None, status="success")
 
     assert [run["id"] for run in runs] == [1, 2]
+
+
+def test_fetch_commit_shas_returns_newest_first(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_commit_shas.clear()
+    captured: dict[str, object] = {}
+
+    def fake_request_json(url: str, *, params: dict[str, object] | None = None, **_kwargs):
+        captured["url"] = url
+        captured["params"] = params
+        return (
+            [{"sha": "aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, {"sha": "bbb2222"}, {"not": "a-commit"}],
+            None,
+            200,
+        )
+
+    monkeypatch.setattr(github_utils, "_request_json", fake_request_json)
+
+    shas = github_utils.fetch_commit_shas(branch="develop", limit=10, refresh_nonce=3)
+
+    assert shas == ["aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbb2222"]
+    assert captured["url"] == "https://api.github.com/repos/streamlit/streamlit/commits"
+    assert captured["params"] == {"sha": "develop", "per_page": 10}

@@ -20,6 +20,7 @@ from app.utils.agent_wiki import fetch_wiki_issue_repros
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
+    fetch_commit_shas,
     fetch_workflow_run_annotations,
     fetch_workflow_runs,
     fetch_workflow_runs_ids,
@@ -57,6 +58,16 @@ BOT_PR_INTERRUPT_REPOS: tuple[str, ...] = (
 # Title prefix of the automated release PRs that bump the version identifiers
 # (for example "[chore] Release v1.61.0").
 RELEASE_PR_TITLE_PREFIX = "[chore] Release"
+
+# Test workflows used for the "CI runs with a failing test" interrupt metric.
+# One latest completed run per commit is counted for each of these workflows.
+DEVELOP_COMMIT_WINDOW = 10
+TEST_CI_WORKFLOWS: tuple[str, ...] = (
+    "python-tests.yml",
+    "js-tests.yml",
+    "playwright.yml",
+)
+_COMPLETED_TEST_CONCLUSIONS: frozenset[str] = frozenset({"success", "failure"})
 
 
 def _issue_row(issue: dict[str, Any], labels: set[str]) -> dict[str, Any]:
@@ -488,6 +499,163 @@ def get_bundle_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[i
     )
 
 
+@st.cache_data(ttl=60 * 60 * 6, max_entries=64, show_spinner=False, refresh_mode="background")
+def _load_playwright_test_stats(run_id: int) -> dict[str, Any] | None:
+    """Download and parse the Playwright test-stats JSON for a workflow run."""
+    artifacts = fetch_artifacts(run_id)
+    artifact = next((a for a in artifacts if a["name"].startswith("playwright_test_stats")), None)
+    if not artifact:
+        return None
+    content = download_artifact(artifact["archive_download_url"])
+    if not content:
+        return None
+    try:
+        with ZipFile(BytesIO(content)) as z:
+            for name in z.namelist():
+                if name.endswith(".json"):
+                    with z.open(name) as f:
+                        data = json.load(f)
+                        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+    return None
+
+
+def _latest_completed_runs_for_commits(
+    workflow_runs: list[dict[str, Any]],
+    commit_shas: list[str],
+) -> list[dict[str, Any]]:
+    """Return the newest completed success/failure run for each commit, in commit order.
+
+    `workflow_runs` must be newest-first. Commits with no eligible run are omitted.
+    """
+    sha_set = set(commit_shas)
+    latest_by_sha: dict[str, dict[str, Any]] = {}
+    for run in workflow_runs:
+        sha = run.get("head_sha")
+        if not isinstance(sha, str) or sha not in sha_set:
+            continue
+        if run.get("status") != "completed":
+            continue
+        if run.get("conclusion") not in _COMPLETED_TEST_CONCLUSIONS:
+            continue
+        if sha not in latest_by_sha:
+            latest_by_sha[sha] = run
+    return [latest_by_sha[sha] for sha in commit_shas if sha in latest_by_sha]
+
+
+def _playwright_stats_indicate_failing_test(stats: dict[str, Any] | None) -> bool | None:
+    """Return whether Playwright stats show a failing test, or None if stats are missing."""
+    if not stats:
+        return None
+    summary = stats.get("summary") or {}
+    return (
+        int(summary.get("failed", 0) or 0) > 0
+        or int(summary.get("errors", 0) or 0) > 0
+        or int(summary.get("tests_with_reruns", 0) or 0) > 0
+    )
+
+
+def _run_had_failing_test(
+    run: dict[str, Any],
+    *,
+    playwright_stats: dict[str, Any] | None = None,
+) -> bool:
+    """Return whether a test workflow run had at least one failing test.
+
+    Playwright uses the test-stats artifact when present so retries still count.
+    Other workflows (and Playwright runs without stats) use the run conclusion.
+    """
+    if run.get("_workflow") == "playwright.yml":
+        indicated = _playwright_stats_indicate_failing_test(playwright_stats)
+        if indicated is not None:
+            return indicated
+    return run.get("conclusion") == "failure"
+
+
+def _compute_ci_failing_test_run_metrics(
+    commit_shas: list[str],
+    runs_by_workflow: dict[str, list[dict[str, Any]]],
+    playwright_stats_by_run_id: dict[int, dict[str, Any] | None],
+) -> tuple[float, int, int, list[int]]:
+    """Compute the failing-test rate across test CI runs for the given commits.
+
+    Returns (percentage, failing_run_count, total_run_count, per-run flags oldest-first).
+    """
+    runs: list[dict[str, Any]] = []
+    for workflow_name in TEST_CI_WORKFLOWS:
+        selected = _latest_completed_runs_for_commits(
+            runs_by_workflow.get(workflow_name, []),
+            commit_shas,
+        )
+        runs.extend({**run, "_workflow": workflow_name} for run in selected)
+
+    commit_index = {sha: index for index, sha in enumerate(commit_shas)}
+    workflow_index = {name: index for index, name in enumerate(TEST_CI_WORKFLOWS)}
+    runs.sort(
+        key=lambda run: (
+            -commit_index.get(run["head_sha"], 0),
+            workflow_index.get(run["_workflow"], 99),
+        )
+    )
+
+    flags = [
+        1
+        if _run_had_failing_test(
+            run,
+            playwright_stats=playwright_stats_by_run_id.get(run["id"]),
+        )
+        else 0
+        for run in runs
+    ]
+    total = len(flags)
+    if total == 0:
+        return 0.0, 0, 0, []
+    failing = sum(flags)
+    return 100.0 * failing / total, failing, total, flags
+
+
+@st.cache_data(
+    ttl=60 * 60 * 6, show_spinner="Fetching CI failing-test rate...", refresh_mode="background"
+)  # cache for 6 hours
+def get_ci_failing_test_run_metrics(refresh_nonce: int = 0) -> tuple[float, int, int, list[int]]:
+    """Get the share of test CI runs with at least one failing test on recent develop commits.
+
+    Looks at the latest completed Python, frontend, and Playwright test runs for each of
+    the last `DEVELOP_COMMIT_WINDOW` commits to `develop`.
+    """
+    commit_shas = fetch_commit_shas(
+        branch="develop",
+        limit=DEVELOP_COMMIT_WINDOW,
+        refresh_nonce=refresh_nonce,
+    )
+    if not commit_shas:
+        return 0.0, 0, 0, []
+
+    runs_by_workflow = {
+        workflow_name: fetch_workflow_runs(
+            workflow_name,
+            limit=50,
+            branch="develop",
+            status=None,
+        )
+        for workflow_name in TEST_CI_WORKFLOWS
+    }
+
+    playwright_stats_by_run_id: dict[int, dict[str, Any] | None] = {}
+    for run in _latest_completed_runs_for_commits(
+        runs_by_workflow["playwright.yml"],
+        commit_shas,
+    ):
+        playwright_stats_by_run_id[run["id"]] = _load_playwright_test_stats(run["id"])
+
+    return _compute_ci_failing_test_run_metrics(
+        commit_shas,
+        runs_by_workflow,
+        playwright_stats_by_run_id,
+    )
+
+
 @st.cache_data(
     ttl=60 * 60 * 6, show_spinner="Fetching Playwright test count...", refresh_mode="background"
 )  # cache for 6 hours
@@ -497,23 +665,10 @@ def get_playwright_test_count_metrics(since_date: date, refresh_nonce: int = 0) 
     runs_in_period = fetch_workflow_runs("playwright.yml", since=since_date)
 
     def get_test_count(run_id: int) -> int:
-        artifacts = fetch_artifacts(run_id)
-        artifact = next((a for a in artifacts if a["name"].startswith("playwright_test_stats")), None)
-        if not artifact:
+        data = _load_playwright_test_stats(run_id)
+        if not data:
             return 0
-        content = download_artifact(artifact["archive_download_url"])
-        if not content:
-            return 0
-        try:
-            with ZipFile(BytesIO(content)) as z:
-                for name in z.namelist():
-                    if name.endswith(".json"):
-                        with z.open(name) as f:
-                            data = json.load(f)
-                            return data.get("summary", {}).get("total_tests", 0)
-        except Exception:
-            return 0
-        return 0
+        return int(data.get("summary", {}).get("total_tests", 0) or 0)
 
     if not runs_in_period:
         latest_run = fetch_workflow_runs("playwright.yml", limit=1)
