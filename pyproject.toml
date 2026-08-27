@@ -48,7 +48,7 @@ default-groups = ["dev"]
 dev = [
   "pytest>=9.0.2",
   "ruff==0.16.4",
-  "ty==0.0.72",
+  "ty==0.0.73",
   "mypy==2.3.1",
   "watchdog",
   "pandas-stubs",
