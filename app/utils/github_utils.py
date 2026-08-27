@@ -4,6 +4,7 @@ import base64
 import contextlib
 import json
 import urllib.parse
+from datetime import UTC, date, datetime
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, cast
 from zipfile import ZipFile
@@ -11,9 +12,10 @@ from zipfile import ZipFile
 import requests
 import streamlit as st
 
+from app.utils.github_graphql_utils import _run_graphql_query
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-    from datetime import date
 
 # Streamlit team members:
 
@@ -727,63 +729,237 @@ def get_all_github_prs(
     return prs
 
 
+# GitHub's REST workflow-run filters (`branch`, `status`, `created`) go through a
+# search index that can return a stale first page. GraphQL `Workflow.runs` ordered
+# by `CREATED_AT DESC` is current; branch/status/`since` are applied locally.
+_WORKFLOW_RUNS_PAGE_SIZE: Final[int] = 100
+_WORKFLOW_RUNS_MAX_PAGES: Final[int] = 80
+_WORKFLOW_CONCLUSION_FILTERS: Final[frozenset[str]] = frozenset(
+    {
+        "success",
+        "failure",
+        "cancelled",
+        "canceled",
+        "skipped",
+        "timed_out",
+        "action_required",
+        "neutral",
+        "stale",
+        "startup_failure",
+    }
+)
+_WORKFLOW_STATUS_FILTERS: Final[frozenset[str]] = frozenset(
+    {
+        "completed",
+        "in_progress",
+        "queued",
+        "waiting",
+        "pending",
+        "requested",
+    }
+)
+_WORKFLOW_RUNS_QUERY: Final[str] = """
+query($workflowId: ID!, $cursor: String, $pageSize: Int!) {
+  node(id: $workflowId) {
+    ... on Workflow {
+      runs(
+        first: $pageSize
+        after: $cursor
+        orderBy: {field: CREATED_AT, direction: DESC}
+      ) {
+        nodes {
+          databaseId
+          createdAt
+          event
+          url
+          checkSuite {
+            databaseId
+            status
+            conclusion
+            branch { name }
+            commit { oid }
+          }
+        }
+        pageInfo {
+          endCursor
+          hasNextPage
+        }
+      }
+    }
+  }
+}
+"""
+
+
+def _get_workflow_node_id(workflow_name: str) -> str | None:
+    """Resolve a workflow file name to the GraphQL node ID via REST."""
+    payload, error, _status = _request_json(
+        f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/{workflow_name}",
+    )
+    if error or not isinstance(payload, dict):
+        st.error(error or f"Unexpected workflow payload for {workflow_name}.")
+        return None
+    node_id = payload.get("node_id")
+    if not isinstance(node_id, str) or not node_id:
+        st.error(f"Workflow {workflow_name} is missing a GraphQL node ID.")
+        return None
+    return node_id
+
+
+def _enum_lower(value: object) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    return value.lower()
+
+
+def _to_rest_timestamp(value: object) -> str | None:
+    """Normalize a GraphQL DateTime to the REST `YYYY-MM-DDTHH:MM:SSZ` form."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value).astimezone(UTC)
+    except ValueError:
+        return None
+    return parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _parse_run_created_at(created_at: str) -> datetime:
+    return datetime.fromisoformat(created_at).astimezone(UTC).replace(tzinfo=None)
+
+
+def _since_cutoff(since: date | datetime) -> datetime:
+    # `datetime` is a `date` subclass, so check it first.
+    if isinstance(since, datetime):
+        if since.tzinfo is None:
+            return since
+        return since.astimezone(UTC).replace(tzinfo=None)
+    return datetime.combine(since, datetime.min.time())
+
+
+def _graphql_workflow_run_to_rest(node: dict[str, Any]) -> dict[str, Any] | None:
+    """Map a GraphQL WorkflowRun node to the REST workflow-run fields callers use."""
+    run_id = node.get("databaseId")
+    check_suite = node.get("checkSuite") or {}
+    if not isinstance(check_suite, dict):
+        check_suite = {}
+    commit = check_suite.get("commit") or {}
+    branch = check_suite.get("branch") or {}
+    head_sha = commit.get("oid") if isinstance(commit, dict) else None
+    created_at = _to_rest_timestamp(node.get("createdAt"))
+    if not isinstance(run_id, int) or not isinstance(head_sha, str) or not head_sha or created_at is None:
+        return None
+
+    html_url = node.get("url")
+    if not isinstance(html_url, str) or not html_url:
+        html_url = f"https://github.com/streamlit/streamlit/actions/runs/{run_id}"
+
+    head_branch = branch.get("name") if isinstance(branch, dict) else None
+    return {
+        "id": run_id,
+        "head_sha": head_sha,
+        "created_at": created_at,
+        "html_url": html_url,
+        "check_suite_id": check_suite.get("databaseId"),
+        "status": _enum_lower(check_suite.get("status")),
+        "conclusion": _enum_lower(check_suite.get("conclusion")),
+        "head_branch": head_branch if isinstance(head_branch, str) else None,
+        "event": node.get("event"),
+    }
+
+
+def _workflow_run_matches(
+    run: dict[str, Any],
+    *,
+    branch: str | None,
+    status: str | None,
+) -> bool:
+    if branch and run.get("head_branch") != branch:
+        return False
+    if not status:
+        return True
+    wanted = status.lower()
+    conclusion = run.get("conclusion")
+    run_status = run.get("status")
+    if wanted == "canceled":
+        wanted = "cancelled"
+    if wanted in _WORKFLOW_CONCLUSION_FILTERS:
+        return conclusion == wanted
+    if wanted in _WORKFLOW_STATUS_FILTERS:
+        return run_status == wanted
+    return wanted in {conclusion, run_status}
+
+
 @st.cache_data(ttl=60 * 60 * 24, show_spinner="Fetching workflow runs...")  # cache for 24 hours
 def fetch_workflow_runs(
     workflow_name: str,
     limit: int = 50,
-    since: date | None = None,
+    since: date | datetime | None = None,
     branch: str | None = "develop",
     status: str | None = "success",
 ) -> list[dict[str, Any]]:
-    """Fetch workflow runs for a specific workflow."""
-    all_runs: list[dict[str, Any]] = []
-    page = 1
-    per_page = 100
+    """Fetch workflow runs for a specific workflow, newest first.
 
-    params: dict[str, Any] = {
-        "per_page": per_page,
-        "page": page,
-    }
-    if branch:
-        params["branch"] = branch
-    if status:
-        params["status"] = status
-    if since:
-        params["created"] = f">{since.isoformat()}"
+    Uses GraphQL `CREATED_AT DESC` instead of REST `branch`/`status` filters, which
+    can return a stale first page. Results are still shaped like REST workflow runs
+    (`id`, `head_sha`, `created_at`, `html_url`, `check_suite_id`, `status`,
+    `conclusion`, `head_branch`, `event`).
+    """
+    workflow_node_id = _get_workflow_node_id(workflow_name)
+    if workflow_node_id is None:
+        return []
 
-    while len(all_runs) < limit:
-        params["page"] = page
-        params["per_page"] = min(per_page, limit - len(all_runs))
+    cutoff = _since_cutoff(since) if since is not None else None
+    matching_runs: list[dict[str, Any]] = []
+    cursor: str | None = None
+
+    for _page in range(_WORKFLOW_RUNS_MAX_PAGES):
         try:
-            response = requests.get(
-                f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/{workflow_name}/runs",
-                headers=get_headers(),
-                params=params,
-                timeout=30,
+            data = _run_graphql_query(
+                _WORKFLOW_RUNS_QUERY,
+                {
+                    "workflowId": workflow_node_id,
+                    "cursor": cursor,
+                    "pageSize": _WORKFLOW_RUNS_PAGE_SIZE,
+                },
             )
-
-            if response.status_code != 200:
-                st.error(f"Error fetching workflow runs: {response.status_code}")
-                break
-
-            data = response.json()
-            runs = data.get("workflow_runs", [])
-
-            if not runs:
-                break
-
-            all_runs.extend(runs)
-
-            if len(runs) < per_page:
-                break
-
-            page += 1
-
-        except Exception as e:
-            st.error(f"Error fetching workflow runs: {e}")
+        except Exception as exc:
+            st.error(f"Error fetching workflow runs: {exc}")
             break
 
-    return all_runs[:limit]
+        workflow = data.get("node")
+        if not isinstance(workflow, dict):
+            st.error(f"GraphQL did not return runs for workflow {workflow_name}.")
+            break
+
+        connection = workflow.get("runs") or {}
+        reached_since_bound = False
+        for raw_node in connection.get("nodes") or []:
+            if not isinstance(raw_node, dict):
+                continue
+            run = _graphql_workflow_run_to_rest(raw_node)
+            if run is None:
+                continue
+            if cutoff is not None and _parse_run_created_at(run["created_at"]) < cutoff:
+                reached_since_bound = True
+                break
+            if not _workflow_run_matches(run, branch=branch, status=status):
+                continue
+            matching_runs.append(run)
+            if len(matching_runs) >= limit:
+                return matching_runs[:limit]
+
+        if reached_since_bound:
+            break
+
+        page_info = connection.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            break
+        next_cursor = page_info.get("endCursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
+            break
+        cursor = next_cursor
+
+    return matching_runs[:limit]
 
 
 @st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner="Fetching artifacts...")
