@@ -35,6 +35,24 @@ HIGH_PRIORITY_SLA_LABELS = {
     "priority:P2": "≤ 2 weeks",
 }
 
+# CI metric warning thresholds. Coverage is percent-covered; sizes are binary bytes
+# (1024-based), matching humanize.naturalsize(..., binary=True).
+PYTHON_COVERAGE_WARNING_PCT = 97.0
+FRONTEND_COVERAGE_WARNING_PCT = 94.0
+WHEEL_SIZE_WARNING_BYTES = 12 * 1024 * 1024
+TOTAL_BUNDLE_WARNING_BYTES = 10 * 1024 * 1024
+ENTRY_BUNDLE_WARNING_BYTES = 500 * 1024
+
+
+def _metric_value(value: str, *, warn: bool) -> str:
+    """Return a metric value, colored red when the warning threshold is breached."""
+    return f":red[{value}]" if warn else value
+
+
+def _metric_icon(*, warn: bool) -> str | None:
+    """Return a warning icon when the metric is outside its healthy range."""
+    return ":material/warning:" if warn else None
+
 
 @st.fragment(parallel=True)
 def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None:
@@ -44,39 +62,51 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             selected_since,
             refresh_nonce=selected_refresh_nonce,
         )
+        py_coverage_warn = py_coverage < PYTHON_COVERAGE_WARNING_PCT
         st.metric(
             "Python Test Coverage",
-            f"{py_coverage:.2f}%",
+            _metric_value(f"{py_coverage:.2f}%", warn=py_coverage_warn),
             f"{py_coverage_change:+.2f}%",
             delta_color="normal",
             border=True,
-            help="Percentage of lines covered by tests in the Python codebase.",
+            icon=_metric_icon(warn=py_coverage_warn),
+            help=(
+                "Percentage of lines covered by tests in the Python codebase. "
+                f"A warning is shown when coverage is below {PYTHON_COVERAGE_WARNING_PCT:.0f}%."
+            ),
         )
     with col2, st.skeleton(height=110):
         fe_coverage, fe_coverage_change = get_frontend_test_coverage_metrics(
             selected_since,
             refresh_nonce=selected_refresh_nonce,
         )
+        fe_coverage_warn = fe_coverage < FRONTEND_COVERAGE_WARNING_PCT
         st.metric(
             "Frontend Test Coverage",
-            f"{fe_coverage:.2f}%",
+            _metric_value(f"{fe_coverage:.2f}%", warn=fe_coverage_warn),
             f"{fe_coverage_change:+.2f}%",
             delta_color="normal",
             border=True,
-            help="Percentage of lines covered by tests in the Frontend codebase.",
+            icon=_metric_icon(warn=fe_coverage_warn),
+            help=(
+                "Percentage of lines covered by tests in the Frontend codebase. "
+                f"A warning is shown when coverage is below {FRONTEND_COVERAGE_WARNING_PCT:.0f}%."
+            ),
         )
     with col3, st.skeleton(height=110):
         wheel_size, wheel_size_change = get_wheel_size_metrics(
             selected_since,
             refresh_nonce=selected_refresh_nonce,
         )
+        wheel_size_warn = wheel_size > WHEEL_SIZE_WARNING_BYTES
         st.metric(
             "Wheel Size",
-            humanize.naturalsize(wheel_size, binary=True),
+            _metric_value(humanize.naturalsize(wheel_size, binary=True), warn=wheel_size_warn),
             humanize.naturalsize(wheel_size_change, binary=True),
             delta_color="inverse",
             border=True,
-            help="Size of the Streamlit Python package (wheel file).",
+            icon=_metric_icon(warn=wheel_size_warn),
+            help=("Size of the Streamlit Python package (wheel file). A warning is shown when the size is above 12MB."),
         )
 
     col1, col2, col3 = st.columns(3)
@@ -91,22 +121,32 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             refresh_nonce=selected_refresh_nonce,
         )
 
+        total_gzip_warn = total_gzip > TOTAL_BUNDLE_WARNING_BYTES
         st.metric(
             "Total Bundle (gzip)",
-            humanize.naturalsize(total_gzip, binary=True),
+            _metric_value(humanize.naturalsize(total_gzip, binary=True), warn=total_gzip_warn),
             humanize.naturalsize(total_gzip_change, binary=True),
             delta_color="inverse",
             border=True,
-            help="Total size of all JavaScript files after Gzip compression.",
+            icon=_metric_icon(warn=total_gzip_warn),
+            help=(
+                "Total size of all JavaScript files after Gzip compression. "
+                "A warning is shown when the size is above 10MB."
+            ),
         )
     with col2, st.skeleton(height=110):
+        entry_gzip_warn = entry_gzip > ENTRY_BUNDLE_WARNING_BYTES
         st.metric(
             "Entry Bundle (gzip)",
-            humanize.naturalsize(entry_gzip, binary=True),
+            _metric_value(humanize.naturalsize(entry_gzip, binary=True), warn=entry_gzip_warn),
             humanize.naturalsize(entry_gzip_change, binary=True),
             delta_color="inverse",
             border=True,
-            help="Size of the entry point chunks (initial load) after Gzip compression.",
+            icon=_metric_icon(warn=entry_gzip_warn),
+            help=(
+                "Size of the entry point chunks (initial load) after Gzip compression. "
+                "A warning is shown when the size is above 500KB."
+            ),
         )
     with col3, st.skeleton(height=110):
         pw_count, pw_count_change = get_playwright_test_count_metrics(
