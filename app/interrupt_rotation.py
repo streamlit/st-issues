@@ -172,7 +172,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             help="Total number of Playwright E2E tests (across all browsers).",
         )
     with col3, st.skeleton(height=110):
-        failing_pct, failing_checks, total_checks = get_ci_failing_test_run_metrics(
+        failing_pct, failing_checks, total_checks, *_ = get_ci_failing_test_run_metrics(
             refresh_nonce=selected_refresh_nonce,
         )
         failing_pct_warn = total_checks > 0 and failing_pct >= CI_FAILING_TEST_WARNING_PCT

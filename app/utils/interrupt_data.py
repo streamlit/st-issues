@@ -564,12 +564,13 @@ def _compute_ci_failed_check_metrics(
 @st.cache_data(
     ttl=60 * 60 * 6, show_spinner="Fetching failed CI checks...", refresh_mode="background"
 )  # cache for 6 hours
-def get_ci_failing_test_run_metrics(refresh_nonce: int = 0) -> tuple[float, int, int]:
+def get_ci_failing_test_run_metrics(refresh_nonce: int = 0, _result_version: int = 2) -> tuple[float, int, int]:
     """Get the share of GitHub checks that failed on recent develop commits.
 
     Looks at every CheckRun and commit status on the last `DEVELOP_COMMIT_WINDOW`
     commits to `develop`.
     """
+    _ = _result_version  # Cache-key bump after the return value dropped the sparkline list.
     commits = fetch_develop_commit_checks(
         limit=DEVELOP_COMMIT_WINDOW,
         refresh_nonce=refresh_nonce,
