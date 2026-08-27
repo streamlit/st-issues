@@ -67,6 +67,26 @@ def _format_duration(seconds: Any) -> str:
     return f"{secs}s"
 
 
+def _signed_duration_delta(current: Any, previous: Any) -> str | None:
+    if current is None or previous is None or pd.isna(current) or pd.isna(previous):
+        return None
+    diff = float(current) - float(previous)
+    if diff == 0:
+        return "0s this week"
+    sign = "+" if diff > 0 else "-"
+    return f"{sign}{_format_duration(abs(diff))} this week"
+
+
+def _sparkline(series: pd.Series, days: pd.Index, *, fill: float | None = None) -> pd.Series | None:
+    values = series.astype("float64")
+    aligned = values.reindex(days, fill_value=fill) if fill is not None else values.reindex(days)
+    if fill is None:
+        aligned = aligned.dropna()
+    if len(aligned) < 2:
+        return None
+    return aligned
+
+
 def _success_rate(outcomes: pd.Series) -> float | None:
     completed = outcomes.isin([OUTCOME_SUCCEEDED, OUTCOME_FAILED])
     completed_count = int(completed.sum())
@@ -194,19 +214,52 @@ if filtered_df.empty:
     st.stop()
 
 last_week_start, this_week_start = _week_bounds(today)
-this_week_count = int((filtered_df["created_date"] >= this_week_start).sum())
-last_week_count = int(
-    ((filtered_df["created_date"] >= last_week_start) & (filtered_df["created_date"] < this_week_start)).sum()
-)
+this_week_df = filtered_df[filtered_df["created_date"] >= this_week_start]
+last_week_df = filtered_df[
+    (filtered_df["created_date"] >= last_week_start) & (filtered_df["created_date"] < this_week_start)
+]
 runtime_df = filtered_df[filtered_df["duration_seconds"].notna() & (filtered_df["duration_seconds"] >= 0)].copy()
 runtime_df["duration_minutes"] = runtime_df["duration_seconds"] / 60
+this_week_runtime = runtime_df[runtime_df["created_date"] >= this_week_start]
+last_week_runtime = runtime_df[
+    (runtime_df["created_date"] >= last_week_start) & (runtime_df["created_date"] < this_week_start)
+]
 overall_success_rate = _success_rate(filtered_df["outcome"])
 failed_count = int((filtered_df["outcome"] == OUTCOME_FAILED).sum())
 avg_duration = runtime_df["duration_seconds"].mean() if not runtime_df.empty else None
 median_duration = runtime_df["duration_seconds"].median() if not runtime_df.empty else None
+this_week_rate = _success_rate(this_week_df["outcome"])
+last_week_rate = _success_rate(last_week_df["outcome"])
+this_week_failed = int((this_week_df["outcome"] == OUTCOME_FAILED).sum())
+last_week_failed = int((last_week_df["outcome"] == OUTCOME_FAILED).sum())
+this_week_avg = this_week_runtime["duration_seconds"].mean() if not this_week_runtime.empty else None
+last_week_avg = last_week_runtime["duration_seconds"].mean() if not last_week_runtime.empty else None
+this_week_median = this_week_runtime["duration_seconds"].median() if not this_week_runtime.empty else None
+last_week_median = last_week_runtime["duration_seconds"].median() if not last_week_runtime.empty else None
+rate_delta = (
+    f"{this_week_rate - last_week_rate:+.0f} pp this week"
+    if this_week_rate is not None and last_week_rate is not None
+    else None
+)
+
+completed_df = filtered_df[filtered_df["outcome"].isin([OUTCOME_SUCCEEDED, OUTCOME_FAILED])]
 daily_counts = filtered_df.groupby("created_date").size().sort_index()
+sparkline_days = daily_counts.tail(30).index
+daily_success_rate = (
+    (completed_df["outcome"] == OUTCOME_SUCCEEDED).groupby(completed_df["created_date"]).mean().mul(100).sort_index()
+    if not completed_df.empty
+    else pd.Series(dtype="float64")
+)
+daily_failed = filtered_df[filtered_df["outcome"] == OUTCOME_FAILED].groupby("created_date").size().sort_index()
 daily_avg_duration = (
-    runtime_df.groupby("created_date")["duration_seconds"].mean().sort_index() if not runtime_df.empty else pd.Series()
+    runtime_df.groupby("created_date")["duration_seconds"].mean().sort_index()
+    if not runtime_df.empty
+    else pd.Series(dtype="float64")
+)
+daily_median_duration = (
+    runtime_df.groupby("created_date")["duration_seconds"].median().sort_index()
+    if not runtime_df.empty
+    else pd.Series(dtype="float64")
 )
 
 metric_row = st.container(horizontal=True)
@@ -214,37 +267,56 @@ with metric_row:
     st.metric(
         "Runs",
         f"{len(filtered_df):,}",
-        delta=f"{this_week_count - last_week_count:+} this week",
+        delta=f"{len(this_week_df) - len(last_week_df):+} this week",
         delta_color="off",
         border=True,
-        chart_data=daily_counts.tail(30),
-        chart_type="area",
+        height="stretch",
+        chart_data=_sparkline(daily_counts, sparkline_days, fill=0),
+        chart_type="line",
         help="Completed AI workflow runs in the selected filters. Weekly delta compares this calendar week to the previous one.",
     )
     st.metric(
         "Success rate",
         f"{overall_success_rate:.0f}%" if overall_success_rate is not None else "—",
+        delta=rate_delta,
+        delta_color="off",
         border=True,
+        height="stretch",
+        chart_data=_sparkline(daily_success_rate, sparkline_days),
+        chart_type="line",
         help="Share of succeeded vs failed runs. Cancelled runs are excluded from this rate.",
     )
     st.metric(
         "Failed",
         f"{failed_count:,}",
+        delta=f"{this_week_failed - last_week_failed:+} this week",
+        delta_color="off",
         border=True,
+        height="stretch",
+        chart_data=_sparkline(daily_failed, sparkline_days, fill=0),
+        chart_type="line",
         help="Runs that finished with failure, startup failure, or timeout.",
     )
     st.metric(
         "Average duration",
         _format_duration(avg_duration),
+        delta=_signed_duration_delta(this_week_avg, last_week_avg),
+        delta_color="off",
         border=True,
-        chart_data=daily_avg_duration.tail(30) if len(daily_avg_duration) > 1 else None,
-        chart_type="area",
+        height="stretch",
+        chart_data=_sparkline(daily_avg_duration, sparkline_days),
+        chart_type="line",
         help="Mean time from start to finish for runs in the current filters.",
     )
     st.metric(
         "Median duration",
         _format_duration(median_duration),
+        delta=_signed_duration_delta(this_week_median, last_week_median),
+        delta_color="off",
         border=True,
+        height="stretch",
+        chart_data=_sparkline(daily_median_duration, sparkline_days),
+        chart_type="line",
         help="Median time from start to finish for runs in the current filters.",
     )
 
@@ -261,7 +333,7 @@ with st.container(horizontal=True):
             delta_color="off",
             border=True,
             chart_data=sparkline if len(sparkline) > 1 else None,
-            chart_type="area",
+            chart_type="line",
         )
 
 if selected_workflows and not runtime_df.empty:
@@ -280,7 +352,7 @@ if selected_workflows and not runtime_df.empty:
                 _format_duration(workflow_avg),
                 border=True,
                 chart_data=sparkline if len(sparkline) > 1 else None,
-                chart_type="area",
+                chart_type="line",
                 help="Average time from start to finish for this workflow in the current filters.",
             )
 
@@ -300,7 +372,6 @@ if grouping is None:
     grouping = "Week"
 with heading_slot:
     st.markdown(f"##### Runs by {grouping.lower()}")
-st.caption(":material/web_traffic: Click a bar to inspect the runs in that period.")
 
 filtered_df["period"] = _period_start(filtered_df["created_at"], grouping)
 completed_df = filtered_df[filtered_df["outcome"].isin([OUTCOME_SUCCEEDED, OUTCOME_FAILED])]
@@ -370,6 +441,7 @@ with chart_tab_workflow:
         on_select="rerun",
         key="ai_runs_by_workflow",
     )
+    st.caption(":material/web_traffic: Click a bar to inspect the runs in that period.")
     if workflow_selection and workflow_selection["selection"]["points"]:
         selected_period_start = pd.to_datetime(workflow_selection["selection"]["points"][0]["x"]).to_pydatetime()
 
@@ -390,6 +462,7 @@ with chart_tab_outcome:
         on_select="rerun",
         key="ai_runs_by_outcome",
     )
+    st.caption(":material/web_traffic: Click a bar to inspect the runs in that period.")
     if selected_period_start is None and outcome_selection and outcome_selection["selection"]["points"]:
         selected_period_start = pd.to_datetime(outcome_selection["selection"]["points"][0]["x"]).to_pydatetime()
 
