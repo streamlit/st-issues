@@ -13,7 +13,6 @@ from app.utils.interrupt_data import (
     BOT_PR_INTERRUPT_REPOS,
     DEVELOP_COMMIT_WINDOW,
     MONITORED_INTERRUPT_REPOS,
-    TEST_CI_WORKFLOWS,
     build_interrupt_action_items,
     get_bundle_size_metrics,
     get_ci_failing_test_run_metrics,
@@ -61,7 +60,7 @@ def _metric_icon(*, warn: bool) -> str | None:
 
 @st.fragment(parallel=True)
 def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None:
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1, st.skeleton(height=110):
         py_coverage, py_coverage_change = get_python_test_coverage_metrics(
             selected_since,
@@ -73,6 +72,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             _metric_value(f"{py_coverage:.2f}%", warn=py_coverage_warn),
             f"{py_coverage_change:+.2f}%",
             delta_color="normal",
+            delta_arrow="off",
             border=True,
             icon=_metric_icon(warn=py_coverage_warn),
             help=(
@@ -91,6 +91,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             _metric_value(f"{fe_coverage:.2f}%", warn=fe_coverage_warn),
             f"{fe_coverage_change:+.2f}%",
             delta_color="normal",
+            delta_arrow="off",
             border=True,
             icon=_metric_icon(warn=fe_coverage_warn),
             help=(
@@ -109,13 +110,12 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             _metric_value(humanize.naturalsize(wheel_size, binary=True), warn=wheel_size_warn),
             humanize.naturalsize(wheel_size_change, binary=True),
             delta_color="inverse",
+            delta_arrow="off",
             border=True,
             icon=_metric_icon(warn=wheel_size_warn),
             help=("Size of the Streamlit Python package (wheel file). A warning is shown when the size is above 12MB."),
         )
-
-    col1, col2, col3 = st.columns(3)
-    with col1, st.skeleton(height=110):
+    with col4, st.skeleton(height=110):
         (
             total_gzip,
             total_gzip_change,
@@ -132,6 +132,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             _metric_value(humanize.naturalsize(total_gzip, binary=True), warn=total_gzip_warn),
             humanize.naturalsize(total_gzip_change, binary=True),
             delta_color="inverse",
+            delta_arrow="off",
             border=True,
             icon=_metric_icon(warn=total_gzip_warn),
             help=(
@@ -139,13 +140,16 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
                 "A warning is shown when the size is above 10MB."
             ),
         )
-    with col2, st.skeleton(height=110):
+
+    col1, col2, col3, _ = st.columns(4)
+    with col1, st.skeleton(height=110):
         entry_gzip_warn = entry_gzip > ENTRY_BUNDLE_WARNING_BYTES
         st.metric(
             "Entry Bundle (gzip)",
             _metric_value(humanize.naturalsize(entry_gzip, binary=True), warn=entry_gzip_warn),
             humanize.naturalsize(entry_gzip_change, binary=True),
             delta_color="inverse",
+            delta_arrow="off",
             border=True,
             icon=_metric_icon(warn=entry_gzip_warn),
             help=(
@@ -153,7 +157,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
                 "A warning is shown when the size is above 500KB."
             ),
         )
-    with col3, st.skeleton(height=110):
+    with col2, st.skeleton(height=110):
         pw_count, pw_count_change = get_playwright_test_count_metrics(
             selected_since,
             refresh_nonce=selected_refresh_nonce,
@@ -163,36 +167,30 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             f"{pw_count:,}",
             f"{pw_count_change:+,}",
             delta_color="off",
+            delta_arrow="off",
             border=True,
             help="Total number of Playwright E2E tests (across all browsers).",
         )
-
-
-@st.fragment(parallel=True)
-def render_ci_failing_test_metric(selected_refresh_nonce: int) -> None:
-    """Render the share of recent develop test CI runs that had a failing test."""
-    col1, *_ = st.columns(3)
-    with col1, st.skeleton(height=110):
-        failing_pct, failing_runs, total_runs, run_flags = get_ci_failing_test_run_metrics(
+    with col3, st.skeleton(height=110):
+        failing_pct, failing_checks, total_checks = get_ci_failing_test_run_metrics(
             refresh_nonce=selected_refresh_nonce,
         )
-        failing_pct_warn = total_runs > 0 and failing_pct >= CI_FAILING_TEST_WARNING_PCT
-        workflow_labels = ", ".join(f"`{name}`" for name in TEST_CI_WORKFLOWS)
+        failing_pct_warn = total_checks > 0 and failing_pct >= CI_FAILING_TEST_WARNING_PCT
         st.metric(
-            "CI Runs With a Failing Test",
+            "Failed CI Checks",
             _metric_value(f"{failing_pct:.0f}%", warn=failing_pct_warn),
-            f"{failing_runs}/{total_runs} runs",
+            f"{failing_checks}/{total_checks} checks",
             delta_color="off",
+            delta_arrow="off",
             border=True,
             icon=_metric_icon(warn=failing_pct_warn),
-            chart_data=run_flags or None,
-            chart_type="bar",
             help=(
-                "Percentage of Python, frontend, and Playwright test CI runs for the last "
-                f"{DEVELOP_COMMIT_WINDOW} commits to `develop` that had at least one failing "
-                "test. Playwright runs that later passed still count if a test failed on a "
-                "prior attempt. This uses the latest completed run of "
-                f"{workflow_labels} per commit and ignores the timeframe selector. "
+                "Percentage of GitHub checks on the last "
+                f"{DEVELOP_COMMIT_WINDOW} commits to `develop` that failed. "
+                "This includes every CheckRun and commit status on those commits "
+                "(not only Python, frontend, or Playwright workflows). "
+                "Skipped, cancelled, neutral, and in-progress checks are ignored. "
+                "This ignores the timeframe selector. "
                 f"A warning is shown when the rate is at or above {CI_FAILING_TEST_WARNING_PCT:.0f}%."
             ),
         )
@@ -810,7 +808,6 @@ refresh_nonce = st.session_state.interrupt_refresh_nonce
 # snapshot, CI-artifact downloads, flaky-test annotations, and monitored-repo PR
 # fetches overlap instead of running one after another on the main thread.
 render_ci_metrics(since, refresh_nonce)
-render_ci_failing_test_metric(refresh_nonce)
 
 with st.expander("Helpful processes", icon=":material/menu_book:"):
     st.markdown("""

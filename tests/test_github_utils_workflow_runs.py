@@ -244,3 +244,123 @@ def test_fetch_commit_shas_returns_newest_first(monkeypatch: MonkeyPatch) -> Non
     assert shas == ["aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbb2222"]
     assert captured["url"] == "https://api.github.com/repos/streamlit/streamlit/commits"
     assert captured["params"] == {"sha": "develop", "per_page": 10}
+
+
+def _check_run_node(*, name: str, status: str = "COMPLETED", conclusion: str | None = "SUCCESS") -> dict[str, Any]:
+    return {
+        "__typename": "CheckRun",
+        "name": name,
+        "status": status,
+        "conclusion": conclusion,
+    }
+
+
+def _status_context_node(*, context: str, state: str = "SUCCESS") -> dict[str, Any]:
+    return {"__typename": "StatusContext", "context": context, "state": state}
+
+
+def _contexts_connection(
+    nodes: list[dict[str, Any]],
+    *,
+    has_next: bool = False,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
+        "nodes": nodes,
+    }
+
+
+def test_fetch_develop_commit_checks_maps_check_runs_and_statuses(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_develop_commit_checks.clear()
+    monkeypatch.setattr(
+        github_utils,
+        "_run_graphql_query",
+        lambda _query, _variables: {
+            "repository": {
+                "ref": {
+                    "target": {
+                        "history": {
+                            "nodes": [
+                                {
+                                    "oid": "aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                    "statusCheckRollup": {
+                                        "contexts": _contexts_connection(
+                                            [
+                                                _check_run_node(name="Python tests"),
+                                                _status_context_node(context="codecov/patch", state="FAILURE"),
+                                            ]
+                                        )
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+    )
+
+    commits = github_utils.fetch_develop_commit_checks(limit=10, refresh_nonce=1)
+
+    assert len(commits) == 1
+    assert commits[0]["sha"] == "aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    assert commits[0]["checks"] == [
+        {
+            "name": "Python tests",
+            "kind": "check_run",
+            "status": "completed",
+            "conclusion": "success",
+            "state": None,
+        },
+        {
+            "name": "codecov/patch",
+            "kind": "status",
+            "status": None,
+            "conclusion": None,
+            "state": "failure",
+        },
+    ]
+
+
+def test_fetch_develop_commit_checks_paginates_contexts(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_develop_commit_checks.clear()
+    calls: list[str | None] = []
+
+    def fake_graphql(_query: str, variables: dict[str, Any]) -> dict[str, Any]:
+        calls.append(variables.get("cursor"))
+        if "historyFirst" in variables:
+            return {
+                "repository": {
+                    "ref": {
+                        "target": {
+                            "history": {
+                                "nodes": [
+                                    {
+                                        "oid": "aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                        "statusCheckRollup": {
+                                            "contexts": _contexts_connection(
+                                                [_check_run_node(name="page-1")],
+                                                has_next=True,
+                                                cursor="cursor-2",
+                                            )
+                                        },
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        return {
+            "repository": {
+                "object": {"statusCheckRollup": {"contexts": _contexts_connection([_check_run_node(name="page-2")])}}
+            }
+        }
+
+    monkeypatch.setattr(github_utils, "_run_graphql_query", fake_graphql)
+
+    commits = github_utils.fetch_develop_commit_checks(limit=10)
+
+    assert [check["name"] for check in commits[0]["checks"]] == ["page-1", "page-2"]
+    assert calls == [None, "cursor-2"]

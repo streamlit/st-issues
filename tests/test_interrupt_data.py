@@ -366,136 +366,96 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
-def _workflow_run(
+def _check_run(
     *,
-    run_id: int,
-    sha: str,
+    name: str,
     status: str = "completed",
     conclusion: str | None = "success",
 ) -> dict:
     return {
-        "id": run_id,
-        "head_sha": sha,
+        "name": name,
+        "kind": "check_run",
         "status": status,
         "conclusion": conclusion,
+        "state": None,
     }
 
 
-def test_latest_completed_runs_for_commits_keeps_newest_eligible_run() -> None:
-    commit_shas = ["sha-new", "sha-old"]
-    runs = [
-        _workflow_run(run_id=1, sha="sha-new", status="in_progress", conclusion=None),
-        _workflow_run(run_id=2, sha="sha-new", conclusion="failure"),
-        _workflow_run(run_id=3, sha="sha-new", conclusion="success"),
-        _workflow_run(run_id=4, sha="sha-old", conclusion="cancelled"),
-        _workflow_run(run_id=5, sha="sha-old", conclusion="success"),
-        _workflow_run(run_id=6, sha="sha-other", conclusion="failure"),
+def _status_context(*, name: str, state: str = "success") -> dict:
+    return {
+        "name": name,
+        "kind": "status",
+        "status": None,
+        "conclusion": None,
+        "state": state,
+    }
+
+
+def test_check_failed_ignores_ineligible_conclusions() -> None:
+    assert interrupt_data._check_failed(_check_run(name="lint", conclusion="failure")) is True
+    assert interrupt_data._check_failed(_check_run(name="lint", conclusion="timed_out")) is True
+    assert interrupt_data._check_failed(_check_run(name="lint", conclusion="success")) is False
+    assert interrupt_data._check_failed(_check_run(name="lint", conclusion="skipped")) is None
+    assert interrupt_data._check_failed(_check_run(name="lint", status="in_progress", conclusion=None)) is None
+    assert interrupt_data._check_failed(_status_context(name="codecov", state="failure")) is True
+    assert interrupt_data._check_failed(_status_context(name="codecov", state="error")) is True
+    assert interrupt_data._check_failed(_status_context(name="codecov", state="success")) is False
+    assert interrupt_data._check_failed(_status_context(name="codecov", state="pending")) is None
+
+
+def test_compute_ci_failed_check_metrics_uses_all_checks() -> None:
+    commits = [
+        {
+            "sha": "sha-new",
+            "checks": [
+                _check_run(name="python", conclusion="success"),
+                _check_run(name="playwright", conclusion="failure"),
+                _check_run(name="preview", conclusion="skipped"),
+                _status_context(name="codecov", state="success"),
+            ],
+        },
+        {
+            "sha": "sha-old",
+            "checks": [
+                _check_run(name="python", conclusion="success"),
+                _check_run(name="js", conclusion="success"),
+                _check_run(name="lint", status="in_progress", conclusion=None),
+            ],
+        },
     ]
 
-    selected = interrupt_data._latest_completed_runs_for_commits(runs, commit_shas)
+    percent, failing, total = interrupt_data._compute_ci_failed_check_metrics(commits)
 
-    assert [run["id"] for run in selected] == [2, 5]
-
-
-def test_run_had_failing_test_uses_playwright_stats_and_conclusion() -> None:
-    playwright_success = {**_workflow_run(run_id=1, sha="a"), "_workflow": "playwright.yml"}
-    python_failure = {**_workflow_run(run_id=2, sha="a", conclusion="failure"), "_workflow": "python-tests.yml"}
-    python_success = {**_workflow_run(run_id=3, sha="a"), "_workflow": "python-tests.yml"}
-
-    assert interrupt_data._run_had_failing_test(
-        playwright_success,
-        playwright_stats={"summary": {"failed": 0, "errors": 0, "tests_with_reruns": 2}},
-    )
-    assert not interrupt_data._run_had_failing_test(
-        playwright_success,
-        playwright_stats={"summary": {"failed": 0, "errors": 0, "tests_with_reruns": 0}},
-    )
-    assert not interrupt_data._run_had_failing_test(playwright_success, playwright_stats=None)
-    assert interrupt_data._run_had_failing_test(
-        {**playwright_success, "conclusion": "failure"},
-        playwright_stats=None,
-    )
-    assert interrupt_data._run_had_failing_test(python_failure)
-    assert not interrupt_data._run_had_failing_test(python_success)
+    # Eligible: old python+js success, new python+playwright+codecov with 1 failure.
+    assert (percent, failing, total) == (100.0 * 1 / 5, 1, 5)
 
 
-def test_compute_ci_failing_test_run_metrics_percentage_and_order() -> None:
-    commit_shas = ["sha-new", "sha-old"]
-    runs_by_workflow = {
-        "python-tests.yml": [
-            _workflow_run(run_id=11, sha="sha-new"),
-            _workflow_run(run_id=12, sha="sha-old", conclusion="failure"),
-        ],
-        "js-tests.yml": [
-            _workflow_run(run_id=21, sha="sha-new"),
-            _workflow_run(run_id=22, sha="sha-old"),
-        ],
-        "playwright.yml": [
-            _workflow_run(run_id=31, sha="sha-new"),
-            _workflow_run(run_id=32, sha="sha-old"),
-        ],
-    }
-    playwright_stats = {
-        31: {"summary": {"failed": 0, "errors": 0, "tests_with_reruns": 1}},
-        32: {"summary": {"failed": 0, "errors": 0, "tests_with_reruns": 0}},
-    }
-
-    percent, failing, total, flags = interrupt_data._compute_ci_failing_test_run_metrics(
-        commit_shas,
-        runs_by_workflow,
-        playwright_stats,
-    )
-
-    # Oldest commit first: python failure, js success, playwright success,
-    # then newest: python success, js success, playwright reruns.
-    assert (percent, failing, total) == (100.0 * 2 / 6, 2, 6)
-    assert flags == [1, 0, 0, 0, 0, 1]
-
-
-def test_get_ci_failing_test_run_metrics_uses_develop_commit_window(
+def test_get_ci_failing_test_run_metrics_uses_develop_commit_checks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_fetch_commit_shas(branch: str = "develop", limit: int = 10, refresh_nonce: int = 0) -> list[str]:
-        assert branch == "develop"
+    def fake_fetch_develop_commit_checks(limit: int = 10, refresh_nonce: int = 0) -> list[dict]:
         assert limit == interrupt_data.DEVELOP_COMMIT_WINDOW
         assert refresh_nonce == 4
-        return ["sha-new", "sha-old"]
-
-    def fake_fetch_workflow_runs(
-        workflow_name: str,
-        limit: int = 50,
-        since=None,
-        branch: str | None = "develop",
-        status: str | None = "success",
-    ) -> list[dict]:
-        assert branch == "develop"
-        assert status is None
-        if workflow_name == "python-tests.yml":
-            return [
-                _workflow_run(run_id=11, sha="sha-new"),
-                _workflow_run(run_id=12, sha="sha-old", conclusion="failure"),
-            ]
-        if workflow_name == "js-tests.yml":
-            return [
-                _workflow_run(run_id=21, sha="sha-new"),
-                _workflow_run(run_id=22, sha="sha-old"),
-            ]
         return [
-            _workflow_run(run_id=31, sha="sha-new"),
-            _workflow_run(run_id=32, sha="sha-old"),
+            {
+                "sha": "sha-new",
+                "checks": [
+                    _check_run(name="python", conclusion="success"),
+                    _check_run(name="playwright", conclusion="failure"),
+                ],
+            },
+            {
+                "sha": "sha-old",
+                "checks": [
+                    _check_run(name="python", conclusion="success"),
+                    _check_run(name="js", conclusion="success"),
+                ],
+            },
         ]
 
-    def fake_load_playwright_test_stats(run_id: int) -> dict | None:
-        if run_id == 31:
-            return {"summary": {"failed": 0, "errors": 0, "tests_with_reruns": 1}}
-        return {"summary": {"failed": 0, "errors": 0, "tests_with_reruns": 0}}
-
-    monkeypatch.setattr(interrupt_data, "fetch_commit_shas", fake_fetch_commit_shas)
-    monkeypatch.setattr(interrupt_data, "fetch_workflow_runs", fake_fetch_workflow_runs)
-    monkeypatch.setattr(interrupt_data, "_load_playwright_test_stats", fake_load_playwright_test_stats)
+    monkeypatch.setattr(interrupt_data, "fetch_develop_commit_checks", fake_fetch_develop_commit_checks)
     interrupt_data.get_ci_failing_test_run_metrics.clear()
 
-    percent, failing, total, flags = interrupt_data.get_ci_failing_test_run_metrics(refresh_nonce=4)
+    percent, failing, total = interrupt_data.get_ci_failing_test_run_metrics(refresh_nonce=4)
 
-    assert (percent, failing, total) == (100.0 * 2 / 6, 2, 6)
-    assert flags == [1, 0, 0, 0, 0, 1]
+    assert (percent, failing, total) == (25.0, 1, 4)

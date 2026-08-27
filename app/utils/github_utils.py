@@ -734,6 +734,8 @@ def get_all_github_prs(
 # by `CREATED_AT DESC` is current; branch/status/`since` are applied locally.
 _WORKFLOW_RUNS_PAGE_SIZE: Final[int] = 100
 _WORKFLOW_RUNS_MAX_PAGES: Final[int] = 80
+_CHECK_CONTEXTS_PAGE_SIZE: Final[int] = 100
+_CHECK_CONTEXTS_MAX_PAGES: Final[int] = 10
 _WORKFLOW_CONCLUSION_FILTERS: Final[frozenset[str]] = frozenset(
     {
         "success",
@@ -912,6 +914,196 @@ def fetch_commit_shas(branch: str = "develop", limit: int = 10, refresh_nonce: i
         if isinstance(sha, str) and sha:
             shas.append(sha)
     return shas
+
+
+_CHECK_CONTEXT_FIELDS: Final[str] = """
+fragment CheckContextFields on StatusCheckRollupContext {
+  __typename
+  ... on CheckRun {
+    name
+    status
+    conclusion
+  }
+  ... on StatusContext {
+    context
+    state
+  }
+}
+"""
+_DEVELOP_COMMIT_CHECKS_QUERY: Final[str] = (
+    _CHECK_CONTEXT_FIELDS
+    + """
+query($historyFirst: Int!, $contextsFirst: Int!) {
+  repository(owner: "streamlit", name: "streamlit") {
+    ref(qualifiedName: "refs/heads/develop") {
+      target {
+        ... on Commit {
+          history(first: $historyFirst) {
+            nodes {
+              oid
+              statusCheckRollup {
+                contexts(first: $contextsFirst) {
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                  nodes {
+                    ...CheckContextFields
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+)
+_COMMIT_CHECK_CONTEXTS_QUERY: Final[str] = (
+    _CHECK_CONTEXT_FIELDS
+    + """
+query($oid: GitObjectID!, $contextsFirst: Int!, $cursor: String) {
+  repository(owner: "streamlit", name: "streamlit") {
+    object(oid: $oid) {
+      ... on Commit {
+        statusCheckRollup {
+          contexts(first: $contextsFirst, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              ...CheckContextFields
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+)
+
+
+def _normalize_check_context(node: dict[str, Any]) -> dict[str, Any] | None:
+    """Map a GraphQL check-rollup context to a uniform check dict."""
+    typename = node.get("__typename")
+    if typename == "CheckRun" or (typename is None and "conclusion" in node):
+        name = node.get("name")
+        if not isinstance(name, str) or not name:
+            return None
+        return {
+            "name": name,
+            "kind": "check_run",
+            "status": _enum_lower(node.get("status")),
+            "conclusion": _enum_lower(node.get("conclusion")),
+            "state": None,
+        }
+    if typename == "StatusContext" or (typename is None and "state" in node):
+        name = node.get("context")
+        if not isinstance(name, str) or not name:
+            return None
+        return {
+            "name": name,
+            "kind": "status",
+            "status": None,
+            "conclusion": None,
+            "state": _enum_lower(node.get("state")),
+        }
+    return None
+
+
+def _parse_check_contexts_connection(
+    connection: dict[str, Any],
+) -> tuple[list[dict[str, Any]], str | None, bool]:
+    """Return (checks, end_cursor, has_next_page) for a rollup contexts connection."""
+    checks: list[dict[str, Any]] = []
+    for node in connection.get("nodes") or []:
+        if not isinstance(node, dict):
+            continue
+        parsed = _normalize_check_context(node)
+        if parsed is not None:
+            checks.append(parsed)
+    page_info = connection.get("pageInfo") or {}
+    end_cursor = page_info.get("endCursor")
+    has_next = bool(page_info.get("hasNextPage"))
+    if not isinstance(end_cursor, str) or not end_cursor:
+        end_cursor = None
+        has_next = False
+    return checks, end_cursor, has_next
+
+
+def _fetch_remaining_check_contexts(oid: str, cursor: str) -> list[dict[str, Any]]:
+    """Paginate remaining status-check rollup contexts for one commit."""
+    checks: list[dict[str, Any]] = []
+    next_cursor: str | None = cursor
+    for _page in range(_CHECK_CONTEXTS_MAX_PAGES - 1):
+        if next_cursor is None:
+            break
+        try:
+            data = _run_graphql_query(
+                _COMMIT_CHECK_CONTEXTS_QUERY,
+                {
+                    "oid": oid,
+                    "contextsFirst": _CHECK_CONTEXTS_PAGE_SIZE,
+                    "cursor": next_cursor,
+                },
+            )
+        except Exception as exc:
+            st.error(f"Error fetching commit checks: {exc}")
+            break
+        repo = data.get("repository") or {}
+        obj = repo.get("object") or {}
+        rollup = obj.get("statusCheckRollup") or {}
+        page_checks, next_cursor, has_next = _parse_check_contexts_connection(rollup.get("contexts") or {})
+        checks.extend(page_checks)
+        if not has_next:
+            break
+    return checks
+
+
+@st.cache_data(ttl=60 * 10, max_entries=32, show_spinner=False, refresh_mode="background")
+def fetch_develop_commit_checks(limit: int = 10, refresh_nonce: int = 0) -> list[dict[str, Any]]:
+    """Fetch GitHub checks for the newest commits on `develop`, newest first.
+
+    Each item is `{"sha": str, "checks": list[dict]}` covering CheckRun and
+    StatusContext entries from `statusCheckRollup`.
+    """
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
+    try:
+        data = _run_graphql_query(
+            _DEVELOP_COMMIT_CHECKS_QUERY,
+            {
+                "historyFirst": min(limit, 100),
+                "contextsFirst": _CHECK_CONTEXTS_PAGE_SIZE,
+            },
+        )
+    except Exception as exc:
+        st.error(f"Error fetching commit checks: {exc}")
+        return []
+
+    repo = data.get("repository") or {}
+    ref = repo.get("ref")
+    if not isinstance(ref, dict):
+        st.error("GraphQL did not return the develop ref.")
+        return []
+    target = ref.get("target") or {}
+    history = target.get("history") or {}
+    commits: list[dict[str, Any]] = []
+    for node in history.get("nodes") or []:
+        if not isinstance(node, dict):
+            continue
+        sha = node.get("oid")
+        if not isinstance(sha, str) or not sha:
+            continue
+        rollup = node.get("statusCheckRollup") or {}
+        checks, cursor, has_next = _parse_check_contexts_connection(rollup.get("contexts") or {})
+        if has_next and cursor is not None:
+            checks.extend(_fetch_remaining_check_contexts(sha, cursor))
+        commits.append({"sha": sha, "checks": checks})
+    return commits[:limit]
 
 
 @st.cache_data(

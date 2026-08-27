@@ -20,7 +20,7 @@ from app.utils.agent_wiki import fetch_wiki_issue_repros
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
-    fetch_commit_shas,
+    fetch_develop_commit_checks,
     fetch_workflow_run_annotations,
     fetch_workflow_runs,
     fetch_workflow_runs_ids,
@@ -59,15 +59,10 @@ BOT_PR_INTERRUPT_REPOS: tuple[str, ...] = (
 # (for example "[chore] Release v1.61.0").
 RELEASE_PR_TITLE_PREFIX = "[chore] Release"
 
-# Test workflows used for the "CI runs with a failing test" interrupt metric.
-# One latest completed run per commit is counted for each of these workflows.
+# Window used by the interrupt CI-check metric: newest commits on `develop`.
 DEVELOP_COMMIT_WINDOW = 10
-TEST_CI_WORKFLOWS: tuple[str, ...] = (
-    "python-tests.yml",
-    "js-tests.yml",
-    "playwright.yml",
-)
-_COMPLETED_TEST_CONCLUSIONS: frozenset[str] = frozenset({"success", "failure"})
+_FAILED_CHECK_CONCLUSIONS: frozenset[str] = frozenset({"failure", "timed_out", "startup_failure"})
+_FAILED_STATUS_STATES: frozenset[str] = frozenset({"failure", "error"})
 
 
 def _issue_row(issue: dict[str, Any], labels: set[str]) -> dict[str, Any]:
@@ -521,139 +516,65 @@ def _load_playwright_test_stats(run_id: int) -> dict[str, Any] | None:
     return None
 
 
-def _latest_completed_runs_for_commits(
-    workflow_runs: list[dict[str, Any]],
-    commit_shas: list[str],
-) -> list[dict[str, Any]]:
-    """Return the newest completed success/failure run for each commit, in commit order.
-
-    `workflow_runs` must be newest-first. Commits with no eligible run are omitted.
-    """
-    sha_set = set(commit_shas)
-    latest_by_sha: dict[str, dict[str, Any]] = {}
-    for run in workflow_runs:
-        sha = run.get("head_sha")
-        if not isinstance(sha, str) or sha not in sha_set:
-            continue
-        if run.get("status") != "completed":
-            continue
-        if run.get("conclusion") not in _COMPLETED_TEST_CONCLUSIONS:
-            continue
-        if sha not in latest_by_sha:
-            latest_by_sha[sha] = run
-    return [latest_by_sha[sha] for sha in commit_shas if sha in latest_by_sha]
-
-
-def _playwright_stats_indicate_failing_test(stats: dict[str, Any] | None) -> bool | None:
-    """Return whether Playwright stats show a failing test, or None if stats are missing."""
-    if not stats:
+def _check_failed(check: dict[str, Any]) -> bool | None:
+    """Return True if the check failed, False if it passed, None if it should be ignored."""
+    kind = check.get("kind")
+    if kind == "check_run":
+        if check.get("status") != "completed":
+            return None
+        conclusion = check.get("conclusion")
+        if conclusion in _FAILED_CHECK_CONCLUSIONS:
+            return True
+        if conclusion == "success":
+            return False
         return None
-    summary = stats.get("summary") or {}
-    return (
-        int(summary.get("failed", 0) or 0) > 0
-        or int(summary.get("errors", 0) or 0) > 0
-        or int(summary.get("tests_with_reruns", 0) or 0) > 0
-    )
+    if kind == "status":
+        state = check.get("state")
+        if state in _FAILED_STATUS_STATES:
+            return True
+        if state == "success":
+            return False
+        return None
+    return None
 
 
-def _run_had_failing_test(
-    run: dict[str, Any],
-    *,
-    playwright_stats: dict[str, Any] | None = None,
-) -> bool:
-    """Return whether a test workflow run had at least one failing test.
+def _compute_ci_failed_check_metrics(
+    commits: list[dict[str, Any]],
+) -> tuple[float, int, int]:
+    """Compute the failed-check rate across GitHub checks on the given commits.
 
-    Playwright uses the test-stats artifact when present so retries still count.
-    Other workflows (and Playwright runs without stats) use the run conclusion.
+    `commits` is newest-first. Returns (percentage, failing_check_count, total_check_count).
     """
-    if run.get("_workflow") == "playwright.yml":
-        indicated = _playwright_stats_indicate_failing_test(playwright_stats)
-        if indicated is not None:
-            return indicated
-    return run.get("conclusion") == "failure"
+    failing = 0
+    total = 0
+    for commit in commits:
+        for check in commit.get("checks") or []:
+            outcome = _check_failed(check)
+            if outcome is None:
+                continue
+            total += 1
+            if outcome:
+                failing += 1
 
-
-def _compute_ci_failing_test_run_metrics(
-    commit_shas: list[str],
-    runs_by_workflow: dict[str, list[dict[str, Any]]],
-    playwright_stats_by_run_id: dict[int, dict[str, Any] | None],
-) -> tuple[float, int, int, list[int]]:
-    """Compute the failing-test rate across test CI runs for the given commits.
-
-    Returns (percentage, failing_run_count, total_run_count, per-run flags oldest-first).
-    """
-    runs: list[dict[str, Any]] = []
-    for workflow_name in TEST_CI_WORKFLOWS:
-        selected = _latest_completed_runs_for_commits(
-            runs_by_workflow.get(workflow_name, []),
-            commit_shas,
-        )
-        runs.extend({**run, "_workflow": workflow_name} for run in selected)
-
-    commit_index = {sha: index for index, sha in enumerate(commit_shas)}
-    workflow_index = {name: index for index, name in enumerate(TEST_CI_WORKFLOWS)}
-    runs.sort(
-        key=lambda run: (
-            -commit_index.get(run["head_sha"], 0),
-            workflow_index.get(run["_workflow"], 99),
-        )
-    )
-
-    flags = [
-        1
-        if _run_had_failing_test(
-            run,
-            playwright_stats=playwright_stats_by_run_id.get(run["id"]),
-        )
-        else 0
-        for run in runs
-    ]
-    total = len(flags)
     if total == 0:
-        return 0.0, 0, 0, []
-    failing = sum(flags)
-    return 100.0 * failing / total, failing, total, flags
+        return 0.0, 0, 0
+    return 100.0 * failing / total, failing, total
 
 
 @st.cache_data(
-    ttl=60 * 60 * 6, show_spinner="Fetching CI failing-test rate...", refresh_mode="background"
+    ttl=60 * 60 * 6, show_spinner="Fetching failed CI checks...", refresh_mode="background"
 )  # cache for 6 hours
-def get_ci_failing_test_run_metrics(refresh_nonce: int = 0) -> tuple[float, int, int, list[int]]:
-    """Get the share of test CI runs with at least one failing test on recent develop commits.
+def get_ci_failing_test_run_metrics(refresh_nonce: int = 0) -> tuple[float, int, int]:
+    """Get the share of GitHub checks that failed on recent develop commits.
 
-    Looks at the latest completed Python, frontend, and Playwright test runs for each of
-    the last `DEVELOP_COMMIT_WINDOW` commits to `develop`.
+    Looks at every CheckRun and commit status on the last `DEVELOP_COMMIT_WINDOW`
+    commits to `develop`.
     """
-    commit_shas = fetch_commit_shas(
-        branch="develop",
+    commits = fetch_develop_commit_checks(
         limit=DEVELOP_COMMIT_WINDOW,
         refresh_nonce=refresh_nonce,
     )
-    if not commit_shas:
-        return 0.0, 0, 0, []
-
-    runs_by_workflow = {
-        workflow_name: fetch_workflow_runs(
-            workflow_name,
-            limit=50,
-            branch="develop",
-            status=None,
-        )
-        for workflow_name in TEST_CI_WORKFLOWS
-    }
-
-    playwright_stats_by_run_id: dict[int, dict[str, Any] | None] = {}
-    for run in _latest_completed_runs_for_commits(
-        runs_by_workflow["playwright.yml"],
-        commit_shas,
-    ):
-        playwright_stats_by_run_id[run["id"]] = _load_playwright_test_stats(run["id"])
-
-    return _compute_ci_failing_test_run_metrics(
-        commit_shas,
-        runs_by_workflow,
-        playwright_stats_by_run_id,
-    )
+    return _compute_ci_failed_check_metrics(commits)
 
 
 @st.cache_data(
