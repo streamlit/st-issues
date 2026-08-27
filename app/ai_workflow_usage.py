@@ -31,6 +31,8 @@ OUTCOME_COLORS: dict[str, str] = {
     OUTCOME_CANCELLED: "#8B8E97",
 }
 OUTCOME_OPTIONS: tuple[str, ...] = (OUTCOME_SUCCEEDED, OUTCOME_FAILED, OUTCOME_CANCELLED)
+SPARKLINE_DAYS: int = 30
+METRIC_CARD_HEIGHT: int = 240
 
 
 def _as_naive_utc(series: pd.Series) -> pd.Series:
@@ -77,14 +79,22 @@ def _signed_duration_delta(current: Any, previous: Any) -> str | None:
     return f"{sign}{_format_duration(abs(diff))} this week"
 
 
-def _sparkline(series: pd.Series, days: pd.Index, *, fill: float | None = None) -> pd.Series | None:
-    values = series.astype("float64")
-    aligned = values.reindex(days, fill_value=fill) if fill is not None else values.reindex(days)
-    if fill is None:
-        aligned = aligned.dropna()
-    if len(aligned) < 2:
+def _sparkline(series: pd.Series, days: pd.Index, *, fill: float | None = None) -> list[float] | None:
+    if len(days) < 2:
         return None
-    return aligned
+    values = pd.to_numeric(series, errors="coerce")
+    values.index = pd.Index(pd.to_datetime(values.index, errors="coerce").date)
+    values = values.groupby(level=0).mean()
+    aligned = values.reindex(days)
+    aligned = aligned.fillna(fill) if fill is not None else aligned.ffill().bfill()
+    aligned = aligned.fillna(0.0)
+    return [float(value) for value in aligned.tolist()]
+
+
+def _sparkline_index(start: date, end: date) -> pd.Index:
+    window_end = end
+    window_start = max(start, window_end - timedelta(days=SPARKLINE_DAYS - 1))
+    return pd.Index([window_start + timedelta(days=offset) for offset in range((window_end - window_start).days + 1)])
 
 
 def _success_rate(outcomes: pd.Series) -> float | None:
@@ -244,7 +254,7 @@ rate_delta = (
 
 completed_df = filtered_df[filtered_df["outcome"].isin([OUTCOME_SUCCEEDED, OUTCOME_FAILED])]
 daily_counts = filtered_df.groupby("created_date").size().sort_index()
-sparkline_days = daily_counts.tail(30).index
+sparkline_days = _sparkline_index(start_date, end_date)
 daily_success_rate = (
     (completed_df["outcome"] == OUTCOME_SUCCEEDED).groupby(completed_df["created_date"]).mean().mul(100).sort_index()
     if not completed_df.empty
@@ -262,6 +272,12 @@ daily_median_duration = (
     else pd.Series(dtype="float64")
 )
 
+runs_sparkline = _sparkline(daily_counts, sparkline_days, fill=0)
+success_sparkline = _sparkline(daily_success_rate, sparkline_days)
+failed_sparkline = _sparkline(daily_failed, sparkline_days, fill=0)
+avg_duration_sparkline = _sparkline(daily_avg_duration, sparkline_days)
+median_duration_sparkline = _sparkline(daily_median_duration, sparkline_days)
+
 metric_row = st.container(horizontal=True)
 with metric_row:
     st.metric(
@@ -270,8 +286,8 @@ with metric_row:
         delta=f"{len(this_week_df) - len(last_week_df):+} this week",
         delta_color="off",
         border=True,
-        height="stretch",
-        chart_data=_sparkline(daily_counts, sparkline_days, fill=0),
+        height=METRIC_CARD_HEIGHT,
+        chart_data=runs_sparkline,
         chart_type="line",
         help="Completed AI workflow runs in the selected filters. Weekly delta compares this calendar week to the previous one.",
     )
@@ -281,8 +297,8 @@ with metric_row:
         delta=rate_delta,
         delta_color="off",
         border=True,
-        height="stretch",
-        chart_data=_sparkline(daily_success_rate, sparkline_days),
+        height=METRIC_CARD_HEIGHT,
+        chart_data=success_sparkline,
         chart_type="line",
         help="Share of succeeded vs failed runs. Cancelled runs are excluded from this rate.",
     )
@@ -292,8 +308,8 @@ with metric_row:
         delta=f"{this_week_failed - last_week_failed:+} this week",
         delta_color="off",
         border=True,
-        height="stretch",
-        chart_data=_sparkline(daily_failed, sparkline_days, fill=0),
+        height=METRIC_CARD_HEIGHT,
+        chart_data=failed_sparkline,
         chart_type="line",
         help="Runs that finished with failure, startup failure, or timeout.",
     )
@@ -303,8 +319,8 @@ with metric_row:
         delta=_signed_duration_delta(this_week_avg, last_week_avg),
         delta_color="off",
         border=True,
-        height="stretch",
-        chart_data=_sparkline(daily_avg_duration, sparkline_days),
+        height=METRIC_CARD_HEIGHT,
+        chart_data=avg_duration_sparkline,
         chart_type="line",
         help="Mean time from start to finish for runs in the current filters.",
     )
@@ -314,8 +330,8 @@ with metric_row:
         delta=_signed_duration_delta(this_week_median, last_week_median),
         delta_color="off",
         border=True,
-        height="stretch",
-        chart_data=_sparkline(daily_median_duration, sparkline_days),
+        height=METRIC_CARD_HEIGHT,
+        chart_data=median_duration_sparkline,
         chart_type="line",
         help="Median time from start to finish for runs in the current filters.",
     )
@@ -325,14 +341,15 @@ with st.container(horizontal=True):
     for workflow in selected_workflows:
         workflow_df = filtered_df[filtered_df["workflow"] == workflow]
         rate = _success_rate(workflow_df["outcome"]) if not workflow_df.empty else None
-        sparkline = workflow_df.groupby("created_date").size().sort_index().tail(30)
+        sparkline = _sparkline(workflow_df.groupby("created_date").size().sort_index(), sparkline_days, fill=0)
         st.metric(
             workflow,
             f"{len(workflow_df):,}",
             delta=f"{rate:.0f}% succeeded" if rate is not None else "No completed runs",
             delta_color="off",
             border=True,
-            chart_data=sparkline if len(sparkline) > 1 else None,
+            height=METRIC_CARD_HEIGHT,
+            chart_data=sparkline,
             chart_type="line",
         )
 
@@ -342,16 +359,16 @@ if selected_workflows and not runtime_df.empty:
         for workflow in selected_workflows:
             workflow_runtime = runtime_df[runtime_df["workflow"] == workflow]
             workflow_avg = workflow_runtime["duration_seconds"].mean() if not workflow_runtime.empty else None
-            sparkline = (
-                workflow_runtime.groupby("created_date")["duration_seconds"].mean().sort_index().tail(30)
-                if not workflow_runtime.empty
-                else pd.Series()
+            sparkline = _sparkline(
+                workflow_runtime.groupby("created_date")["duration_seconds"].mean().sort_index(),
+                sparkline_days,
             )
             st.metric(
                 workflow,
                 _format_duration(workflow_avg),
                 border=True,
-                chart_data=sparkline if len(sparkline) > 1 else None,
+                height=METRIC_CARD_HEIGHT,
+                chart_data=sparkline,
                 chart_type="line",
                 help="Average time from start to finish for this workflow in the current filters.",
             )
