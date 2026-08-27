@@ -7,11 +7,11 @@ import streamlit as st
 from app.utils.github_utils import fetch_issue_view_counts, get_all_github_issues
 from app.utils.issue_formatting import labels_to_type_emoji, reactions_to_str
 
-st.set_page_config(page_title="Bug prioritization", page_icon="🐛", layout="wide")
+st.set_page_config(page_title="Bug prioritization", page_icon=":material/bug_report:", layout="wide")
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🐛 Bug prioritization")
+    st.title(":material/bug_report: Bug prioritization")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_all_github_issues.clear()
         fetch_issue_view_counts.clear()

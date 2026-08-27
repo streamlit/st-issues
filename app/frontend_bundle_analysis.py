@@ -18,11 +18,11 @@ from app.utils.github_utils import (
     fetch_workflow_runs_for_commit,
 )
 
-st.set_page_config(page_title="Frontend bundle analysis", page_icon="📦", layout="wide")
+st.set_page_config(page_title="Frontend bundle analysis", page_icon=":material/inventory_2:", layout="wide")
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("📦 Frontend bundle analysis")
+    st.title(":material/inventory_2: Frontend bundle analysis")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
 

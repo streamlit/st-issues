@@ -13,10 +13,10 @@ from app.utils.issue_formatting import REACTION_EMOJI
 
 st.set_page_config(
     page_title="Company requests",
-    page_icon="🏢",
+    page_icon=":material/apartment:",
 )
 
-st.title("🏢 Company requests")
+st.title(":material/apartment: Company requests")
 st.caption("Analyze which companies engaged with a GitHub issue through reactions and comments.")
 
 # Input field

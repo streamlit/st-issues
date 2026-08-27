@@ -15,7 +15,7 @@ from app.utils.agent_wiki import (
 )
 from app.utils.markdown_rendering import replace_issue_references_with_previews
 
-st.set_page_config(page_title="Agent wiki explorer", page_icon="📚")
+st.set_page_config(page_title="Agent wiki explorer", page_icon=":material/menu_book:")
 
 # Map extensions of non-markdown text documents to a syntax-highlighting language
 # so artifacts like `repro_app.py` render inline as code.
@@ -86,7 +86,7 @@ def _render_other_asset() -> None:
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("📚 Agent wiki explorer")
+    st.title(":material/menu_book: Agent wiki explorer")
     if st.button(":material/refresh: Refresh data", type="tertiary"):
         get_synced_wiki_repo_path.clear()
         fetch_wiki_documents.clear()

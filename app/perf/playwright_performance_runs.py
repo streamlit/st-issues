@@ -31,7 +31,7 @@ st.set_page_config(page_title=TITLE, layout="wide")
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🎭 Playwright performance")
+    st.title(":material/theater_comedy: Playwright performance")
 
 tab = segmented_tabs(
     options=["Runs", "Interpret metrics", "Write a test", "Explorer"],

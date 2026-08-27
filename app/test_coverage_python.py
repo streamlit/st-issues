@@ -22,7 +22,7 @@ from app.utils.github_utils import (
 from app.utils.smokeshow import extract_and_upload_coverage_report
 
 # Set page configuration
-st.set_page_config(page_title="Python test coverage", page_icon="☂️", layout="wide")
+st.set_page_config(page_title="Python test coverage", page_icon=":material/umbrella:", layout="wide")
 
 # Get PR number from query parameters if available
 query_params = st.query_params
@@ -31,7 +31,7 @@ pr_number = query_params.get("pr")
 # Page title and description
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("☂️ Python test coverage")
+    st.title(":material/umbrella: Python test coverage")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
 if pr_number is not None:

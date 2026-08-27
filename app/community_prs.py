@@ -15,7 +15,7 @@ from app.utils.streamlit_date_input import normalize_date_range
 
 st.set_page_config(
     page_title="Community PRs",
-    page_icon="👥",
+    page_icon=":material/groups:",
 )
 
 
@@ -33,7 +33,7 @@ def get_merged_by_login(pr_number: int) -> str | None:
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("👥 Community PRs")
+    st.title(":material/groups: Community PRs")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_all_github_prs.clear()
 

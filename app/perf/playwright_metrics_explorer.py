@@ -126,7 +126,7 @@ Total time spent in mount: `{round(phase_values["actualDuration"], 2)}ms`
 
         if phase_values["count"] > 1:
             res += f"""
-❌ {phase_values["count"]} mounts detected
+:material/cancel: {phase_values["count"]} mounts detected
 
 This is problematic because it means that the entire `{profile_id}` subtree is
 being unmounted and remounted. This is expensive and most likely unnecessary,
@@ -134,7 +134,7 @@ unless we are dealing with a full page transition/reload.
 """
         else:
             res += """
-✅ Single mount detected
+:material/check_circle: Single mount detected
 """
 
         return res
@@ -147,13 +147,13 @@ Total time spent in nested updates: `{round(phase_values["actualDuration"], 2)}m
 
         if phase_values["count"] > 0:
             res += f"""
-❌ {phase_values["count"]} nested updates detected
+:material/cancel: {phase_values["count"]} nested updates detected
 
 Nested updates are likely to cause performance issues since they are
 synchronous. Expand the Metric Definitions section above for more information.
 """
         else:
-            res += "✅ Single nested update detected"
+            res += ":material/check_circle: Single nested update detected"
 
         return res
 
@@ -172,7 +172,7 @@ performance issues. Expand the Metric Definitions section above for more
 information.
 """
         else:
-            res += "✅ Single update detected"
+            res += ":material/check_circle: Single update detected"
 
         return res
 

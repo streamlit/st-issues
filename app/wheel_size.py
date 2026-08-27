@@ -9,11 +9,11 @@ import streamlit as st
 
 from app.utils.github_utils import fetch_artifacts, fetch_workflow_runs
 
-st.set_page_config(page_title="Wheel size", page_icon="🛞")
+st.set_page_config(page_title="Wheel size", page_icon=":material/package_2:")
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🛞 Wheel size")
+    st.title(":material/package_2: Wheel size")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
 st.caption("This page visualizes the size of wheel files created in the PR preview workflow.")

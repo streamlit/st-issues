@@ -10,7 +10,7 @@ from app.utils.github_utils import get_all_github_issues
 
 st.set_page_config(
     page_title="Download GitHub Issues",
-    page_icon="⬇️",
+    page_icon=":material/download:",
     initial_sidebar_state="collapsed",
 )
 

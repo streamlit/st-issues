@@ -17,11 +17,11 @@ PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOL
 
 st.set_page_config(
     page_title="Open issues",
-    page_icon="🗃",
+    page_icon=":material/inbox:",
     initial_sidebar_state="collapsed",
     layout="centered",
 )
-st.title("🗃 Open issues")
+st.title(":material/inbox: Open issues")
 
 
 GROWTH_PERIODS = {
@@ -81,7 +81,7 @@ def get_issue_reactions(issue_number: int) -> pd.DataFrame:
 
 def get_all_reactions(issue_numbers: list) -> pd.DataFrame:
     reactions_dfs = []
-    progress_bar = st.progress(0, text="🤯 Crawling reactions...")
+    progress_bar = st.progress(0, text=":material/progress_activity: Crawling reactions...")
     total_issues = len(issue_numbers)
     for i, issue_number in enumerate(issue_numbers):
         reactions_df = get_issue_reactions(issue_number)
@@ -89,7 +89,7 @@ def get_all_reactions(issue_numbers: list) -> pd.DataFrame:
             reactions_dfs.append(reactions_df)
         progress_bar.progress(
             (i + 1) / total_issues,
-            text=f"🤯 Crawling reactions... ({i + 1}/{total_issues})",
+            text=f":material/progress_activity: Crawling reactions... ({i + 1}/{total_issues})",
         )
 
     progress_bar.empty()
@@ -297,7 +297,7 @@ else:
     # Display statistics if checkbox is checked
     if show_statistics:
         st.divider()
-        st.subheader("📊 Issue Statistics")
+        st.subheader(":material/analytics: Issue Statistics")
 
         col1, col2, col3 = st.columns(3)
 

@@ -20,7 +20,7 @@ from app.utils.issue_formatting import get_issue_type, labels_to_type_emoji, rea
 # Define the repo URL
 GITHUB_REPO = "streamlit/streamlit"
 
-st.set_page_config(page_title="GitHub stats", page_icon="📊", layout="wide")
+st.set_page_config(page_title="GitHub stats", page_icon=":material/bar_chart:", layout="wide")
 
 
 def get_issue_emoji(labels: list) -> str:
@@ -398,7 +398,7 @@ def render_surviving_lines_of_code() -> None:
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("📊 GitHub stats")
+    st.title(":material/bar_chart: GitHub stats")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_git_fame_stats.clear()
         fetch_pr_metrics.clear()

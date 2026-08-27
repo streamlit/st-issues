@@ -16,7 +16,7 @@ from app.utils.markdown_rendering import (
     replace_issue_references_with_previews,
 )
 
-st.set_page_config(page_title="Spec renderer", page_icon="🔧")
+st.set_page_config(page_title="Spec renderer", page_icon=":material/build:")
 
 
 def fetch_open_prs() -> list[dict]:
@@ -485,7 +485,7 @@ def render_merged_specs() -> None:
 def main() -> None:
     title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
     with title_row:
-        st.title("🔧 Spec renderer")
+        st.title(":material/build: Spec renderer")
         if st.button(":material/refresh: Refresh Data", type="tertiary"):
             get_all_github_prs.clear()
             fetch_pr_files.clear()

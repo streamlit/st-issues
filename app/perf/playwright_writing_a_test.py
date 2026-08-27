@@ -6,13 +6,13 @@ DOCS = """
 
 ## When to Use a Playwright Performance Test
 
-✅ When you want to capture the browser experience of a user interacting with
+:material/check_circle: When you want to capture the browser experience of a user interacting with
   Streamlit.
 
-✅ When you want fine-grained information about how the browser and the
+:material/check_circle: When you want fine-grained information about how the browser and the
   underlying React internals are performing.
 
-❌ If you want to measure how performant some backend-specific code path is in
+:material/cancel: If you want to measure how performant some backend-specific code path is in
   isolation, utilize the Pytest tooling instead.
 
 ## How to write a Playwright Performance Test

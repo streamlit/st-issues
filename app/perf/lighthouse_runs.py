@@ -28,7 +28,7 @@ st.set_page_config(page_title=TITLE)
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("💡 Lighthouse performance")
+    st.title(":material/lightbulb: Lighthouse performance")
 
 tab = segmented_tabs(
     options=["Runs", "Interpret metrics", "Write a test"],

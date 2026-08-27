@@ -16,11 +16,11 @@ from app.utils.github_utils import (
     fetch_workflow_runs_ids,
 )
 
-st.set_page_config(page_title="Flaky tests", page_icon="🧫")
+st.set_page_config(page_title="Flaky tests", page_icon=":material/flaky:")
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🧫 Flaky tests")
+    st.title(":material/flaky: Flaky tests")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
 

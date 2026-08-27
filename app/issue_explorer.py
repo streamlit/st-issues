@@ -14,8 +14,8 @@ from app.utils.agent_wiki import (
 )
 from app.utils.github_utils import get_issue_data
 
-st.set_page_config(page_title="Issue explorer", page_icon="🚧")
-st.title("🚧 Issue explorer")
+st.set_page_config(page_title="Issue explorer", page_icon=":material/construction:")
+st.title(":material/construction: Issue explorer")
 
 st.caption(
     f"""

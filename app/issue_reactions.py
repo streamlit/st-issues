@@ -17,12 +17,12 @@ PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOL
 
 st.set_page_config(
     page_title="Issue reactions",
-    page_icon="👍",
+    page_icon=":material/add_reaction:",
 )
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🫶 Issue reactions")
+    st.title(":material/add_reaction: Issue reactions")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         get_all_github_issues.clear()
 st.caption("This page analyzes user reactions on Github issues (emoji reaction or comment).")

@@ -5,18 +5,18 @@ TITLE = "Writing a Pytest benchmark test"
 DOCS = """
 ## When to Use a Pytest Benchmark Test
 
-✅ When you want to test the performance of a specific piece of Python code.
+:material/check_circle: When you want to test the performance of a specific piece of Python code.
 
-✅ When you need to compare the performance of different implementations of a
+:material/check_circle: When you need to compare the performance of different implementations of a
 function.
 
-✅ When you want to ensure that performance regressions are caught during
+:material/check_circle: When you want to ensure that performance regressions are caught during
 development.
 
-❌ If you want to test a function that is I/O bound, a benchmark test may not be
+:material/cancel: If you want to test a function that is I/O bound, a benchmark test may not be
 best suited due to the variability in I/O performance.
 
-❌ If you want to measure the user experience performance of a Streamlit app in
+:material/cancel: If you want to measure the user experience performance of a Streamlit app in
 the browser, utilize the Playwright tooling instead.
 
 ## How to write a Pytest Benchmark test in the Streamlit codebase

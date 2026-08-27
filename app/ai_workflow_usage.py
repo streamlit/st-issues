@@ -17,7 +17,7 @@ from app.utils.ai_workflow_runs import (
 )
 from app.utils.streamlit_date_input import normalize_date_range
 
-st.set_page_config(page_title="AI workflow usage", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="AI workflow usage", page_icon=":material/smart_toy:", layout="wide")
 
 GROUPING_FREQ: dict[str, str] = {"Day": "D", "Week": "W", "Month": "M"}
 WORKFLOW_COLORS: dict[str, str] = {
@@ -134,7 +134,7 @@ def _as_str_list(value: object) -> list[str]:
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🤖 AI workflow usage")
+    st.title(":material/smart_toy: AI workflow usage")
     actions = st.container(horizontal=True, vertical_alignment="center", width="content")
     with actions:
         filters_slot = st.container(width="content")

@@ -147,12 +147,12 @@ if data_view == "Breakdown":
 **Total Duration:**
 - Run 1: `{total_duration_run1}ms`
 - Run 2: `{total_duration_run2}ms`
-- Difference: `{round(duration_diff, 2)}ms` ({"🐢 slower" if duration_diff > 0 else "🚀 faster" if duration_diff < 0 else "⏸️ unchanged"} by `{abs(round(duration_percentage, 2))}%`)
+- Difference: `{round(duration_diff, 2)}ms` ({":material/arrow_cool_down: slower" if duration_diff > 0 else ":material/rocket_launch: faster" if duration_diff < 0 else ":material/pause: unchanged"} by `{abs(round(duration_percentage, 2))}%`)
 
 **Total Count:**
 - Run 1: `{total_count_run1}`
 - Run 2: `{total_count_run2}`
-- Difference: `{round(count_diff, 2)}` ({"🔺 more" if count_diff > 0 else "🔻 fewer" if count_diff < 0 else "⏸️ unchanged"} by `{abs(round(count_percentage, 2))}%`)
+- Difference: `{round(count_diff, 2)}` ({":material/trending_up: more" if count_diff > 0 else ":material/trending_down: fewer" if count_diff < 0 else ":material/pause: unchanged"} by `{abs(round(count_percentage, 2))}%`)
 
 #### Phase-wise Comparison:
         """
@@ -174,8 +174,8 @@ if data_view == "Breakdown":
                 st.write(
                     f"""
     **Profile: {profile}, Phase: {phase}**
-    - Duration Difference: `{duration_diff}ms` ({"🐢 slower" if duration_diff > 0 else "🚀 faster" if duration_diff < 0 else "⏸️ unchanged"} by `{abs(round(duration_percentage, 2))}%`)
-    - Count Difference: `{count_diff}` ({"🔺 more" if count_diff > 0 else "🔻 fewer" if count_diff < 0 else "⏸️ unchanged"} by `{abs(round(count_percentage, 2))}%`)
+    - Duration Difference: `{duration_diff}ms` ({":material/arrow_cool_down: slower" if duration_diff > 0 else ":material/rocket_launch: faster" if duration_diff < 0 else ":material/pause: unchanged"} by `{abs(round(duration_percentage, 2))}%`)
+    - Count Difference: `{count_diff}` ({":material/trending_up: more" if count_diff > 0 else ":material/trending_down: fewer" if count_diff < 0 else ":material/pause: unchanged"} by `{abs(round(count_percentage, 2))}%`)
                     """
                 )
             else:

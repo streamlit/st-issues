@@ -16,11 +16,11 @@ from app.utils.github_utils import (
     fetch_workflow_runs,
 )
 
-st.set_page_config(page_title="Playwright test stats", page_icon="🎭", layout="wide")
+st.set_page_config(page_title="Playwright test stats", page_icon=":material/theater_comedy:", layout="wide")
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("🎭 Playwright test stats")
+    st.title(":material/theater_comedy: Playwright test stats")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
 

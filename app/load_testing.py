@@ -20,7 +20,7 @@ from app.utils.github_utils import (
     get_headers,
 )
 
-st.set_page_config(page_title="Load testing", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Load testing", page_icon=":material/bolt:", layout="wide")
 
 LOAD_TESTING_WORKFLOW = "load-testing.yml"
 
@@ -30,7 +30,7 @@ pr_number = (pr_number_param[0] if pr_number_param else None) if isinstance(pr_n
 
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
-    st.title("⚡ Load testing")
+    st.title(":material/bolt: Load testing")
     if st.button(":material/refresh: Refresh Data", type="tertiary"):
         fetch_workflow_runs.clear()
 
