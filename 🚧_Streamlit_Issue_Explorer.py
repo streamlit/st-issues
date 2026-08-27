@@ -22,6 +22,7 @@ page = st.navigation(
         ],
         "Operations dashboard": [
             st.Page("./app/interrupt_rotation.py", title="Interrupt rotation", icon="🩺"),
+            st.Page("./app/ai_workflow_usage.py", title="AI workflow usage", icon="🤖"),
         ],
         "Test health": [
             st.Page("./app/flaky_tests.py", title="Flaky tests", icon="🧫"),
