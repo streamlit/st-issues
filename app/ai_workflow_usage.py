@@ -105,16 +105,18 @@ def _as_str_list(value: object) -> list[str]:
 title_row = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center")
 with title_row:
     st.title("🤖 AI workflow usage")
-    if st.button(":material/refresh: Refresh data", type="tertiary"):
-        fetch_ai_workflow_runs.clear()
+    actions = st.container(horizontal=True, vertical_alignment="center", width="content")
+    with actions:
+        filters_slot = st.container(width="content")
+        if st.button(":material/refresh: Refresh data", type="tertiary"):
+            fetch_ai_workflow_runs.clear()
 
 st.caption(
     "Runs of Streamlit's Cursor CLI GitHub Actions: "
     f"[AI PR Review]({WORKFLOW_ACTION_URLS['AI PR Review']}), "
     f"[AI QA Testing]({WORKFLOW_ACTION_URLS['AI QA Testing']}), and "
     f"[AI Issue Triage]({WORKFLOW_ACTION_URLS['AI Issue Triage']}). "
-    "Skipped runs from unrelated label events are excluded. "
-    "Use **Ignore cancelled runs** to keep superseded jobs out of counts and runtime stats."
+    "Skipped runs from unrelated label events are excluded."
 )
 
 runs, fetch_errors = fetch_ai_workflow_runs()
@@ -139,42 +141,35 @@ min_date = runs_df["created_date"].min()
 max_date = runs_df["created_date"].max()
 today = date.today()
 
-filter_row = st.container(horizontal=True, vertical_alignment="bottom")
-with filter_row:
-    grouping = st.segmented_control(
-        "Group by",
-        options=list(GROUPING_FREQ),
-        default="Week",
-        width="content",
-    )
-    selected_workflows = st.pills(
-        "Workflows",
-        options=list(WORKFLOW_LABELS),
-        default=list(WORKFLOW_LABELS),
-        selection_mode="multi",
-    )
-    selected_outcomes = st.pills(
-        "Outcomes",
-        options=list(OUTCOME_OPTIONS),
-        default=[OUTCOME_SUCCEEDED, OUTCOME_FAILED],
-        selection_mode="multi",
-    )
-    ignore_cancelled = st.toggle(
-        "Ignore cancelled runs",
-        value=True,
-        help="Cancelled runs are usually superseded by a newer run. Ignoring them keeps counts and average runtime from being skewed by short, incomplete jobs.",
-    )
-    with st.popover("Date range", width="content"):
+with filters_slot:
+    with st.popover("Filters", icon=":material/filter_list:", type="tertiary", width="content"):
+        selected_workflows = st.pills(
+            "Workflows",
+            options=list(WORKFLOW_LABELS),
+            default=list(WORKFLOW_LABELS),
+            selection_mode="multi",
+            key="ai_usage_workflows",
+        )
+        selected_outcomes = st.pills(
+            "Outcomes",
+            options=list(OUTCOME_OPTIONS),
+            default=[OUTCOME_SUCCEEDED, OUTCOME_FAILED],
+            selection_mode="multi",
+            key="ai_usage_outcomes",
+        )
+        ignore_cancelled = st.toggle(
+            "Ignore cancelled runs",
+            value=True,
+            help="Cancelled runs are usually superseded by a newer run. Ignoring them keeps counts and average runtime from being skewed by short, incomplete jobs.",
+            key="ai_usage_ignore_cancelled",
+        )
         date_range = st.date_input(
             "Date range",
             value=(min_date, max_date),
             min_value=min_date,
             max_value=max(max_date, today),
-            label_visibility="collapsed",
+            key="ai_usage_date_range",
         )
-
-if grouping is None:
-    grouping = "Week"
 
 selected_workflows = _as_str_list(selected_workflows)
 selected_outcomes = _as_str_list(selected_outcomes)
@@ -203,8 +198,6 @@ this_week_count = int((filtered_df["created_date"] >= this_week_start).sum())
 last_week_count = int(
     ((filtered_df["created_date"] >= last_week_start) & (filtered_df["created_date"] < this_week_start)).sum()
 )
-filtered_df["period"] = _period_start(filtered_df["created_at"], grouping)
-completed_df = filtered_df[filtered_df["outcome"].isin([OUTCOME_SUCCEEDED, OUTCOME_FAILED])]
 runtime_df = filtered_df[filtered_df["duration_seconds"].notna() & (filtered_df["duration_seconds"] >= 0)].copy()
 runtime_df["duration_minutes"] = runtime_df["duration_seconds"] / 60
 overall_success_rate = _success_rate(filtered_df["outcome"])
@@ -291,6 +284,28 @@ if selected_workflows and not runtime_df.empty:
                 help="Average time from start to finish for this workflow in the current filters.",
             )
 
+chart_header = st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="bottom")
+with chart_header:
+    heading_slot = st.container(width="content")
+    grouping = st.segmented_control(
+        "Group by",
+        options=list(GROUPING_FREQ),
+        default="Week",
+        required=True,
+        label_visibility="collapsed",
+        width="content",
+        key="ai_usage_grouping",
+    )
+if grouping is None:
+    grouping = "Week"
+with heading_slot:
+    st.markdown(f"##### Runs by {grouping.lower()}")
+st.caption(":material/web_traffic: Click a bar to inspect the runs in that period.")
+
+filtered_df["period"] = _period_start(filtered_df["created_at"], grouping)
+completed_df = filtered_df[filtered_df["outcome"].isin([OUTCOME_SUCCEEDED, OUTCOME_FAILED])]
+runtime_df["period"] = _period_start(runtime_df["created_at"], grouping)
+
 workflow_counts = (
     filtered_df.groupby(["period", "workflow"], as_index=False)
     .size()
@@ -331,9 +346,6 @@ else:
     )
     duration_by_workflow["avg_minutes"] = duration_by_workflow["avg_seconds"] / 60
     duration_by_workflow["median_minutes"] = duration_by_workflow["median_seconds"] / 60
-
-st.markdown(f"##### Runs by {grouping.lower()}")
-st.caption(":material/web_traffic: Click a bar to inspect the runs in that period.")
 
 chart_tab_workflow, chart_tab_outcome, chart_tab_rate, chart_tab_duration = st.tabs(
     ["By workflow", "By outcome", "Success rate", "Duration"]
