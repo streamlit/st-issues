@@ -3,7 +3,10 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
+import pytest
+
 from app.utils import github_utils
+from app.utils.github_graphql_utils import GitHubGraphQLError
 
 if TYPE_CHECKING:
     from _pytest.monkeypatch import MonkeyPatch
@@ -364,3 +367,99 @@ def test_fetch_develop_commit_checks_paginates_contexts(monkeypatch: MonkeyPatch
 
     assert [check["name"] for check in commits[0]["checks"]] == ["page-1", "page-2"]
     assert calls == [None, "cursor-2"]
+
+
+def _fail_if_st_error(*_args: Any, **_kwargs: Any) -> None:
+    message = "st.error should not be used from GraphQL cache helpers"
+    raise AssertionError(message)
+
+
+def test_fetch_workflow_runs_does_not_use_st_error_on_total_failure(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_workflow_runs.clear()
+    monkeypatch.setattr(github_utils, "_get_workflow_node_id", lambda _name: "W_workflow")
+    monkeypatch.setattr(github_utils.st, "error", _fail_if_st_error)
+
+    def fake_graphql(_query: str, _variables: dict[str, Any]) -> dict[str, Any]:
+        message = "received retryable status 502"
+        raise GitHubGraphQLError(message)
+
+    monkeypatch.setattr(github_utils, "_run_graphql_query", fake_graphql)
+
+    with pytest.raises(GitHubGraphQLError, match="retryable status 502"):
+        github_utils.fetch_workflow_runs("playwright.yml", limit=1)
+
+
+def test_fetch_workflow_runs_keeps_partial_results_on_later_page_failure(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_workflow_runs.clear()
+    monkeypatch.setattr(github_utils, "_get_workflow_node_id", lambda _name: "W_workflow")
+    monkeypatch.setattr(github_utils.st, "error", _fail_if_st_error)
+    calls = {"count": 0}
+
+    def fake_graphql(_query: str, _variables: dict[str, Any]) -> dict[str, Any]:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return _graphql_page(
+                [
+                    _graphql_run(
+                        run_id=11,
+                        created_at="2026-08-27T13:00:00Z",
+                        sha="aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    )
+                ],
+                has_next=True,
+                cursor="cursor-2",
+            )
+        message = "received retryable status 504"
+        raise GitHubGraphQLError(message)
+
+    monkeypatch.setattr(github_utils, "_run_graphql_query", fake_graphql)
+
+    runs = github_utils.fetch_workflow_runs("playwright.yml", limit=50)
+
+    assert [run["id"] for run in runs] == [11]
+    assert calls["count"] == 2
+
+
+def test_fetch_develop_commit_checks_does_not_use_st_error_on_failure(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_develop_commit_checks.clear()
+    monkeypatch.setattr(github_utils.st, "error", _fail_if_st_error)
+
+    def fake_graphql(_query: str, _variables: dict[str, Any]) -> dict[str, Any]:
+        message = "ChunkedEncodingError: Response ended prematurely"
+        raise GitHubGraphQLError(message)
+
+    monkeypatch.setattr(github_utils, "_run_graphql_query", fake_graphql)
+
+    with pytest.raises(GitHubGraphQLError, match="ChunkedEncodingError"):
+        github_utils.fetch_develop_commit_checks(limit=10)
+
+
+def test_fetch_remaining_check_contexts_keeps_partial_on_later_failure(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(github_utils.st, "error", _fail_if_st_error)
+    calls = {"count": 0}
+
+    def fake_graphql(_query: str, _variables: dict[str, Any]) -> dict[str, Any]:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return {
+                "repository": {
+                    "object": {
+                        "statusCheckRollup": {
+                            "contexts": _contexts_connection(
+                                [_check_run_node(name="page-2")],
+                                has_next=True,
+                                cursor="cursor-3",
+                            )
+                        }
+                    }
+                }
+            }
+        message = "received retryable status 502"
+        raise GitHubGraphQLError(message)
+
+    monkeypatch.setattr(github_utils, "_run_graphql_query", fake_graphql)
+
+    checks = github_utils._fetch_remaining_check_contexts("aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "cursor-2")
+
+    assert [check["name"] for check in checks] == ["page-2"]
+    assert calls["count"] == 2

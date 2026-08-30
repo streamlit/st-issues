@@ -12,7 +12,7 @@ from zipfile import ZipFile
 import requests
 import streamlit as st
 
-from app.utils.github_graphql_utils import _run_graphql_query
+from app.utils.github_graphql_utils import GitHubGraphQLError, _run_graphql_query
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -761,7 +761,7 @@ _WORKFLOW_STATUS_FILTERS: Final[frozenset[str]] = frozenset(
     }
 )
 _WORKFLOW_RUNS_QUERY: Final[str] = """
-query($workflowId: ID!, $cursor: String, $pageSize: Int!) {
+query WorkflowRuns($workflowId: ID!, $cursor: String, $pageSize: Int!) {
   node(id: $workflowId) {
     ... on Workflow {
       runs(
@@ -793,17 +793,26 @@ query($workflowId: ID!, $cursor: String, $pageSize: Int!) {
 """
 
 
+def _log_github(message: str) -> None:
+    """Log GitHub API diagnostics without Streamlit UI elements.
+
+    Callers of this module are often ``@st.cache_data(..., refresh_mode="background")``,
+    which cannot render ``st.error`` / ``st.warning`` / ``st.exception``.
+    """
+    print(message, flush=True)
+
+
 def _get_workflow_node_id(workflow_name: str) -> str | None:
     """Resolve a workflow file name to the GraphQL node ID via REST."""
     payload, error, _status = _request_json(
         f"https://api.github.com/repos/streamlit/streamlit/actions/workflows/{workflow_name}",
     )
     if error or not isinstance(payload, dict):
-        st.error(error or f"Unexpected workflow payload for {workflow_name}.")
+        _log_github(error or f"[GitHub] Unexpected workflow payload for {workflow_name}.")
         return None
     node_id = payload.get("node_id")
     if not isinstance(node_id, str) or not node_id:
-        st.error(f"Workflow {workflow_name} is missing a GraphQL node ID.")
+        _log_github(f"[GitHub] Workflow {workflow_name} is missing a GraphQL node ID.")
         return None
     return node_id
 
@@ -933,7 +942,7 @@ fragment CheckContextFields on StatusCheckRollupContext {
 _DEVELOP_COMMIT_CHECKS_QUERY: Final[str] = (
     _CHECK_CONTEXT_FIELDS
     + """
-query($historyFirst: Int!, $contextsFirst: Int!) {
+query DevelopCommitChecks($historyFirst: Int!, $contextsFirst: Int!) {
   repository(owner: "streamlit", name: "streamlit") {
     ref(qualifiedName: "refs/heads/develop") {
       target {
@@ -964,7 +973,7 @@ query($historyFirst: Int!, $contextsFirst: Int!) {
 _COMMIT_CHECK_CONTEXTS_QUERY: Final[str] = (
     _CHECK_CONTEXT_FIELDS
     + """
-query($oid: GitObjectID!, $contextsFirst: Int!, $cursor: String) {
+query CommitCheckContexts($oid: GitObjectID!, $contextsFirst: Int!, $cursor: String) {
   repository(owner: "streamlit", name: "streamlit") {
     object(oid: $oid) {
       ... on Commit {
@@ -1051,8 +1060,11 @@ def _fetch_remaining_check_contexts(oid: str, cursor: str) -> list[dict[str, Any
                     "cursor": next_cursor,
                 },
             )
-        except Exception as exc:
-            st.error(f"Error fetching commit checks: {exc}")
+        except GitHubGraphQLError as exc:
+            _log_github(
+                f"[GitHub GraphQL] Error fetching remaining commit checks for {oid[:12]}: {exc} "
+                f"(collected={len(checks)}, cursor={next_cursor})"
+            )
             break
         repo = data.get("repository") or {}
         obj = repo.get("object") or {}
@@ -1072,23 +1084,20 @@ def fetch_develop_commit_checks(limit: int = 10, refresh_nonce: int = 0) -> list
     StatusContext entries from `statusCheckRollup`.
     """
     _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
-    try:
-        data = _run_graphql_query(
-            _DEVELOP_COMMIT_CHECKS_QUERY,
-            {
-                "historyFirst": min(limit, 100),
-                "contextsFirst": _CHECK_CONTEXTS_PAGE_SIZE,
-            },
-        )
-    except Exception as exc:
-        st.error(f"Error fetching commit checks: {exc}")
-        return []
+    data = _run_graphql_query(
+        _DEVELOP_COMMIT_CHECKS_QUERY,
+        {
+            "historyFirst": min(limit, 100),
+            "contextsFirst": _CHECK_CONTEXTS_PAGE_SIZE,
+        },
+    )
 
     repo = data.get("repository") or {}
     ref = repo.get("ref")
     if not isinstance(ref, dict):
-        st.error("GraphQL did not return the develop ref.")
-        return []
+        message = "[GitHub GraphQL] did not return the develop ref."
+        _log_github(message)
+        raise GitHubGraphQLError(message)
     target = ref.get("target") or {}
     history = target.get("history") or {}
     commits: list[dict[str, Any]] = []
@@ -1141,13 +1150,21 @@ def fetch_workflow_runs(
                     "pageSize": _WORKFLOW_RUNS_PAGE_SIZE,
                 },
             )
-        except Exception as exc:
-            st.error(f"Error fetching workflow runs: {exc}")
+        except GitHubGraphQLError as exc:
+            _log_github(
+                f"[GitHub GraphQL] Error fetching workflow runs for {workflow_name}: {exc} "
+                f"(collected={len(matching_runs)}, cursor={cursor})"
+            )
+            if not matching_runs:
+                raise
             break
 
         workflow = data.get("node")
         if not isinstance(workflow, dict):
-            st.error(f"GraphQL did not return runs for workflow {workflow_name}.")
+            message = f"[GitHub GraphQL] did not return runs for workflow {workflow_name}."
+            _log_github(f"{message} collected={len(matching_runs)} cursor={cursor}")
+            if not matching_runs:
+                raise GitHubGraphQLError(message)
             break
 
         connection = workflow.get("runs") or {}
