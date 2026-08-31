@@ -595,7 +595,9 @@ def render_dependabot_alerts() -> None:
         "Dependabot alerts",
         help="""
 Open Dependabot alerts for `streamlit/streamlit`. Please investigate and get this list to 0:
-bump the dependency, merge a Dependabot PR, or dismiss the alert if it does not apply.
+bump the dependency or merge a Dependabot PR.
+
+If an alert isn't fixable and the dependency is unused, it is fine to dismiss the alert instead.
 
 Open alerts: [streamlit/streamlit Dependabot](https://github.com/streamlit/streamlit/security/dependabot?q=is%3Aopen)
 
