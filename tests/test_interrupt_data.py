@@ -460,6 +460,47 @@ def test_get_ci_failing_test_run_metrics_uses_develop_commit_checks(
     assert (percent, failing, total) == (25.0, 1, 4)
 
 
+def test_compute_nightly_run_metrics_ignores_skipped_and_in_progress() -> None:
+    percent, failing, total = interrupt_data._compute_nightly_run_metrics(
+        [
+            {"conclusion": "failure", "status": "completed"},
+            {"conclusion": "success", "status": "completed"},
+            {"conclusion": "cancelled", "status": "completed"},
+            {"conclusion": "timed_out", "status": "completed"},
+            {"conclusion": "skipped", "status": "completed"},
+            {"conclusion": None, "status": "in_progress"},
+            {"conclusion": "startup_failure", "status": "completed"},
+        ]
+    )
+
+    assert (percent, failing, total) == (75.0, 3, 4)
+
+
+def test_compute_nightly_run_metrics_empty() -> None:
+    assert interrupt_data._compute_nightly_run_metrics([]) == (0.0, 0, 0)
+
+
+def test_get_nightly_run_metrics_fetches_all_conclusions(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_fetch_workflow_runs(workflow_name: str, **kwargs: object) -> list[dict]:
+        captured["workflow"] = workflow_name
+        captured["kwargs"] = kwargs
+        return [
+            {"conclusion": "failure", "status": "completed"},
+            {"conclusion": "success", "status": "completed"},
+        ]
+
+    monkeypatch.setattr(interrupt_data, "fetch_workflow_runs", fake_fetch_workflow_runs)
+    interrupt_data.get_nightly_run_metrics.clear()
+
+    percent, failing, total = interrupt_data.get_nightly_run_metrics(date(2026, 8, 20))
+
+    assert captured["workflow"] == interrupt_data.NIGHTLY_WORKFLOW
+    assert captured["kwargs"] == {"since": date(2026, 8, 20), "status": None}
+    assert (percent, failing, total) == (50.0, 1, 2)
+
+
 def _annotation(
     *,
     level: str,
@@ -739,6 +780,7 @@ def test_clear_interrupt_caches_clears_page_and_nested_helpers(monkeypatch: pyte
     targets = [
         "get_ci_test_annotations",
         "get_dependabot_alerts",
+        "get_nightly_run_metrics",
         "get_flaky_tests",
         "build_interrupt_action_items",
         "fetch_workflow_runs",

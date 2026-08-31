@@ -25,6 +25,7 @@ from app.utils.interrupt_data import (
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
     get_monitored_repo_open_prs,
+    get_nightly_run_metrics,
     get_playwright_test_count_metrics,
     get_python_test_coverage_metrics,
     get_reported_bugs,
@@ -134,7 +135,7 @@ def render_ci_metrics(selected_since: date) -> None:
             ),
         )
 
-    col1, col2, col3, _ = st.columns(4)
+    col1, col2, col3, col4 = st.columns(4)
     with col1, st.skeleton(height=110):
         entry_gzip_warn = entry_gzip > ENTRY_BUNDLE_WARNING_BYTES
         st.metric(
@@ -180,6 +181,26 @@ def render_ci_metrics(selected_since: date) -> None:
                 "Skipped, cancelled, neutral, and in-progress checks are ignored. "
                 "This ignores the timeframe selector. "
                 f"A warning is shown when the rate is over {CI_FAILING_TEST_WARNING_PCT:.0f}%."
+            ),
+        )
+    with col4, st.skeleton(height=110):
+        nightly_pct, nightly_failing, nightly_total = get_nightly_run_metrics(selected_since)
+        nightly_warn = nightly_failing > 0
+        nightly_delta = f"{nightly_pct:.0f}% · {nightly_failing}/{nightly_total} runs" if nightly_total else "0/0 runs"
+        st.metric(
+            "Failed Nightly Runs",
+            _metric_value(str(nightly_failing), warn=nightly_warn),
+            nightly_delta,
+            delta_color="off",
+            delta_arrow="off",
+            border=True,
+            icon=_metric_icon(warn=nightly_warn),
+            help=(
+                "Number of failed [`nightly.yml`](https://github.com/streamlit/streamlit/actions/"
+                "workflows/nightly.yml) runs on `develop` in the selected timeframe. "
+                "The delta shows the failure rate and failed/total completed runs. "
+                "Skipped, cancelled, and in-progress runs are ignored. "
+                "A warning is shown when any nightly run failed."
             ),
         )
 

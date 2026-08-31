@@ -73,6 +73,7 @@ PYTHON_TESTS_WORKFLOW = "python-tests.yml"
 PYTHON_UNIT_TESTS_MAX_JOB = "py-unit-tests (max)"
 JS_TESTS_WORKFLOW = "js-tests.yml"
 JS_UNIT_TESTS_JOB = "js-unit-tests"
+NIGHTLY_WORKFLOW = "nightly.yml"
 _ANNOTATION_LEVEL_LABELS: dict[str, str] = {
     "failure": "error",
     "warning": "warning",
@@ -601,6 +602,35 @@ def get_ci_failing_test_run_metrics(_result_version: int = 2) -> tuple[float, in
     return _compute_ci_failed_check_metrics(commits)
 
 
+def _compute_nightly_run_metrics(runs: list[dict[str, Any]]) -> tuple[float, int, int]:
+    """Compute failed `nightly.yml` runs among completed eligible runs.
+
+    Skipped, cancelled, and in-progress runs are ignored. Returns
+    (percentage, failing_count, total_eligible_count).
+    """
+    failing = 0
+    total = 0
+    for run in runs:
+        if run.get("status") not in {None, "completed"}:
+            continue
+        conclusion = run.get("conclusion")
+        if conclusion in _FAILED_CHECK_CONCLUSIONS:
+            total += 1
+            failing += 1
+        elif conclusion == "success":
+            total += 1
+    if total == 0:
+        return 0.0, 0, 0
+    return 100.0 * failing / total, failing, total
+
+
+@st.cache_data(ttl=60 * 60 * 6, show_spinner=False, refresh_mode="background")
+def get_nightly_run_metrics(since_date: date) -> tuple[float, int, int]:
+    """Failed `nightly.yml` runs on `develop` in the selected timeframe."""
+    runs = fetch_workflow_runs(NIGHTLY_WORKFLOW, since=since_date, status=None)
+    return _compute_nightly_run_metrics(runs)
+
+
 @st.cache_data(
     ttl=60 * 60 * 6, show_spinner="Fetching Playwright test count...", refresh_mode="background"
 )  # cache for 6 hours
@@ -1009,6 +1039,7 @@ def clear_interrupt_caches() -> None:
         get_wheel_size_metrics,
         get_bundle_size_metrics,
         get_ci_failing_test_run_metrics,
+        get_nightly_run_metrics,
         get_playwright_test_count_metrics,
         _load_playwright_test_stats,
         get_reported_bugs,
