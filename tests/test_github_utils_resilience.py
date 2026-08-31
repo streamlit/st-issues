@@ -150,3 +150,43 @@ def test_fetch_issue_view_counts_handles_non_dict_payload(monkeypatch: MonkeyPat
     view_counts, error = github_utils.fetch_issue_view_counts((1, 2))
     assert view_counts == {}
     assert error is not None
+
+
+def test_fetch_workflow_run_jobs_paginates(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_workflow_run_jobs.clear()
+    pages = {
+        1: {"jobs": [{"id": idx, "name": f"job-{idx}"} for idx in range(100)]},
+        2: {"jobs": [{"id": 100, "name": "job-100"}]},
+    }
+
+    def fake_get(url: str, **kwargs: Any) -> _FakeResponse:
+        assert "actions/runs/333/jobs" in url
+        page = (kwargs.get("params") or {}).get("page", 1)
+        return _FakeResponse(status_code=200, payload=pages[page])
+
+    monkeypatch.setattr(github_utils, "get_headers", dict)
+    monkeypatch.setattr(github_utils.requests, "get", fake_get)
+
+    jobs = github_utils.fetch_workflow_run_jobs(333)
+    assert len(jobs) == 101
+    assert jobs[-1]["name"] == "job-100"
+
+
+def test_fetch_workflow_run_annotations_paginates(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_workflow_run_annotations.clear()
+    pages = {
+        1: [{"message": f"warning {idx}"} for idx in range(100)],
+        2: [{"message": "warning 100"}],
+    }
+
+    def fake_get(url: str, **kwargs: Any) -> _FakeResponse:
+        assert "check-runs/99/annotations" in url
+        page = (kwargs.get("params") or {}).get("page", 1)
+        return _FakeResponse(status_code=200, payload=pages[page])
+
+    monkeypatch.setattr(github_utils, "get_headers", dict)
+    monkeypatch.setattr(github_utils.requests, "get", fake_get)
+
+    annotations = github_utils.fetch_workflow_run_annotations(99)
+    assert len(annotations) == 101
+    assert annotations[-1]["message"] == "warning 100"

@@ -1357,15 +1357,66 @@ def fetch_workflow_runs_for_commit(commit_sha: str, workflow_name: str) -> list[
         return []
 
 
-@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False, refresh_mode="background")
-def fetch_workflow_run_annotations(check_run_id: str) -> list[dict]:
-    annotations_url = f"https://api.github.com/repos/streamlit/streamlit/check-runs/{check_run_id}/annotations"
-    response = requests.get(annotations_url, headers=get_headers(), timeout=30)
+@st.cache_data(ttl=60 * 60 * 6, max_entries=200, show_spinner=False, refresh_mode="background")
+def fetch_workflow_run_jobs(run_id: int) -> list[dict[str, Any]]:
+    """List jobs for a workflow run, newest attempt only."""
+    jobs: list[dict[str, Any]] = []
+    page = 1
 
-    if response.status_code == 200:
-        return response.json()
-    st.error(f"Error fetching annotations: {response.status_code}")
-    return []
+    while True:
+        try:
+            response = requests.get(
+                f"https://api.github.com/repos/streamlit/streamlit/actions/runs/{run_id}/jobs",
+                headers=get_headers(),
+                params={"filter": "latest", "per_page": 100, "page": page},
+                timeout=30,
+            )
+        except Exception as exc:
+            st.error(f"Error fetching workflow jobs: {exc}")
+            return jobs
+
+        if response.status_code != 200:
+            st.error(f"Error fetching workflow jobs: {response.status_code}")
+            return jobs
+
+        payload = response.json()
+        page_jobs = payload.get("jobs") if isinstance(payload, dict) else None
+        if not page_jobs:
+            break
+        jobs.extend(page_jobs)
+        if len(page_jobs) < 100:
+            break
+        page += 1
+
+    return jobs
+
+
+@st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False, refresh_mode="background")
+def fetch_workflow_run_annotations(check_run_id: int | str) -> list[dict]:
+    annotations: list[dict] = []
+    page = 1
+
+    while True:
+        response = requests.get(
+            f"https://api.github.com/repos/streamlit/streamlit/check-runs/{check_run_id}/annotations",
+            headers=get_headers(),
+            params={"per_page": 100, "page": page},
+            timeout=30,
+        )
+
+        if response.status_code != 200:
+            st.error(f"Error fetching annotations: {response.status_code}")
+            return annotations
+
+        page_items = response.json()
+        if not isinstance(page_items, list) or not page_items:
+            break
+        annotations.extend(page_items)
+        if len(page_items) < 100:
+            break
+        page += 1
+
+    return annotations
 
 
 @st.cache_data(ttl=60 * 60 * 6, max_entries=500, show_spinner=False, refresh_mode="background")

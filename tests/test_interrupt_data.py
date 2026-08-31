@@ -459,3 +459,173 @@ def test_get_ci_failing_test_run_metrics_uses_develop_commit_checks(
     percent, failing, total = interrupt_data.get_ci_failing_test_run_metrics(refresh_nonce=4)
 
     assert (percent, failing, total) == (25.0, 1, 4)
+
+
+def _annotation(
+    *,
+    level: str,
+    path: str,
+    start_line: int,
+    message: str,
+) -> dict:
+    return {
+        "annotation_level": level,
+        "path": path,
+        "start_line": start_line,
+        "message": message,
+    }
+
+
+def test_unique_annotation_rows_dedupes_and_normalizes() -> None:
+    rows = interrupt_data._unique_annotation_rows(
+        [
+            _annotation(
+                level="warning",
+                path="uvloop/__init__.py",
+                start_line=160,
+                message="'asyncio.set_event_loop_policy' is deprecated",
+            ),
+            _annotation(
+                level="warning",
+                path="uvloop/__init__.py",
+                start_line=160,
+                message="'asyncio.set_event_loop_policy' is deprecated",
+            ),
+            _annotation(
+                level="failure",
+                path=".github",
+                start_line=551,
+                message="Event loop is closed",
+            ),
+            _annotation(
+                level="warning",
+                path="_pytest/raises.py",
+                start_line=697,
+                message="unclosed database in <sqlite3.Connection object at 0x7fa832f3a5c0>",
+            ),
+            _annotation(
+                level="warning",
+                path="_pytest/raises.py",
+                start_line=697,
+                message="unclosed database in <sqlite3.Connection object at 0xabc123>",
+            ),
+            _annotation(
+                level="warning",
+                path="_pytest/threadexception.py",
+                start_line=58,
+                message="Exception in thread ScriptRunner.scriptThread\n\nTraceback...",
+            ),
+        ],
+        job_name="py-unit-tests (max)",
+        job_url="https://example.test/job/py",
+    )
+
+    by_message = {row["Message"]: row for row in rows}
+    assert by_message["'asyncio.set_event_loop_policy' is deprecated"]["Count"] == 2
+    assert by_message["Event loop is closed"]["Level"] == "error"
+    assert by_message["Event loop is closed"]["Location"] == ".github#L551"
+    assert by_message["unclosed database in <sqlite3.Connection object at 0x7fa832f3a5c0>"]["Count"] == 2
+    assert by_message["Exception in thread ScriptRunner.scriptThread"]["Count"] == 1
+    assert {row["URL"] for row in rows} == {"https://example.test/job/py"}
+    assert len(rows) == 4
+
+
+def test_get_ci_test_annotations_combines_python_and_js_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_fetch_workflow_runs(
+        workflow_name: str,
+        limit: int = 50,
+        since=None,
+        branch: str | None = "develop",
+        status: str | None = "success",
+    ) -> list[dict]:
+        assert limit == 1
+        assert branch == "develop"
+        assert status == "success"
+        run_id = 1 if workflow_name == interrupt_data.PYTHON_TESTS_WORKFLOW else 2
+        return [
+            {
+                "id": run_id,
+                "html_url": f"https://example.test/runs/{workflow_name}",
+                "created_at": "2026-08-30T00:00:00Z",
+            }
+        ]
+
+    def fake_jobs(run_id: int) -> list[dict]:
+        if run_id == 1:
+            return [
+                {
+                    "id": 11,
+                    "name": interrupt_data.PYTHON_UNIT_TESTS_MAX_JOB,
+                    "html_url": "https://example.test/job/py",
+                }
+            ]
+        return [
+            {
+                "id": 22,
+                "name": interrupt_data.JS_UNIT_TESTS_JOB,
+                "html_url": "https://example.test/job/js",
+            }
+        ]
+
+    def fake_annotations(check_run_id: int) -> list[dict]:
+        if check_run_id == 11:
+            return [
+                _annotation(
+                    level="warning",
+                    path="uvloop/__init__.py",
+                    start_line=160,
+                    message="'asyncio.set_event_loop_policy' is deprecated",
+                ),
+                _annotation(
+                    level="warning",
+                    path="uvloop/__init__.py",
+                    start_line=160,
+                    message="'asyncio.set_event_loop_policy' is deprecated",
+                ),
+            ]
+        return [
+            _annotation(
+                level="notice",
+                path="knip.json",
+                start_line=1,
+                message="Remove from ignoreDependencies: react-responsive-carousel in knip.json",
+            )
+        ]
+
+    monkeypatch.setattr(interrupt_data, "fetch_workflow_runs", fake_fetch_workflow_runs)
+    monkeypatch.setattr(interrupt_data, "fetch_workflow_run_jobs", fake_jobs)
+    monkeypatch.setattr(interrupt_data, "fetch_workflow_run_annotations", fake_annotations)
+    interrupt_data.get_ci_test_annotations.clear()
+
+    annotations_df, sources = interrupt_data.get_ci_test_annotations(refresh_nonce=3)
+
+    assert list(annotations_df["Job"]) == [
+        interrupt_data.PYTHON_UNIT_TESTS_MAX_JOB,
+        interrupt_data.JS_UNIT_TESTS_JOB,
+    ]
+    assert list(annotations_df["Level"]) == ["warning", "notice"]
+    assert list(annotations_df["Count"]) == [2, 1]
+    assert list(annotations_df["Location"]) == ["uvloop/__init__.py#L160", "knip.json#L1"]
+    assert [source["job_url"] for source in sources] == [
+        "https://example.test/job/py",
+        "https://example.test/job/js",
+    ]
+
+
+def test_get_ci_test_annotations_missing_job_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_fetch_workflow_runs(workflow_name: str, **_: object) -> list[dict]:
+        return [{"id": 1, "html_url": "https://example.test/run", "created_at": "2026-08-30T00:00:00Z"}]
+
+    monkeypatch.setattr(interrupt_data, "fetch_workflow_runs", fake_fetch_workflow_runs)
+    monkeypatch.setattr(interrupt_data, "fetch_workflow_run_jobs", lambda _run_id: [])
+    monkeypatch.setattr(interrupt_data, "fetch_workflow_run_annotations", lambda _check_run_id: [])
+    interrupt_data.get_ci_test_annotations.clear()
+
+    annotations_df, sources = interrupt_data.get_ci_test_annotations(refresh_nonce=4)
+
+    assert annotations_df.empty
+    assert [source["job_url"] for source in sources] == ["", ""]
+    assert [source["job"] for source in sources] == [
+        interrupt_data.PYTHON_UNIT_TESTS_MAX_JOB,
+        interrupt_data.JS_UNIT_TESTS_JOB,
+    ]

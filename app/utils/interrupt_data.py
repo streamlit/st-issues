@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 from collections import Counter
 from datetime import date, datetime, timedelta
 from io import BytesIO
@@ -22,6 +23,7 @@ from app.utils.github_utils import (
     fetch_artifacts,
     fetch_develop_commit_checks,
     fetch_workflow_run_annotations,
+    fetch_workflow_run_jobs,
     fetch_workflow_runs,
     fetch_workflow_runs_ids,
     get_all_github_issues,
@@ -63,6 +65,21 @@ RELEASE_PR_TITLE_PREFIX = "[chore] Release"
 DEVELOP_COMMIT_WINDOW = 10
 _FAILED_CHECK_CONCLUSIONS: frozenset[str] = frozenset({"failure", "timed_out", "startup_failure"})
 _FAILED_STATUS_STATES: frozenset[str] = frozenset({"failure", "error"})
+
+# Latest successful unit-test jobs whose check-run annotations are tracked as
+# interrupt action items (deprecations, resource warnings, tool notices, ...).
+PYTHON_TESTS_WORKFLOW = "python-tests.yml"
+PYTHON_UNIT_TESTS_MAX_JOB = "py-unit-tests (max)"
+JS_TESTS_WORKFLOW = "js-tests.yml"
+JS_UNIT_TESTS_JOB = "js-unit-tests"
+_ANNOTATION_LEVEL_LABELS: dict[str, str] = {
+    "failure": "error",
+    "warning": "warning",
+    "notice": "notice",
+}
+_ANNOTATION_LEVEL_SORT: dict[str, int] = {"error": 0, "warning": 1, "notice": 2}
+_HEX_OBJECT_ID_RE = re.compile(r"0x[0-9a-fA-F]+")
+_CI_TEST_ANNOTATION_COLUMNS: tuple[str, ...] = ("Level", "Job", "Message", "Location", "Count", "URL")
 
 
 def _issue_row(issue: dict[str, Any], labels: set[str]) -> dict[str, Any]:
@@ -740,6 +757,121 @@ def get_confirmed_bugs_without_repro_script(since_date: date, refresh_nonce: int
     """Get confirmed bugs created since a date that don't have a repro script."""
     data = build_interrupt_action_items(since_date, refresh_nonce=refresh_nonce)
     return data["confirmed_bugs_without_repro"].copy()
+
+
+def _empty_ci_test_annotations_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "Level": pd.Series(dtype="string"),
+            "Job": pd.Series(dtype="string"),
+            "Message": pd.Series(dtype="string"),
+            "Location": pd.Series(dtype="string"),
+            "Count": pd.Series(dtype="int64"),
+            "URL": pd.Series(dtype="string"),
+        }
+    )
+
+
+def _annotation_first_line(message: str) -> str:
+    return message.strip().split("\n", maxsplit=1)[0]
+
+
+def _annotation_identity_message(message: str) -> str:
+    """Collapse volatile object ids so the same warning is not listed twice."""
+    return _HEX_OBJECT_ID_RE.sub("0x…", _annotation_first_line(message))
+
+
+def _format_annotation_location(path: str, start_line: object) -> str:
+    if path and isinstance(start_line, int):
+        return f"{path}#L{start_line}"
+    return path
+
+
+def _unique_annotation_rows(
+    annotations: list[dict[str, Any]],
+    *,
+    job_name: str,
+    job_url: str,
+) -> list[dict[str, Any]]:
+    """Deduplicate check-run annotations for a single job."""
+    grouped: dict[tuple[object, ...], dict[str, Any]] = {}
+    for annotation in annotations:
+        if not isinstance(annotation, dict):
+            continue
+        raw_level = str(annotation.get("annotation_level") or "notice")
+        level = _ANNOTATION_LEVEL_LABELS.get(raw_level, raw_level)
+        path = str(annotation.get("path") or "")
+        start_line = annotation.get("start_line")
+        message = str(annotation.get("message") or "")
+        identity = (level, job_name, path, start_line, _annotation_identity_message(message))
+        existing = grouped.get(identity)
+        if existing is not None:
+            existing["Count"] += 1
+            continue
+        grouped[identity] = {
+            "Level": level,
+            "Job": job_name,
+            "Message": _annotation_first_line(message),
+            "Location": _format_annotation_location(path, start_line),
+            "Count": 1,
+            "URL": job_url,
+        }
+    return list(grouped.values())
+
+
+def _sort_annotation_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            _ANNOTATION_LEVEL_SORT.get(str(row["Level"]), 99),
+            str(row["Job"]),
+            str(row["Message"]),
+        ),
+    )
+
+
+def _annotations_for_latest_job(
+    workflow_name: str, job_name: str
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Load unique annotations from the named job on the latest successful develop run."""
+    source = {
+        "workflow": workflow_name,
+        "job": job_name,
+        "job_url": "",
+        "run_url": "",
+        "created_at": "",
+    }
+    runs = fetch_workflow_runs(workflow_name, limit=1, status="success", branch="develop")
+    if not runs:
+        return [], source
+
+    run = runs[0]
+    source["run_url"] = str(run.get("html_url") or "")
+    source["created_at"] = str(run.get("created_at") or "")
+    jobs = fetch_workflow_run_jobs(run["id"])
+    job = next((candidate for candidate in jobs if candidate.get("name") == job_name), None)
+    if job is None:
+        return [], source
+
+    source["job_url"] = str(job.get("html_url") or "")
+    annotations = fetch_workflow_run_annotations(job["id"])
+    return _unique_annotation_rows(annotations, job_name=job_name, job_url=source["job_url"]), source
+
+
+@st.cache_data(ttl=60 * 60 * 6, show_spinner=False, refresh_mode="background")  # cache for 6 hours
+def get_ci_test_annotations(refresh_nonce: int = 0) -> tuple[pd.DataFrame, list[dict[str, str]]]:
+    """Unique annotations from the latest successful Python (max) and JS unit-test jobs.
+
+    Uses the last successful `python-tests.yml` / `js-tests.yml` runs on `develop`.
+    """
+    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
+    python_rows, python_source = _annotations_for_latest_job(PYTHON_TESTS_WORKFLOW, PYTHON_UNIT_TESTS_MAX_JOB)
+    js_rows, js_source = _annotations_for_latest_job(JS_TESTS_WORKFLOW, JS_UNIT_TESTS_JOB)
+    sources = [python_source, js_source]
+    rows = _sort_annotation_rows([*python_rows, *js_rows])
+    if not rows:
+        return _empty_ci_test_annotations_df(), sources
+    return pd.DataFrame(rows, columns=list(_CI_TEST_ANNOTATION_COLUMNS)), sources
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner=False, refresh_mode="background")  # cache for 6 hours

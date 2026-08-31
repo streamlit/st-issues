@@ -12,10 +12,13 @@ from app.utils.github_utils import (
 from app.utils.interrupt_data import (
     BOT_PR_INTERRUPT_REPOS,
     DEVELOP_COMMIT_WINDOW,
+    JS_UNIT_TESTS_JOB,
     MONITORED_INTERRUPT_REPOS,
+    PYTHON_UNIT_TESTS_MAX_JOB,
     build_interrupt_action_items,
     get_bundle_size_metrics,
     get_ci_failing_test_run_metrics,
+    get_ci_test_annotations,
     get_confirmed_bugs_without_repro_script,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
@@ -545,6 +548,67 @@ marker as a last resort.
 
 
 @st.fragment(parallel=True)
+def render_ci_test_annotations(selected_refresh_nonce: int) -> None:
+    st.subheader(
+        "CI test annotations",
+        help="""
+Lists unique check-run annotations from the latest successful unit-test jobs on `develop`:
+- `python-tests.yml` → `py-unit-tests (max)` (newest Python)
+- `js-tests.yml` → `js-unit-tests`
+
+These include deprecation warnings, resource warnings, errors that did not fail the job,
+and tool notices (for example Knip). Please investigate and fix them so the next run is clean.
+
+This ignores the timeframe selector.
+""",
+    )
+    with st.skeleton(height=200):
+        annotations_df, sources = get_ci_test_annotations(refresh_nonce=selected_refresh_nonce)
+        source_links = [
+            f"[`{source['job']}`]({source['job_url']})" for source in sources if source.get("job_url")
+        ]
+        if source_links:
+            st.caption("Latest successful runs on `develop`: " + " · ".join(source_links))
+
+        missing_jobs = [source["job"] for source in sources if not source.get("job_url")]
+        if missing_jobs:
+            st.warning(
+                "Could not find the latest successful "
+                + " / ".join(f"`{job}`" for job in missing_jobs)
+                + " job on `develop`."
+            )
+
+        if annotations_df.empty:
+            if not missing_jobs:
+                st.success("Congrats, everything is done here!", icon=":material/celebration:")
+        else:
+            annotations_df = annotations_df.copy()
+            annotations_df["Level"] = annotations_df["Level"].map(lambda level: [level])
+            annotations_df["Job"] = annotations_df["Job"].map(lambda job: [job])
+            st.dataframe(
+                annotations_df,
+                width="stretch",
+                hide_index=True,
+                column_order=["Level", "Job", "Message", "Location", "Count", "URL"],
+                column_config={
+                    "Level": st.column_config.MultiselectColumn(
+                        "Level",
+                        options=["error", "warning", "notice"],
+                        color=["red", "orange", "blue"],
+                    ),
+                    "Job": st.column_config.MultiselectColumn(
+                        "Job",
+                        options=[PYTHON_UNIT_TESTS_MAX_JOB, JS_UNIT_TESTS_JOB],
+                    ),
+                    "Message": st.column_config.TextColumn("Message", width="large"),
+                    "Location": st.column_config.TextColumn("Location"),
+                    "Count": st.column_config.NumberColumn("Count"),
+                    "URL": st.column_config.LinkColumn("Job", display_text="Open"),
+                },
+            )
+
+
+@st.fragment(parallel=True)
 def render_monitored_repo_prs(selected_refresh_nonce: int) -> None:
     monitored_repos_help = "\n".join(f"- `{repo}`" for repo in MONITORED_INTERRUPT_REPOS)
     bot_only_repos_help = "\n".join(
@@ -805,8 +869,9 @@ refresh_nonce = st.session_state.interrupt_refresh_nonce
 
 # All slow sections are `parallel=True` fragments dispatched here. During a full
 # rerun they run concurrently in the coordinator thread pool, so the issue/PR
-# snapshot, CI-artifact downloads, flaky-test annotations, and monitored-repo PR
-# fetches overlap instead of running one after another on the main thread.
+# snapshot, CI-artifact downloads, flaky-test annotations, unit-test annotations,
+# and monitored-repo PR fetches overlap instead of running one after another
+# on the main thread.
 render_ci_metrics(since, refresh_nonce)
 
 with st.expander("Helpful processes", icon=":material/menu_book:"):
@@ -820,6 +885,8 @@ st.header(":material/checklist: Action required")
 render_issue_action_items(since, refresh_nonce)
 
 render_flaky_tests(since, refresh_nonce)
+
+render_ci_test_annotations(refresh_nonce)
 
 render_monitored_repo_prs(refresh_nonce)
 
