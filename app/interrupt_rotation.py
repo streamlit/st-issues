@@ -54,9 +54,9 @@ CI_FAILING_TEST_WARNING_PCT = 1.0
 FLAKY_TEST_MIN_FAILURES = 5
 
 
-def _metric_value(value: str, *, warn: bool) -> str:
-    """Return a metric value, colored red when the warning threshold is breached."""
-    return f":red[{value}]" if warn else value
+def _metric_text(text: str, *, warn: bool) -> str:
+    """Return metric label or value text, colored red when the warning threshold is breached."""
+    return f":red[{text}]" if warn else text
 
 
 def _metric_icon(*, warn: bool) -> str | None:
@@ -71,8 +71,8 @@ def render_ci_metrics(selected_since: date) -> None:
         py_coverage, py_coverage_change = get_python_test_coverage_metrics(selected_since)
         py_coverage_warn = py_coverage < PYTHON_COVERAGE_WARNING_PCT
         st.metric(
-            "Python Test Coverage",
-            _metric_value(f"{py_coverage:.2f}%", warn=py_coverage_warn),
+            _metric_text("Python Test Coverage", warn=py_coverage_warn),
+            _metric_text(f"{py_coverage:.2f}%", warn=py_coverage_warn),
             f"{py_coverage_change:+.2f}%",
             delta_color="normal",
             delta_arrow="off",
@@ -87,8 +87,8 @@ def render_ci_metrics(selected_since: date) -> None:
         fe_coverage, fe_coverage_change = get_frontend_test_coverage_metrics(selected_since)
         fe_coverage_warn = fe_coverage < FRONTEND_COVERAGE_WARNING_PCT
         st.metric(
-            "Frontend Test Coverage",
-            _metric_value(f"{fe_coverage:.2f}%", warn=fe_coverage_warn),
+            _metric_text("Frontend Test Coverage", warn=fe_coverage_warn),
+            _metric_text(f"{fe_coverage:.2f}%", warn=fe_coverage_warn),
             f"{fe_coverage_change:+.2f}%",
             delta_color="normal",
             delta_arrow="off",
@@ -103,8 +103,8 @@ def render_ci_metrics(selected_since: date) -> None:
         wheel_size, wheel_size_change = get_wheel_size_metrics(selected_since)
         wheel_size_warn = wheel_size > WHEEL_SIZE_WARNING_BYTES
         st.metric(
-            "Wheel Size",
-            _metric_value(humanize.naturalsize(wheel_size, binary=True), warn=wheel_size_warn),
+            _metric_text("Wheel Size", warn=wheel_size_warn),
+            _metric_text(humanize.naturalsize(wheel_size, binary=True), warn=wheel_size_warn),
             humanize.naturalsize(wheel_size_change, binary=True),
             delta_color="inverse",
             delta_arrow="off",
@@ -122,8 +122,8 @@ def render_ci_metrics(selected_since: date) -> None:
 
         total_gzip_warn = total_gzip > TOTAL_BUNDLE_WARNING_BYTES
         st.metric(
-            "Total Bundle (gzip)",
-            _metric_value(humanize.naturalsize(total_gzip, binary=True), warn=total_gzip_warn),
+            _metric_text("Total Bundle (gzip)", warn=total_gzip_warn),
+            _metric_text(humanize.naturalsize(total_gzip, binary=True), warn=total_gzip_warn),
             humanize.naturalsize(total_gzip_change, binary=True),
             delta_color="inverse",
             delta_arrow="off",
@@ -139,8 +139,8 @@ def render_ci_metrics(selected_since: date) -> None:
     with col1, st.skeleton(height=110):
         entry_gzip_warn = entry_gzip > ENTRY_BUNDLE_WARNING_BYTES
         st.metric(
-            "Entry Bundle (gzip)",
-            _metric_value(humanize.naturalsize(entry_gzip, binary=True), warn=entry_gzip_warn),
+            _metric_text("Entry Bundle (gzip)", warn=entry_gzip_warn),
+            _metric_text(humanize.naturalsize(entry_gzip, binary=True), warn=entry_gzip_warn),
             humanize.naturalsize(entry_gzip_change, binary=True),
             delta_color="inverse",
             delta_arrow="off",
@@ -166,8 +166,8 @@ def render_ci_metrics(selected_since: date) -> None:
         failing_pct, failing_checks, total_checks, *_ = get_ci_failing_test_run_metrics()
         failing_pct_warn = total_checks > 0 and failing_pct > CI_FAILING_TEST_WARNING_PCT
         st.metric(
-            "Failed CI Checks",
-            _metric_value(f"{failing_pct:.0f}%", warn=failing_pct_warn),
+            _metric_text("Failed CI Checks", warn=failing_pct_warn),
+            _metric_text(f"{failing_pct:.0f}%", warn=failing_pct_warn),
             f"{failing_checks}/{total_checks} checks",
             delta_color="off",
             delta_arrow="off",
@@ -188,8 +188,8 @@ def render_ci_metrics(selected_since: date) -> None:
         nightly_warn = nightly_failing > 0
         nightly_delta = f"{nightly_pct:.0f}% · {nightly_failing}/{nightly_total} runs" if nightly_total else "0/0 runs"
         st.metric(
-            "Failed Nightly Runs",
-            _metric_value(str(nightly_failing), warn=nightly_warn),
+            _metric_text("Failed Nightly Runs", warn=nightly_warn),
+            _metric_text(str(nightly_failing), warn=nightly_warn),
             nightly_delta,
             delta_color="off",
             delta_arrow="off",
