@@ -630,6 +630,103 @@ def test_get_ci_test_annotations_missing_job_is_reported(monkeypatch: pytest.Mon
     ]
 
 
+def _dependabot_alert(
+    *,
+    number: int,
+    severity: str,
+    package: str,
+    ecosystem: str = "npm",
+    manifest: str = "frontend/yarn.lock",
+    summary: str = "Advisory summary",
+    cve_id: str | None = "CVE-2026-1",
+    ghsa_id: str = "GHSA-xxxx",
+    patched: str | None = "1.0.0",
+    created_at: str = "2026-01-01T00:00:00Z",
+) -> dict:
+    return {
+        "number": number,
+        "state": "open",
+        "html_url": f"https://github.com/streamlit/streamlit/security/dependabot/{number}",
+        "created_at": created_at,
+        "dependency": {
+            "package": {"name": package, "ecosystem": ecosystem},
+            "manifest_path": manifest,
+        },
+        "security_advisory": {
+            "severity": severity,
+            "summary": summary,
+            "cve_id": cve_id,
+            "ghsa_id": ghsa_id,
+        },
+        "security_vulnerability": {
+            "severity": severity,
+            "first_patched_version": {"identifier": patched} if patched else None,
+        },
+    }
+
+
+def test_get_dependabot_alerts_sorts_by_severity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        interrupt_data,
+        "fetch_dependabot_alerts",
+        lambda _repo: [
+            _dependabot_alert(
+                number=1,
+                severity="high",
+                package="image-size",
+                summary="ReDoS",
+                cve_id="CVE-2026-1",
+                patched="2.1.2",
+                created_at="2026-01-01T00:00:00Z",
+            ),
+            _dependabot_alert(
+                number=2,
+                severity="critical",
+                package="lodash",
+                summary="Prototype pollution",
+                cve_id="CVE-2026-2",
+                patched=None,
+                created_at="2026-02-01T00:00:00Z",
+            ),
+            _dependabot_alert(
+                number=3,
+                severity="critical",
+                package="old-pkg",
+                ecosystem="pip",
+                manifest="lib/Pipfile.lock",
+                summary="Older critical",
+                cve_id=None,
+                ghsa_id="GHSA-older",
+                patched="1.0.0",
+                created_at="2026-01-15T00:00:00Z",
+            ),
+        ],
+    )
+    interrupt_data.get_dependabot_alerts.clear()
+
+    alerts_df = interrupt_data.get_dependabot_alerts()
+
+    assert list(alerts_df["Package"]) == ["lodash", "old-pkg", "image-size"]
+    assert list(alerts_df["Advisory"]) == ["CVE-2026-2", "GHSA-older", "CVE-2026-1"]
+    assert list(alerts_df["Patched"]) == ["", "1.0.0", "2.1.2"]
+    assert list(alerts_df["URL"]) == [
+        "https://github.com/streamlit/streamlit/security/dependabot/2",
+        "https://github.com/streamlit/streamlit/security/dependabot/3",
+        "https://github.com/streamlit/streamlit/security/dependabot/1",
+    ]
+    assert "State" not in alerts_df.columns
+
+
+def test_get_dependabot_alerts_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(interrupt_data, "fetch_dependabot_alerts", lambda _repo: [])
+    interrupt_data.get_dependabot_alerts.clear()
+
+    alerts_df = interrupt_data.get_dependabot_alerts()
+
+    assert alerts_df.empty
+    assert list(alerts_df.columns) == list(interrupt_data._DEPENDABOT_ALERT_COLUMNS)
+
+
 def test_clear_interrupt_caches_clears_page_and_nested_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
     cleared: list[str] = []
 
@@ -641,6 +738,7 @@ def test_clear_interrupt_caches_clears_page_and_nested_helpers(monkeypatch: pyte
 
     targets = [
         "get_ci_test_annotations",
+        "get_dependabot_alerts",
         "get_flaky_tests",
         "build_interrupt_action_items",
         "fetch_workflow_runs",
@@ -648,6 +746,7 @@ def test_clear_interrupt_caches_clears_page_and_nested_helpers(monkeypatch: pyte
         "fetch_workflow_run_annotations",
         "get_all_github_issues",
         "get_all_github_prs",
+        "fetch_dependabot_alerts",
         "fetch_develop_commit_checks",
         "fetch_wiki_issue_repros",
         "get_synced_wiki_repo_path",

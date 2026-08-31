@@ -12,10 +12,18 @@ if TYPE_CHECKING:
 
 
 class _FakeResponse:
-    def __init__(self, *, status_code: int, payload: Any, text: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        payload: Any,
+        text: str = "",
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self.status_code = status_code
         self._payload = payload
         self.text = text
+        self.headers = headers or {}
 
     def json(self) -> Any:
         return self._payload
@@ -190,3 +198,53 @@ def test_fetch_workflow_run_annotations_paginates(monkeypatch: MonkeyPatch) -> N
     annotations = github_utils.fetch_workflow_run_annotations(99)
     assert len(annotations) == 101
     assert annotations[-1]["message"] == "warning 100"
+
+
+def test_fetch_dependabot_alerts_paginates_open_alerts(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_dependabot_alerts.clear()
+    pages = [
+        (
+            [{"number": 1, "state": "open"}],
+            '<https://api.github.com/repos/streamlit/streamlit/dependabot/alerts?state=open&page=2>; rel="next"',
+        ),
+        ([{"number": 2, "state": "open"}], ""),
+    ]
+    calls = {"count": 0}
+    requested_urls: list[str] = []
+
+    def fake_get(url: str, **_: Any) -> _FakeResponse:
+        requested_urls.append(url)
+        payload, link = pages[calls["count"]]
+        calls["count"] += 1
+        return _FakeResponse(status_code=200, payload=payload, headers={"Link": link})
+
+    monkeypatch.setattr(github_utils, "get_headers", dict)
+    monkeypatch.setattr(github_utils.requests, "get", fake_get)
+
+    alerts = github_utils.fetch_dependabot_alerts("streamlit/streamlit")
+    assert [alert["number"] for alert in alerts] == [1, 2]
+    assert "state=open" in requested_urls[0]
+    assert "per_page=100" in requested_urls[0]
+
+
+def test_fetch_dependabot_alerts_forbidden_returns_empty(monkeypatch: MonkeyPatch) -> None:
+    github_utils.fetch_dependabot_alerts.clear()
+    warnings: list[str] = []
+
+    def ignore_error(_message: str) -> None:
+        return None
+
+    monkeypatch.setattr(
+        github_utils,
+        "st",
+        SimpleNamespace(warning=warnings.append, error=ignore_error),
+    )
+    monkeypatch.setattr(github_utils, "get_headers", dict)
+    monkeypatch.setattr(
+        github_utils.requests,
+        "get",
+        lambda *_args, **_kwargs: _FakeResponse(status_code=403, payload={"message": "nope"}, text="nope"),
+    )
+
+    assert github_utils.fetch_dependabot_alerts() == []
+    assert warnings

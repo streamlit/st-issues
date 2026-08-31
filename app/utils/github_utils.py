@@ -725,6 +725,54 @@ def get_all_github_prs(
     return prs
 
 
+@st.cache_data(ttl=60 * 15, max_entries=8, show_spinner=False, refresh_mode="background")
+def fetch_dependabot_alerts(repo: str = "streamlit/streamlit") -> list[dict[str, Any]]:
+    """Paginate through open Dependabot alerts for a repo.
+
+    Uses ``GET /repos/{owner}/{repo}/dependabot/alerts?state=open``. Classic PATs need the
+    ``security_events`` scope (or ``public_repo`` for public repos); fine-grained
+    tokens need Dependabot alerts read permission.
+    """
+    alerts: list[dict[str, Any]] = []
+    url: str | None = f"https://api.github.com/repos/{repo}/dependabot/alerts?state=open&per_page=100"
+
+    while url:
+        try:
+            response = requests.get(url, headers=get_headers(), timeout=100)
+        except Exception as exc:
+            st.error(f"Failed to retrieve Dependabot alerts: {exc}")
+            break
+
+        if response.status_code in {401, 403, 404}:
+            st.warning(
+                "Cannot load Dependabot alerts. Check that Dependabot alerts are enabled "
+                "and that the GitHub token has the `security_events` scope (classic) or "
+                "Dependabot alerts read permission."
+            )
+            break
+        if response.status_code != 200:
+            st.error(
+                f"Failed to retrieve Dependabot alerts from {url}: "
+                f"{response.status_code}: {_compact_error_text(response.text)}"
+            )
+            break
+
+        data = response.json()
+        if not isinstance(data, list) or not data:
+            break
+        alerts.extend(data)
+
+        url = None
+        link_header = response.headers.get("Link", "")
+        if link_header:
+            for link in link_header.split(","):
+                if 'rel="next"' in link:
+                    url = link.split(";")[0].strip().strip("<>")
+                    break
+
+    return alerts
+
+
 # GitHub's REST workflow-run filters (`branch`, `status`, `created`) go through a
 # search index that can return a stale first page. GraphQL `Workflow.runs` ordered
 # by `CREATED_AT DESC` is current; branch/status/`since` are applied locally.

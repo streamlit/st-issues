@@ -21,6 +21,7 @@ from app.utils.agent_wiki import fetch_wiki_issue_repros, get_synced_wiki_repo_p
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
+    fetch_dependabot_alerts,
     fetch_develop_commit_checks,
     fetch_workflow_run_annotations,
     fetch_workflow_run_jobs,
@@ -78,6 +79,18 @@ _ANNOTATION_LEVEL_LABELS: dict[str, str] = {
     "notice": "notice",
 }
 _ANNOTATION_LEVEL_SORT: dict[str, int] = {"error": 0, "warning": 1, "notice": 2}
+_DEPENDABOT_SEVERITY_SORT: dict[str, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+_DEPENDABOT_ALERT_COLUMNS: tuple[str, ...] = (
+    "Severity",
+    "Package",
+    "Ecosystem",
+    "Manifest",
+    "Summary",
+    "Advisory",
+    "Patched",
+    "Created",
+    "URL",
+)
 _HEX_OBJECT_ID_RE = re.compile(r"0x[0-9a-fA-F]+")
 _CI_TEST_ANNOTATION_COLUMNS: tuple[str, ...] = ("Level", "Job", "Message", "Location", "Count", "URL")
 
@@ -863,6 +876,66 @@ def get_ci_test_annotations() -> tuple[pd.DataFrame, list[dict[str, str]]]:
     return pd.DataFrame(rows, columns=list(_CI_TEST_ANNOTATION_COLUMNS)), sources
 
 
+def _empty_dependabot_alerts_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "Severity": pd.Series(dtype="string"),
+            "Package": pd.Series(dtype="string"),
+            "Ecosystem": pd.Series(dtype="string"),
+            "Manifest": pd.Series(dtype="string"),
+            "Summary": pd.Series(dtype="string"),
+            "Advisory": pd.Series(dtype="string"),
+            "Patched": pd.Series(dtype="string"),
+            "Created": pd.Series(dtype="string"),
+            "URL": pd.Series(dtype="string"),
+        }
+    )
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _dependabot_alert_row(alert: dict[str, Any]) -> dict[str, Any]:
+    advisory = _as_dict(alert.get("security_advisory"))
+    vulnerability = _as_dict(alert.get("security_vulnerability"))
+    dependency = _as_dict(alert.get("dependency"))
+    package = _as_dict(dependency.get("package"))
+    patched = vulnerability.get("first_patched_version")
+    patched_id = ""
+    if isinstance(patched, dict):
+        patched_id = str(patched.get("identifier") or "")
+    cve_id = advisory.get("cve_id")
+    ghsa_id = advisory.get("ghsa_id")
+    return {
+        "Severity": str(advisory.get("severity") or vulnerability.get("severity") or ""),
+        "Package": str(package.get("name") or ""),
+        "Ecosystem": str(package.get("ecosystem") or ""),
+        "Manifest": str(dependency.get("manifest_path") or ""),
+        "Summary": str(advisory.get("summary") or ""),
+        "Advisory": str(cve_id or ghsa_id or ""),
+        "Patched": patched_id,
+        "Created": str(alert.get("created_at") or ""),
+        "URL": str(alert.get("html_url") or ""),
+    }
+
+
+@st.cache_data(ttl=60 * 15, max_entries=8, show_spinner=False, refresh_mode="background")
+def get_dependabot_alerts() -> pd.DataFrame:
+    """Open Dependabot alerts for `streamlit/streamlit`."""
+    alerts = fetch_dependabot_alerts(STREAMLIT_REPO)
+    rows = [_dependabot_alert_row(alert) for alert in alerts if isinstance(alert, dict)]
+    if not rows:
+        return _empty_dependabot_alerts_df()
+    alerts_df = pd.DataFrame(rows, columns=list(_DEPENDABOT_ALERT_COLUMNS))
+    alerts_df["_severity_sort"] = alerts_df["Severity"].map(_DEPENDABOT_SEVERITY_SORT).fillna(99)
+    return (
+        alerts_df.sort_values(by=["_severity_sort", "Created"], ascending=[True, False])
+        .drop(columns=["_severity_sort"])
+        .reset_index(drop=True)
+    )
+
+
 @st.cache_data(ttl=60 * 60 * 6, show_spinner=False, refresh_mode="background")  # cache for 6 hours
 def get_flaky_tests(since_date: date, min_failures: int = 10) -> pd.DataFrame:
     """Get flaky tests with >= min_failures."""
@@ -940,11 +1013,13 @@ def clear_interrupt_caches() -> None:
         _load_playwright_test_stats,
         get_reported_bugs,
         get_ci_test_annotations,
+        get_dependabot_alerts,
         get_flaky_tests,
     )
     nested_caches = (
         get_all_github_issues,
         get_all_github_prs,
+        fetch_dependabot_alerts,
         fetch_develop_commit_checks,
         fetch_workflow_runs,
         fetch_workflow_run_jobs,

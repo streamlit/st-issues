@@ -21,6 +21,7 @@ from app.utils.interrupt_data import (
     get_ci_failing_test_run_metrics,
     get_ci_test_annotations,
     get_confirmed_bugs_without_repro_script,
+    get_dependabot_alerts,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
     get_monitored_repo_open_prs,
@@ -587,6 +588,62 @@ This ignores the timeframe selector.
 
 
 @st.fragment(parallel=True)
+def render_dependabot_alerts() -> None:
+    st.subheader(
+        "Dependabot alerts",
+        help="""
+Open Dependabot alerts for `streamlit/streamlit`. Please investigate and get this list to 0:
+bump the dependency, merge a Dependabot PR, or dismiss the alert if it does not apply.
+
+The GitHub token needs the `security_events` scope (classic) or Dependabot alerts read permission.
+This ignores the timeframe selector.
+""",
+    )
+    with st.skeleton(height=200):
+        alerts_df = get_dependabot_alerts()
+        st.caption(
+            "Open alerts: [streamlit/streamlit Dependabot]"
+            "(https://github.com/streamlit/streamlit/security/dependabot?q=is%3Aopen)"
+        )
+        if alerts_df.empty:
+            st.success("Congrats, everything is done here!", icon=":material/celebration:")
+        else:
+            alerts_df = alerts_df.copy()
+            alerts_df["Severity"] = alerts_df["Severity"].map(lambda severity: [severity])
+            st.dataframe(
+                alerts_df,
+                width="stretch",
+                hide_index=True,
+                column_order=[
+                    "Severity",
+                    "Package",
+                    "Ecosystem",
+                    "Manifest",
+                    "Summary",
+                    "Advisory",
+                    "Patched",
+                    "Created",
+                    "URL",
+                ],
+                column_config={
+                    "Severity": st.column_config.MultiselectColumn(
+                        "Severity",
+                        options=["critical", "high", "medium", "low"],
+                        color=["red", "orange", "yellow", "blue"],
+                    ),
+                    "Package": st.column_config.TextColumn("Package"),
+                    "Ecosystem": st.column_config.TextColumn("Ecosystem"),
+                    "Manifest": st.column_config.TextColumn("Manifest"),
+                    "Summary": st.column_config.TextColumn("Summary", width="large"),
+                    "Advisory": st.column_config.TextColumn("Advisory"),
+                    "Patched": st.column_config.TextColumn("Patched"),
+                    "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "URL": st.column_config.LinkColumn("Alert", display_text="Open"),
+                },
+            )
+
+
+@st.fragment(parallel=True)
 def render_monitored_repo_prs() -> None:
     monitored_repos_help = "\n".join(f"- `{repo}`" for repo in MONITORED_INTERRUPT_REPOS)
     bot_only_repos_help = "\n".join(
@@ -836,8 +893,8 @@ since = date.today() - timedelta(days=days)
 # All slow sections are `parallel=True` fragments dispatched here. During a full
 # rerun they run concurrently in the coordinator thread pool, so the issue/PR
 # snapshot, CI-artifact downloads, flaky-test annotations, unit-test annotations,
-# and monitored-repo PR fetches overlap instead of running one after another
-# on the main thread.
+# Dependabot alerts, and monitored-repo PR fetches overlap instead of running one
+# after another on the main thread.
 render_ci_metrics(since)
 
 with st.expander("Helpful processes", icon=":material/menu_book:"):
@@ -853,6 +910,8 @@ render_issue_action_items(since)
 render_flaky_tests(since)
 
 render_ci_test_annotations()
+
+render_dependabot_alerts()
 
 render_monitored_repo_prs()
 
