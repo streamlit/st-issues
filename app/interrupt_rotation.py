@@ -48,7 +48,7 @@ FRONTEND_COVERAGE_WARNING_PCT = 94.0
 WHEEL_SIZE_WARNING_BYTES = 12 * 1024 * 1024
 TOTAL_BUNDLE_WARNING_BYTES = 10 * 1024 * 1024
 ENTRY_BUNDLE_WARNING_BYTES = 500 * 1024
-CI_FAILING_TEST_WARNING_PCT = 50.0
+CI_FAILING_TEST_WARNING_PCT = 1.0
 FLAKY_TEST_MIN_FAILURES = 5
 
 
@@ -162,7 +162,7 @@ def render_ci_metrics(selected_since: date) -> None:
         )
     with col3, st.skeleton(height=110):
         failing_pct, failing_checks, total_checks, *_ = get_ci_failing_test_run_metrics()
-        failing_pct_warn = total_checks > 0 and failing_pct >= CI_FAILING_TEST_WARNING_PCT
+        failing_pct_warn = total_checks > 0 and failing_pct > CI_FAILING_TEST_WARNING_PCT
         st.metric(
             "Failed CI Checks",
             _metric_value(f"{failing_pct:.0f}%", warn=failing_pct_warn),
@@ -178,7 +178,7 @@ def render_ci_metrics(selected_since: date) -> None:
                 "(not only Python, frontend, or Playwright workflows). "
                 "Skipped, cancelled, neutral, and in-progress checks are ignored. "
                 "This ignores the timeframe selector. "
-                f"A warning is shown when the rate is at or above {CI_FAILING_TEST_WARNING_PCT:.0f}%."
+                f"A warning is shown when the rate is over {CI_FAILING_TEST_WARNING_PCT:.0f}%."
             ),
         )
 
