@@ -859,6 +859,21 @@ render_monitored_repo_prs()
 st.header(":material/visibility: For reference")
 st.caption("Informational views only. No action is required from the person on Interrupt.")
 with st.expander("Show reference views", expanded=False):
+    st.markdown(
+        "[![OSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/streamlit/streamlit"
+        "?label=openssf+scorecard&style=flat)](https://scorecard.dev/viewer/?uri=github.com/streamlit/streamlit) "
+        "[![Socket.dev Rating](https://badge.socket.dev/pypi/package/streamlit)]"
+        "(https://socket.dev/pypi/package/streamlit) "
+        "[![Spectra Assure Community Badge](https://secure.software/pypi/badge/streamlit)]"
+        "(https://secure.software/pypi/packages/streamlit) "
+        "[![Libraries.io dependency status for latest release]"
+        "(https://img.shields.io/librariesio/release/pypi/streamlit)]"
+        "(https://libraries.io/pypi/streamlit) "
+        "[![Libraries.io SourceRank](https://img.shields.io/librariesio/sourcerank/pypi/streamlit)]"
+        "(https://libraries.io/pypi/streamlit) "
+        "[![Snyk Monitoring](https://snyk.io/test/github/streamlit/streamlit/badge.svg)]"
+        "(https://security.snyk.io/package/pip/streamlit)"
+    )
     render_confirmed_bugs_without_repro(since)
 
     render_reported_bugs(since)
