@@ -530,9 +530,7 @@ marker as a last resort.
 
 @st.fragment(parallel=True)
 def render_ci_test_annotations() -> None:
-    st.subheader(
-        "CI test annotations",
-        help="""
+    annotations_help = """
 Lists unique check-run annotations from the latest successful unit-test jobs on `develop`:
 - `python-tests.yml` → `py-unit-tests (max)` (newest Python)
 - `js-tests.yml` → `js-unit-tests`
@@ -541,13 +539,17 @@ These include deprecation warnings, resource warnings, errors that did not fail 
 and tool notices (for example Knip). Please investigate and fix them so the next run is clean.
 
 This ignores the timeframe selector.
-""",
-    )
+"""
+    header = st.empty()
+    header.subheader("CI test annotations", help=annotations_help)
     with st.skeleton(height=200):
         annotations_df, sources = get_ci_test_annotations()
         source_links = [f"[`{source['job']}`]({source['job_url']})" for source in sources if source.get("job_url")]
         if source_links:
-            st.caption("Latest successful runs on `develop`: " + " · ".join(source_links))
+            header.subheader(
+                "CI test annotations",
+                help=annotations_help + "\nLatest successful runs on `develop`: " + " · ".join(source_links),
+            )
 
         missing_jobs = [source["job"] for source in sources if not source.get("job_url")]
         if missing_jobs:
@@ -595,16 +597,14 @@ def render_dependabot_alerts() -> None:
 Open Dependabot alerts for `streamlit/streamlit`. Please investigate and get this list to 0:
 bump the dependency, merge a Dependabot PR, or dismiss the alert if it does not apply.
 
+Open alerts: [streamlit/streamlit Dependabot](https://github.com/streamlit/streamlit/security/dependabot?q=is%3Aopen)
+
 The GitHub token needs the `security_events` scope (classic) or Dependabot alerts read permission.
 This ignores the timeframe selector.
 """,
     )
     with st.skeleton(height=200):
         alerts_df = get_dependabot_alerts()
-        st.caption(
-            "Open alerts: [streamlit/streamlit Dependabot]"
-            "(https://github.com/streamlit/streamlit/security/dependabot?q=is%3Aopen)"
-        )
         if alerts_df.empty:
             st.success("Congrats, everything is done here!", icon=":material/celebration:")
         else:
