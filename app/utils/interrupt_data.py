@@ -17,7 +17,7 @@ from zipfile import ZipFile
 import pandas as pd
 import streamlit as st
 
-from app.utils.agent_wiki import fetch_wiki_issue_repros
+from app.utils.agent_wiki import fetch_wiki_issue_repros, get_synced_wiki_repo_path
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
@@ -119,15 +119,15 @@ def _monitored_pr_row(pr: dict[str, Any], repo: str) -> dict[str, Any]:
 
 
 @st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False, refresh_mode="background")
-def get_interrupt_data_snapshot(refresh_nonce: int = 0) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def get_interrupt_data_snapshot() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Fetch the open issue/PR snapshot used by the Interrupt Rotation page."""
-    issues = get_all_github_issues(state="open", refresh_nonce=refresh_nonce)
-    prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=STREAMLIT_REPO)
+    issues = get_all_github_issues(state="open")
+    prs = get_all_github_prs(state="open", repo=STREAMLIT_REPO)
     return issues, prs
 
 
 @st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False, refresh_mode="background")
-def get_monitored_repo_open_prs(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_monitored_repo_open_prs() -> pd.DataFrame:
     """Fetch open PRs from Streamlit-managed repos that the interrupt rotation should monitor.
 
     Includes every open PR in `MONITORED_INTERRUPT_REPOS`, plus Dependabot and GitHub Actions
@@ -137,14 +137,14 @@ def get_monitored_repo_open_prs(refresh_nonce: int = 0) -> pd.DataFrame:
     fetched_repos: set[str] = set()
 
     for repo in MONITORED_INTERRUPT_REPOS:
-        repo_prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=repo)
+        repo_prs = get_all_github_prs(state="open", repo=repo)
         rows.extend(_monitored_pr_row(pr, repo) for pr in repo_prs)
         fetched_repos.add(repo)
 
     for repo in BOT_PR_INTERRUPT_REPOS:
         if repo in fetched_repos:
             continue
-        repo_prs = get_all_github_prs(state="open", refresh_nonce=refresh_nonce, repo=repo)
+        repo_prs = get_all_github_prs(state="open", repo=repo)
         rows.extend(_monitored_pr_row(pr, repo) for pr in repo_prs if pr.get("user", {}).get("login") in BOT_PR_LOGINS)
         fetched_repos.add(repo)
 
@@ -327,18 +327,17 @@ def _build_interrupt_action_items(
 
 
 @st.cache_data(ttl=60 * 5, max_entries=64, show_spinner=False, refresh_mode="background")
-def build_interrupt_action_items(since_date: date, refresh_nonce: int = 0) -> dict[str, pd.DataFrame]:
+def build_interrupt_action_items(since_date: date) -> dict[str, pd.DataFrame]:
     """Build all interrupt action-item tables from a shared issue/PR snapshot."""
-    issues, prs = get_interrupt_data_snapshot(refresh_nonce=refresh_nonce)
+    issues, prs = get_interrupt_data_snapshot()
     return _build_interrupt_action_items(issues=issues, prs=prs, since_date=since_date)
 
 
 @st.cache_data(
     ttl=60 * 60 * 6, show_spinner="Fetching python test coverage...", refresh_mode="background"
 )  # cache for 6 hours
-def get_python_test_coverage_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[float, float]:
+def get_python_test_coverage_metrics(since_date: date) -> tuple[float, float]:
     """Get the python test coverage and the change over a period."""
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     runs_in_period = fetch_workflow_runs("python-tests.yml", since=since_date)
 
     def get_coverage(run_id: int) -> float:
@@ -376,9 +375,8 @@ def get_python_test_coverage_metrics(since_date: date, refresh_nonce: int = 0) -
 @st.cache_data(
     ttl=60 * 60 * 6, show_spinner="Fetching frontend test coverage...", refresh_mode="background"
 )  # cache for 6 hours
-def get_frontend_test_coverage_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[float, float]:
+def get_frontend_test_coverage_metrics(since_date: date) -> tuple[float, float]:
     """Get the frontend test coverage and the change over a period."""
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     runs_in_period = fetch_workflow_runs("js-tests.yml", since=since_date)
 
     def get_coverage(run_id: int) -> float:
@@ -417,9 +415,8 @@ def get_frontend_test_coverage_metrics(since_date: date, refresh_nonce: int = 0)
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching wheel size...", refresh_mode="background")  # cache for 6 hours
-def get_wheel_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[int, int]:
+def get_wheel_size_metrics(since_date: date) -> tuple[int, int]:
     """Get the wheel size and the change over a period."""
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     runs_in_period = fetch_workflow_runs("pr-preview.yml", since=since_date)
 
     def get_size(run_id: int) -> int:
@@ -449,12 +446,11 @@ def get_wheel_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[in
 @st.cache_data(
     ttl=60 * 60 * 6, show_spinner="Fetching bundle size metrics...", refresh_mode="background"
 )  # cache for 6 hours
-def get_bundle_size_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[int, int, int, int]:
+def get_bundle_size_metrics(since_date: date) -> tuple[int, int, int, int]:
     """Get the total and entry gzip size and the change over a period.
 
     Returns: (total_gzip, total_gzip_change, entry_gzip, entry_gzip_change).
     """
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     runs_in_period = fetch_workflow_runs("pr-preview.yml", since=since_date)
 
     def get_sizes(run_id: int) -> tuple[int, int]:
@@ -581,26 +577,22 @@ def _compute_ci_failed_check_metrics(
 @st.cache_data(
     ttl=60 * 60 * 6, show_spinner="Fetching failed CI checks...", refresh_mode="background"
 )  # cache for 6 hours
-def get_ci_failing_test_run_metrics(refresh_nonce: int = 0, _result_version: int = 2) -> tuple[float, int, int]:
+def get_ci_failing_test_run_metrics(_result_version: int = 2) -> tuple[float, int, int]:
     """Get the share of GitHub checks that failed on recent develop commits.
 
     Looks at every CheckRun and commit status on the last `DEVELOP_COMMIT_WINDOW`
     commits to `develop`.
     """
     _ = _result_version  # Cache-key bump after the return value dropped the sparkline list.
-    commits = fetch_develop_commit_checks(
-        limit=DEVELOP_COMMIT_WINDOW,
-        refresh_nonce=refresh_nonce,
-    )
+    commits = fetch_develop_commit_checks(limit=DEVELOP_COMMIT_WINDOW)
     return _compute_ci_failed_check_metrics(commits)
 
 
 @st.cache_data(
     ttl=60 * 60 * 6, show_spinner="Fetching Playwright test count...", refresh_mode="background"
 )  # cache for 6 hours
-def get_playwright_test_count_metrics(since_date: date, refresh_nonce: int = 0) -> tuple[int, int]:
+def get_playwright_test_count_metrics(since_date: date) -> tuple[int, int]:
     """Get the Playwright E2E test count and the change over a period."""
-    _ = refresh_nonce
     runs_in_period = fetch_workflow_runs("playwright.yml", since=since_date)
 
     def get_test_count(run_id: int) -> int:
@@ -654,12 +646,12 @@ def get_bug_metrics(since_date: date) -> tuple[int, int]:
 
 
 @st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False, refresh_mode="background")
-def get_reported_bugs(since_date: date, refresh_nonce: int = 0) -> pd.DataFrame:
+def get_reported_bugs(since_date: date) -> pd.DataFrame:
     """Get all bugs (`type:bug`) reported in the given timeframe, regardless of state.
 
     Includes both open and closed issues, filtered by their creation date.
     """
-    all_issues = get_all_github_issues(state="all", refresh_nonce=refresh_nonce)
+    all_issues = get_all_github_issues(state="all")
 
     rows: list[dict[str, Any]] = []
     for issue in all_issues:
@@ -705,57 +697,57 @@ def get_reproducible_example_exists(issue_number: int) -> bool:
     return issue_number in wiki_repros
 
 
-def get_needs_triage_issues(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_needs_triage_issues() -> pd.DataFrame:
     """Get issues that need triage."""
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["needs_triage"].copy()
 
 
-def get_missing_labels_issues(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_missing_labels_issues() -> pd.DataFrame:
     """Get issues missing feature/area labels."""
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["missing_labels_issues"].copy()
 
 
-def get_issue_waiting_for_team_response(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_issue_waiting_for_team_response() -> pd.DataFrame:
     """Get issues waiting for team response."""
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["waiting_for_team_response"].copy()
 
 
-def get_missing_labels_prs(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_missing_labels_prs() -> pd.DataFrame:
     """Get community PRs missing change/impact labels."""
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["missing_labels_prs"].copy()
 
 
-def get_prs_needing_product_approval(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_prs_needing_product_approval() -> pd.DataFrame:
     """Get community PRs with feature changes that need product approval."""
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["prs_needing_approval"].copy()
 
 
-def get_community_prs_ready_for_review(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_community_prs_ready_for_review() -> pd.DataFrame:
     """Get community PRs that are ready for review."""
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["community_prs_ready_for_review"].copy()
 
 
-def get_unprioritized_bugs(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_unprioritized_bugs() -> pd.DataFrame:
     """Get confirmed bugs without a priority."""
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["unprioritized_bugs"].copy()
 
 
-def get_high_priority_bugs(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_high_priority_bugs() -> pd.DataFrame:
     """Get all high-priority (P0, P1, P2) bugs."""
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["high_priority_bugs"].copy()
 
 
-def get_confirmed_bugs_without_repro_script(since_date: date, refresh_nonce: int = 0) -> pd.DataFrame:
+def get_confirmed_bugs_without_repro_script(since_date: date) -> pd.DataFrame:
     """Get confirmed bugs created since a date that don't have a repro script."""
-    data = build_interrupt_action_items(since_date, refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(since_date)
     return data["confirmed_bugs_without_repro"].copy()
 
 
@@ -830,9 +822,7 @@ def _sort_annotation_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
 
 
-def _annotations_for_latest_job(
-    workflow_name: str, job_name: str
-) -> tuple[list[dict[str, Any]], dict[str, str]]:
+def _annotations_for_latest_job(workflow_name: str, job_name: str) -> tuple[list[dict[str, Any]], dict[str, str]]:
     """Load unique annotations from the named job on the latest successful develop run."""
     source = {
         "workflow": workflow_name,
@@ -859,12 +849,11 @@ def _annotations_for_latest_job(
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner=False, refresh_mode="background")  # cache for 6 hours
-def get_ci_test_annotations(refresh_nonce: int = 0) -> tuple[pd.DataFrame, list[dict[str, str]]]:
+def get_ci_test_annotations() -> tuple[pd.DataFrame, list[dict[str, str]]]:
     """Unique annotations from the latest successful Python (max) and JS unit-test jobs.
 
     Uses the last successful `python-tests.yml` / `js-tests.yml` runs on `develop`.
     """
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     python_rows, python_source = _annotations_for_latest_job(PYTHON_TESTS_WORKFLOW, PYTHON_UNIT_TESTS_MAX_JOB)
     js_rows, js_source = _annotations_for_latest_job(JS_TESTS_WORKFLOW, JS_UNIT_TESTS_JOB)
     sources = [python_source, js_source]
@@ -875,9 +864,8 @@ def get_ci_test_annotations(refresh_nonce: int = 0) -> tuple[pd.DataFrame, list[
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner=False, refresh_mode="background")  # cache for 6 hours
-def get_flaky_tests(since_date: date, min_failures: int = 10, refresh_nonce: int = 0) -> pd.DataFrame:
+def get_flaky_tests(since_date: date, min_failures: int = 10) -> pd.DataFrame:
     """Get flaky tests with >= min_failures."""
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     flaky_tests_counter: Counter[str] = Counter()
     example_run: dict[str, str] = {}
     last_failure_date: dict[str, date] = {}
@@ -915,18 +903,57 @@ def get_flaky_tests(since_date: date, min_failures: int = 10, refresh_nonce: int
     return pd.DataFrame(data)
 
 
-def get_open_bot_prs(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_open_bot_prs() -> pd.DataFrame:
     """Get open bot PRs from `streamlit/streamlit` without 'do-not-merge' label.
 
     Automated release PRs are excluded; use `get_open_release_prs` for those.
     Dependabot and GitHub Actions PRs from other Streamlit repos appear in the
     important-repos table instead.
     """
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["open_bot_prs"].copy()
 
 
-def get_open_release_prs(refresh_nonce: int = 0) -> pd.DataFrame:
+def get_open_release_prs() -> pd.DataFrame:
     """Get open automated release PRs that bump the version identifiers."""
-    data = build_interrupt_action_items(date.today(), refresh_nonce=refresh_nonce)
+    data = build_interrupt_action_items(date.today())
     return data["open_release_prs"].copy()
+
+
+def clear_interrupt_caches() -> None:
+    """Drop interrupt-page caches, including nested GitHub fetches they depend on.
+
+    Call this from the Interrupt Refresh button. Clearing only the page wrappers
+    would still return stale workflow runs, issues, and annotations from the
+    inner ``@st.cache_data`` helpers.
+    """
+    page_caches = (
+        get_interrupt_data_snapshot,
+        get_monitored_repo_open_prs,
+        build_interrupt_action_items,
+        get_python_test_coverage_metrics,
+        get_frontend_test_coverage_metrics,
+        get_wheel_size_metrics,
+        get_bundle_size_metrics,
+        get_ci_failing_test_run_metrics,
+        get_playwright_test_count_metrics,
+        _load_playwright_test_stats,
+        get_reported_bugs,
+        get_ci_test_annotations,
+        get_flaky_tests,
+    )
+    nested_caches = (
+        get_all_github_issues,
+        get_all_github_prs,
+        fetch_develop_commit_checks,
+        fetch_workflow_runs,
+        fetch_workflow_run_jobs,
+        fetch_workflow_run_annotations,
+        fetch_workflow_runs_ids,
+        fetch_artifacts,
+        download_artifact,
+        fetch_wiki_issue_repros,
+        get_synced_wiki_repo_path,
+    )
+    for cached in (*page_caches, *nested_caches):
+        cached.clear()

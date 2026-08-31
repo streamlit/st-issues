@@ -639,13 +639,11 @@ def load_issue_data() -> bool:
 @st.cache_data(ttl=60 * 15, max_entries=24, refresh_mode="background")  # cache for 15 minutes
 def get_all_github_issues(
     state: Literal["open", "closed", "all"] = "all",
-    refresh_nonce: int = 0,
 ) -> list[dict[str, Any]]:
     """Paginate through all issues in the streamlit/streamlit repo.
 
     Returns all issues as a list of dicts.
     """
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     issues = []
     state_param = f"state={state}" if state else ""
     url: str | None = f"https://api.github.com/repos/streamlit/streamlit/issues?{state_param}&per_page=100"
@@ -685,14 +683,12 @@ def get_all_github_issues(
 @st.cache_data(ttl=60 * 15, max_entries=128, refresh_mode="background")  # cache for 15 minutes
 def get_all_github_prs(
     state: Literal["open", "closed", "all"] = "all",
-    refresh_nonce: int = 0,
     repo: str = "streamlit/streamlit",
 ) -> list[dict[str, Any]]:
     """Paginate through all PRs in a GitHub repo.
 
     Returns all PRs as a list of dicts.
     """
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     prs = []
     state_param = f"state={state}" if state else ""
     url: str | None = f"https://api.github.com/repos/{repo}/pulls?{state_param}&per_page=100"
@@ -901,9 +897,8 @@ def _workflow_run_matches(
 
 
 @st.cache_data(ttl=60 * 10, max_entries=32, show_spinner=False, refresh_mode="background")
-def fetch_commit_shas(branch: str = "develop", limit: int = 10, refresh_nonce: int = 0) -> list[str]:
+def fetch_commit_shas(branch: str = "develop", limit: int = 10) -> list[str]:
     """Fetch the newest commit SHAs for a branch, newest first."""
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     payload, error, _status = _request_json(
         "https://api.github.com/repos/streamlit/streamlit/commits",
         params={"sha": branch, "per_page": min(limit, 100)},
@@ -1077,13 +1072,12 @@ def _fetch_remaining_check_contexts(oid: str, cursor: str) -> list[dict[str, Any
 
 
 @st.cache_data(ttl=60 * 10, max_entries=32, show_spinner=False, refresh_mode="background")
-def fetch_develop_commit_checks(limit: int = 10, refresh_nonce: int = 0) -> list[dict[str, Any]]:
+def fetch_develop_commit_checks(limit: int = 10) -> list[dict[str, Any]]:
     """Fetch GitHub checks for the newest commits on `develop`, newest first.
 
     Each item is `{"sha": str, "checks": list[dict]}` covering CheckRun and
     StatusContext entries from `statusCheckRollup`.
     """
-    _ = refresh_nonce  # Included to enable targeted cache busting from selected pages.
     data = _run_graphql_query(
         _DEVELOP_COMMIT_CHECKS_QUERY,
         {
@@ -1365,10 +1359,11 @@ def fetch_workflow_run_jobs(run_id: int) -> list[dict[str, Any]]:
 
     while True:
         try:
+            job_params: dict[str, str | int] = {"filter": "latest", "per_page": 100, "page": page}
             response = requests.get(
                 f"https://api.github.com/repos/streamlit/streamlit/actions/runs/{run_id}/jobs",
                 headers=get_headers(),
-                params={"filter": "latest", "per_page": 100, "page": page},
+                params=job_params,
                 timeout=30,
             )
         except Exception as exc:

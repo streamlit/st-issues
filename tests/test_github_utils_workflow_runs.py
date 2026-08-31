@@ -242,7 +242,7 @@ def test_fetch_commit_shas_returns_newest_first(monkeypatch: MonkeyPatch) -> Non
 
     monkeypatch.setattr(github_utils, "_request_json", fake_request_json)
 
-    shas = github_utils.fetch_commit_shas(branch="develop", limit=10, refresh_nonce=3)
+    shas = github_utils.fetch_commit_shas(branch="develop", limit=10)
 
     assert shas == ["aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbb2222"]
     assert captured["url"] == "https://api.github.com/repos/streamlit/streamlit/commits"
@@ -304,7 +304,7 @@ def test_fetch_develop_commit_checks_maps_check_runs_and_statuses(monkeypatch: M
         },
     )
 
-    commits = github_utils.fetch_develop_commit_checks(limit=10, refresh_nonce=1)
+    commits = github_utils.fetch_develop_commit_checks(limit=10)
 
     assert len(commits) == 1
     assert commits[0]["sha"] == "aaa1111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

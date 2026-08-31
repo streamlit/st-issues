@@ -109,11 +109,11 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
         ),
     ]
 
-    monkeypatch.setattr(interrupt_data, "get_interrupt_data_snapshot", lambda refresh_nonce=0: (issues, prs))
+    monkeypatch.setattr(interrupt_data, "get_interrupt_data_snapshot", lambda: (issues, prs))
     monkeypatch.setattr(interrupt_data, "get_reproducible_example_exists", lambda issue_number: issue_number == 3)
     interrupt_data.build_interrupt_action_items.clear()
 
-    data = interrupt_data.build_interrupt_action_items(date(2026, 2, 1), refresh_nonce=7)
+    data = interrupt_data.build_interrupt_action_items(date(2026, 2, 1))
 
     assert set(data["needs_triage"]["Title"]) == {"Needs triage issue"}
     assert set(data["missing_labels_issues"]["Title"]) == {
@@ -140,10 +140,10 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
     assert set(data["open_release_prs"]["Title"]) == {"[chore] Release v1.61.0"}
 
 
-def test_build_interrupt_action_items_refresh_nonce_busts_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_interrupt_action_items_clear_busts_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     call_count = {"value": 0}
 
-    def fake_snapshot(refresh_nonce: int = 0) -> tuple[list[dict], list[dict]]:
+    def fake_snapshot() -> tuple[list[dict], list[dict]]:
         call_count["value"] += 1
         return [], []
 
@@ -151,11 +151,12 @@ def test_build_interrupt_action_items_refresh_nonce_busts_cache(monkeypatch: pyt
     interrupt_data.build_interrupt_action_items.clear()
 
     since = date(2026, 2, 1)
-    interrupt_data.build_interrupt_action_items(since, refresh_nonce=0)
-    interrupt_data.build_interrupt_action_items(since, refresh_nonce=0)
+    interrupt_data.build_interrupt_action_items(since)
+    interrupt_data.build_interrupt_action_items(since)
     assert call_count["value"] == 1
 
-    interrupt_data.build_interrupt_action_items(since, refresh_nonce=1)
+    interrupt_data.build_interrupt_action_items.clear()
+    interrupt_data.build_interrupt_action_items(since)
     assert call_count["value"] == 2
 
 
@@ -291,26 +292,25 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
             )
         ],
     }
-    calls: list[tuple[str, str, int]] = []
+    calls: list[tuple[str, str]] = []
 
     def fake_get_all_github_prs(
         state: str = "all",
-        refresh_nonce: int = 0,
         repo: str = "streamlit/streamlit",
     ) -> list[dict]:
-        calls.append((repo, state, refresh_nonce))
+        calls.append((repo, state))
         return repo_payloads[repo]
 
     monkeypatch.setattr(interrupt_data, "get_all_github_prs", fake_get_all_github_prs)
     interrupt_data.get_monitored_repo_open_prs.clear()
 
-    monitored_prs = interrupt_data.get_monitored_repo_open_prs(refresh_nonce=3)
+    monitored_prs = interrupt_data.get_monitored_repo_open_prs()
 
     expected_bot_only_repos = [
         repo for repo in interrupt_data.BOT_PR_INTERRUPT_REPOS if repo not in interrupt_data.MONITORED_INTERRUPT_REPOS
     ]
-    assert calls == [(repo, "open", 3) for repo in interrupt_data.MONITORED_INTERRUPT_REPOS] + [
-        (repo, "open", 3) for repo in expected_bot_only_repos
+    assert calls == [(repo, "open") for repo in interrupt_data.MONITORED_INTERRUPT_REPOS] + [
+        (repo, "open") for repo in expected_bot_only_repos
     ]
     assert list(monitored_prs["Title"]) == [
         "Bump uv in blank-app-template",
@@ -433,9 +433,8 @@ def test_compute_ci_failed_check_metrics_uses_all_checks() -> None:
 def test_get_ci_failing_test_run_metrics_uses_develop_commit_checks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_fetch_develop_commit_checks(limit: int = 10, refresh_nonce: int = 0) -> list[dict]:
+    def fake_fetch_develop_commit_checks(limit: int = 10) -> list[dict]:
         assert limit == interrupt_data.DEVELOP_COMMIT_WINDOW
-        assert refresh_nonce == 4
         return [
             {
                 "sha": "sha-new",
@@ -456,7 +455,7 @@ def test_get_ci_failing_test_run_metrics_uses_develop_commit_checks(
     monkeypatch.setattr(interrupt_data, "fetch_develop_commit_checks", fake_fetch_develop_commit_checks)
     interrupt_data.get_ci_failing_test_run_metrics.clear()
 
-    percent, failing, total = interrupt_data.get_ci_failing_test_run_metrics(refresh_nonce=4)
+    percent, failing, total = interrupt_data.get_ci_failing_test_run_metrics()
 
     assert (percent, failing, total) == (25.0, 1, 4)
 
@@ -597,7 +596,7 @@ def test_get_ci_test_annotations_combines_python_and_js_jobs(monkeypatch: pytest
     monkeypatch.setattr(interrupt_data, "fetch_workflow_run_annotations", fake_annotations)
     interrupt_data.get_ci_test_annotations.clear()
 
-    annotations_df, sources = interrupt_data.get_ci_test_annotations(refresh_nonce=3)
+    annotations_df, sources = interrupt_data.get_ci_test_annotations()
 
     assert list(annotations_df["Job"]) == [
         interrupt_data.PYTHON_UNIT_TESTS_MAX_JOB,
@@ -621,7 +620,7 @@ def test_get_ci_test_annotations_missing_job_is_reported(monkeypatch: pytest.Mon
     monkeypatch.setattr(interrupt_data, "fetch_workflow_run_annotations", lambda _check_run_id: [])
     interrupt_data.get_ci_test_annotations.clear()
 
-    annotations_df, sources = interrupt_data.get_ci_test_annotations(refresh_nonce=4)
+    annotations_df, sources = interrupt_data.get_ci_test_annotations()
 
     assert annotations_df.empty
     assert [source["job_url"] for source in sources] == ["", ""]
@@ -629,3 +628,33 @@ def test_get_ci_test_annotations_missing_job_is_reported(monkeypatch: pytest.Mon
         interrupt_data.PYTHON_UNIT_TESTS_MAX_JOB,
         interrupt_data.JS_UNIT_TESTS_JOB,
     ]
+
+
+def test_clear_interrupt_caches_clears_page_and_nested_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
+    cleared: list[str] = []
+
+    def fake_clear(name: str):
+        def _clear() -> None:
+            cleared.append(name)
+
+        return _clear
+
+    targets = [
+        "get_ci_test_annotations",
+        "get_flaky_tests",
+        "build_interrupt_action_items",
+        "fetch_workflow_runs",
+        "fetch_workflow_run_jobs",
+        "fetch_workflow_run_annotations",
+        "get_all_github_issues",
+        "get_all_github_prs",
+        "fetch_develop_commit_checks",
+        "fetch_wiki_issue_repros",
+        "get_synced_wiki_repo_path",
+    ]
+    for name in targets:
+        monkeypatch.setattr(getattr(interrupt_data, name), "clear", fake_clear(name))
+
+    interrupt_data.clear_interrupt_caches()
+
+    assert set(targets) <= set(cleared)

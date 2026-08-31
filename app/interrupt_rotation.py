@@ -16,6 +16,7 @@ from app.utils.interrupt_data import (
     MONITORED_INTERRUPT_REPOS,
     PYTHON_UNIT_TESTS_MAX_JOB,
     build_interrupt_action_items,
+    clear_interrupt_caches,
     get_bundle_size_metrics,
     get_ci_failing_test_run_metrics,
     get_ci_test_annotations,
@@ -62,13 +63,10 @@ def _metric_icon(*, warn: bool) -> str | None:
 
 
 @st.fragment(parallel=True)
-def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None:
+def render_ci_metrics(selected_since: date) -> None:
     col1, col2, col3, col4 = st.columns(4)
     with col1, st.skeleton(height=110):
-        py_coverage, py_coverage_change = get_python_test_coverage_metrics(
-            selected_since,
-            refresh_nonce=selected_refresh_nonce,
-        )
+        py_coverage, py_coverage_change = get_python_test_coverage_metrics(selected_since)
         py_coverage_warn = py_coverage < PYTHON_COVERAGE_WARNING_PCT
         st.metric(
             "Python Test Coverage",
@@ -84,10 +82,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             ),
         )
     with col2, st.skeleton(height=110):
-        fe_coverage, fe_coverage_change = get_frontend_test_coverage_metrics(
-            selected_since,
-            refresh_nonce=selected_refresh_nonce,
-        )
+        fe_coverage, fe_coverage_change = get_frontend_test_coverage_metrics(selected_since)
         fe_coverage_warn = fe_coverage < FRONTEND_COVERAGE_WARNING_PCT
         st.metric(
             "Frontend Test Coverage",
@@ -103,10 +98,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             ),
         )
     with col3, st.skeleton(height=110):
-        wheel_size, wheel_size_change = get_wheel_size_metrics(
-            selected_since,
-            refresh_nonce=selected_refresh_nonce,
-        )
+        wheel_size, wheel_size_change = get_wheel_size_metrics(selected_since)
         wheel_size_warn = wheel_size > WHEEL_SIZE_WARNING_BYTES
         st.metric(
             "Wheel Size",
@@ -124,10 +116,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             total_gzip_change,
             entry_gzip,
             entry_gzip_change,
-        ) = get_bundle_size_metrics(
-            selected_since,
-            refresh_nonce=selected_refresh_nonce,
-        )
+        ) = get_bundle_size_metrics(selected_since)
 
         total_gzip_warn = total_gzip > TOTAL_BUNDLE_WARNING_BYTES
         st.metric(
@@ -161,10 +150,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             ),
         )
     with col2, st.skeleton(height=110):
-        pw_count, pw_count_change = get_playwright_test_count_metrics(
-            selected_since,
-            refresh_nonce=selected_refresh_nonce,
-        )
+        pw_count, pw_count_change = get_playwright_test_count_metrics(selected_since)
         st.metric(
             "Playwright Tests",
             f"{pw_count:,}",
@@ -175,9 +161,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
             help="Total number of Playwright E2E tests (across all browsers).",
         )
     with col3, st.skeleton(height=110):
-        failing_pct, failing_checks, total_checks, *_ = get_ci_failing_test_run_metrics(
-            refresh_nonce=selected_refresh_nonce,
-        )
+        failing_pct, failing_checks, total_checks, *_ = get_ci_failing_test_run_metrics()
         failing_pct_warn = total_checks > 0 and failing_pct >= CI_FAILING_TEST_WARNING_PCT
         st.metric(
             "Failed CI Checks",
@@ -200,7 +184,7 @@ def render_ci_metrics(selected_since: date, selected_refresh_nonce: int) -> None
 
 
 @st.fragment(parallel=True)
-def render_issue_action_items(selected_since: date, selected_refresh_nonce: int) -> None:
+def render_issue_action_items(selected_since: date) -> None:
     """Render the issue-focused action-item tables (top of the Action Items list).
 
     This is one of two parallel fragments that read the shared action-items
@@ -211,10 +195,7 @@ def render_issue_action_items(selected_since: date, selected_refresh_nonce: int)
     snapshot fetch overlap with the other parallel fragments during a full rerun.
     """
     with st.skeleton(height=600):
-        action_items = build_interrupt_action_items(
-            since_date=selected_since,
-            refresh_nonce=selected_refresh_nonce,
-        )
+        action_items = build_interrupt_action_items(since_date=selected_since)
 
         st.subheader(
             "High-priority bugs (P0, P1, P2)",
@@ -507,7 +488,7 @@ For Dependabot dependency updates:
 
 
 @st.fragment(parallel=True)
-def render_flaky_tests(selected_since: date, selected_refresh_nonce: int) -> None:
+def render_flaky_tests(selected_since: date) -> None:
     st.subheader(
         f"Flaky tests with ≥ {FLAKY_TEST_MIN_FAILURES} failures",
         help=f"""
@@ -521,7 +502,6 @@ marker as a last resort.
         flaky_tests_df = get_flaky_tests(
             selected_since,
             min_failures=FLAKY_TEST_MIN_FAILURES,
-            refresh_nonce=selected_refresh_nonce,
         )
         # Always hide expected flaky tests
         if not flaky_tests_df.empty:
@@ -548,7 +528,7 @@ marker as a last resort.
 
 
 @st.fragment(parallel=True)
-def render_ci_test_annotations(selected_refresh_nonce: int) -> None:
+def render_ci_test_annotations() -> None:
     st.subheader(
         "CI test annotations",
         help="""
@@ -563,10 +543,8 @@ This ignores the timeframe selector.
 """,
     )
     with st.skeleton(height=200):
-        annotations_df, sources = get_ci_test_annotations(refresh_nonce=selected_refresh_nonce)
-        source_links = [
-            f"[`{source['job']}`]({source['job_url']})" for source in sources if source.get("job_url")
-        ]
+        annotations_df, sources = get_ci_test_annotations()
+        source_links = [f"[`{source['job']}`]({source['job_url']})" for source in sources if source.get("job_url")]
         if source_links:
             st.caption("Latest successful runs on `develop`: " + " · ".join(source_links))
 
@@ -609,7 +587,7 @@ This ignores the timeframe selector.
 
 
 @st.fragment(parallel=True)
-def render_monitored_repo_prs(selected_refresh_nonce: int) -> None:
+def render_monitored_repo_prs() -> None:
     monitored_repos_help = "\n".join(f"- `{repo}`" for repo in MONITORED_INTERRUPT_REPOS)
     bot_only_repos_help = "\n".join(
         f"- `{repo}` (Dependabot and GitHub Actions PRs only)"
@@ -631,7 +609,7 @@ def render_monitored_repo_prs(selected_refresh_nonce: int) -> None:
         ),
     )
     with st.skeleton(height=200):
-        monitored_repo_prs_df = get_monitored_repo_open_prs(refresh_nonce=selected_refresh_nonce)
+        monitored_repo_prs_df = get_monitored_repo_open_prs()
         monitored_repo_prs_df = (
             monitored_repo_prs_df[~monitored_repo_prs_df["Draft"]]
             if not monitored_repo_prs_df.empty
@@ -656,7 +634,7 @@ def render_monitored_repo_prs(selected_refresh_nonce: int) -> None:
 
 
 @st.fragment(parallel=True)
-def render_confirmed_bugs_without_repro(selected_since: date, selected_refresh_nonce: int) -> None:
+def render_confirmed_bugs_without_repro(selected_since: date) -> None:
     st.subheader(
         "Confirmed bugs without a reproducible script",
         help="""
@@ -674,10 +652,7 @@ This view is informational only - no action is required. Adding a reproducible s
 """,
     )
     with st.skeleton(height=200):
-        confirmed_bugs_without_repro_df = get_confirmed_bugs_without_repro_script(
-            selected_since,
-            refresh_nonce=selected_refresh_nonce,
-        )
+        confirmed_bugs_without_repro_df = get_confirmed_bugs_without_repro_script(selected_since)
         if confirmed_bugs_without_repro_df.empty:
             st.caption("Nothing to show right now.")
         else:
@@ -695,7 +670,7 @@ This view is informational only - no action is required. Adding a reproducible s
 
 
 @st.fragment(parallel=True)
-def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> None:
+def render_reported_bugs(selected_since: date) -> None:
     st.subheader(
         "Bugs reported in the timeframe",
         help=(
@@ -705,10 +680,7 @@ def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> N
         ),
     )
     with st.skeleton(height=200):
-        reported_bugs_df = get_reported_bugs(
-            selected_since,
-            refresh_nonce=selected_refresh_nonce,
-        )
+        reported_bugs_df = get_reported_bugs(selected_since)
         if reported_bugs_df.empty:
             st.success("No bugs were reported in the selected timeframe.", icon=":material/celebration:")
         else:
@@ -749,7 +721,7 @@ def render_reported_bugs(selected_since: date, selected_refresh_nonce: int) -> N
 
 
 @st.fragment(parallel=True)
-def render_community_pr_action_items(selected_since: date, selected_refresh_nonce: int) -> None:
+def render_community_pr_action_items(selected_since: date) -> None:
     """Render the community-PR action-item tables (bottom of the Action Items list).
 
     This is one of two parallel fragments that read the shared action-items
@@ -762,10 +734,7 @@ def render_community_pr_action_items(selected_since: date, selected_refresh_nonc
     fetch with the other parallel fragments.
     """
     with st.skeleton(height=400):
-        action_items = build_interrupt_action_items(
-            since_date=selected_since,
-            refresh_nonce=selected_refresh_nonce,
-        )
+        action_items = build_interrupt_action_items(since_date=selected_since)
 
         st.info(
             "We no longer accept new community PRs. The views below are read-only and "
@@ -853,26 +822,23 @@ This view is informational only - no action is required. It is shown for visibil
 st.title(":material/stethoscope: Interrupt rotation")
 st.caption("This dashboard provides an overview of repository health and areas that require attention.")
 
-st.session_state.setdefault("interrupt_refresh_nonce", 0)
-
 timeframe = st.sidebar.selectbox(
     "Select timeframe",
     ("Last 7 days", "Last 14 days"),
     index=0,
 )
 if st.sidebar.button(":material/refresh: Refresh data", width="stretch"):
-    st.session_state.interrupt_refresh_nonce += 1
+    clear_interrupt_caches()
 
 days = 14 if timeframe == "Last 14 days" else 7
 since = date.today() - timedelta(days=days)
-refresh_nonce = st.session_state.interrupt_refresh_nonce
 
 # All slow sections are `parallel=True` fragments dispatched here. During a full
 # rerun they run concurrently in the coordinator thread pool, so the issue/PR
 # snapshot, CI-artifact downloads, flaky-test annotations, unit-test annotations,
 # and monitored-repo PR fetches overlap instead of running one after another
 # on the main thread.
-render_ci_metrics(since, refresh_nonce)
+render_ci_metrics(since)
 
 with st.expander("Helpful processes", icon=":material/menu_book:"):
     st.markdown("""
@@ -882,19 +848,19 @@ with st.expander("Helpful processes", icon=":material/menu_book:"):
 
 st.header(":material/checklist: Action required")
 
-render_issue_action_items(since, refresh_nonce)
+render_issue_action_items(since)
 
-render_flaky_tests(since, refresh_nonce)
+render_flaky_tests(since)
 
-render_ci_test_annotations(refresh_nonce)
+render_ci_test_annotations()
 
-render_monitored_repo_prs(refresh_nonce)
+render_monitored_repo_prs()
 
 st.header(":material/visibility: For reference")
 st.caption("Informational views only. No action is required from the person on Interrupt.")
 with st.expander("Show reference views", expanded=False):
-    render_confirmed_bugs_without_repro(since, refresh_nonce)
+    render_confirmed_bugs_without_repro(since)
 
-    render_reported_bugs(since, refresh_nonce)
+    render_reported_bugs(since)
 
-    render_community_pr_action_items(since, refresh_nonce)
+    render_community_pr_action_items(since)
