@@ -168,7 +168,7 @@ def render_ci_metrics(selected_since: date) -> None:
         st.metric(
             _metric_text("Failed CI Checks", warn=failing_pct_warn),
             _metric_text(f"{failing_pct:.0f}%", warn=failing_pct_warn),
-            f"{failing_checks}/{total_checks} checks",
+            _metric_text(f"{failing_checks}/{total_checks} checks", warn=failing_checks > 0),
             delta_color="off",
             delta_arrow="off",
             border=True,
@@ -190,7 +190,7 @@ def render_ci_metrics(selected_since: date) -> None:
         st.metric(
             _metric_text("Failed Nightly Runs", warn=nightly_warn),
             _metric_text(str(nightly_failing), warn=nightly_warn),
-            nightly_delta,
+            _metric_text(nightly_delta, warn=nightly_warn),
             delta_color="off",
             delta_arrow="off",
             border=True,
