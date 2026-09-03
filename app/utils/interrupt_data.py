@@ -15,6 +15,7 @@ from typing import Any
 from zipfile import ZipFile
 
 import pandas as pd
+import requests
 import streamlit as st
 
 from app.utils.agent_wiki import fetch_wiki_issue_repros, get_synced_wiki_repo_path
@@ -38,6 +39,12 @@ PATH_OF_SCRIPT = pathlib.Path(__file__).parent.parent.resolve()
 PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 STREAMLIT_REPO = "streamlit/streamlit"
 CONDA_FORGE_STREAMLIT_FEEDSTOCK = "conda-forge/streamlit-feedstock"
+PYPI_STREAMLIT_JSON_URL = "https://pypi.org/pypi/streamlit/json"
+PYPI_STREAMLIT_PROJECT_URL = "https://pypi.org/project/streamlit"
+DOCS_RELEASE_NOTES_URL = "https://docs.streamlit.io/develop/quick-reference/release-notes"
+_HTTP_USER_AGENT = "st-issues-interrupt/1.0 (+https://github.com/streamlit/st-issues)"
+_DOCS_LATEST_HEADING_RE = re.compile(r"Version\s+(\d+\.\d+\.\d+)\s*\(\s*latest\s*\)", re.IGNORECASE)
+_DOCS_LATEST_VERSION_JSON_RE = re.compile(r'"LATEST_VERSION"\s*:\s*"(\d+\.\d+\.\d+)"')
 GITHUB_ACTIONS_LOGIN = "github-actions[bot]"
 BOT_PR_LOGINS = frozenset({"dependabot[bot]", GITHUB_ACTIONS_LOGIN})
 MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
@@ -131,6 +138,65 @@ def _release_pr_row(pr: dict[str, Any], repo: str) -> dict[str, Any]:
     }
 
 
+def _http_get(url: str, *, accept: str | None = None) -> tuple[requests.Response | None, str | None]:
+    headers = {"User-Agent": _HTTP_USER_AGENT}
+    if accept:
+        headers["Accept"] = accept
+    try:
+        response = requests.get(url, headers=headers, timeout=30)
+    except Exception as exc:
+        return None, f"Failed to fetch {url}: {exc}"
+    if response.status_code != 200:
+        return None, f"Failed to fetch {url}: HTTP {response.status_code}"
+    return response, None
+
+
+def _parse_pypi_streamlit_version(payload: dict[str, Any]) -> str | None:
+    info = payload.get("info")
+    if not isinstance(info, dict):
+        return None
+    version = info.get("version")
+    if isinstance(version, str) and version.strip():
+        return version.strip()
+    return None
+
+
+def _parse_docs_latest_version(html: str) -> str | None:
+    heading_match = _DOCS_LATEST_HEADING_RE.search(html)
+    if heading_match:
+        return heading_match.group(1)
+    json_match = _DOCS_LATEST_VERSION_JSON_RE.search(html)
+    if json_match:
+        return json_match.group(1)
+    return None
+
+
+def _fetch_pypi_streamlit_version() -> tuple[str | None, str | None]:
+    response, error = _http_get(PYPI_STREAMLIT_JSON_URL, accept="application/json")
+    if error or response is None:
+        return None, error
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        return None, f"Failed to parse PyPI JSON: {exc}"
+    if not isinstance(payload, dict):
+        return None, "Unexpected PyPI JSON payload."
+    version = _parse_pypi_streamlit_version(payload)
+    if version is None:
+        return None, "Could not parse the latest Streamlit version from PyPI."
+    return version, None
+
+
+def _fetch_docs_latest_version() -> tuple[str | None, str | None]:
+    response, error = _http_get(DOCS_RELEASE_NOTES_URL)
+    if error or response is None:
+        return None, error
+    version = _parse_docs_latest_version(response.text)
+    if version is None:
+        return None, "Could not parse the latest version from the docs release notes."
+    return version, None
+
+
 def _monitored_pr_row(pr: dict[str, Any], repo: str) -> dict[str, Any]:
     return {
         "Repository": repo,
@@ -187,6 +253,20 @@ def get_monitored_repo_open_prs() -> pd.DataFrame:
         by=["Updated", "Created", "Repository", "Title"],
         ascending=[False, False, True, True],
     ).reset_index(drop=True)
+
+
+@st.cache_data(ttl=60 * 10, max_entries=8, show_spinner=False, refresh_mode="background")
+def get_docs_release_status() -> dict[str, str | bool | None]:
+    """Compare the latest PyPI Streamlit version to the docs release notes."""
+    pypi_version, pypi_error = _fetch_pypi_streamlit_version()
+    docs_version, docs_error = _fetch_docs_latest_version()
+    errors = [error for error in (pypi_error, docs_error) if error]
+    return {
+        "pypi_version": pypi_version,
+        "docs_version": docs_version,
+        "error": " ".join(errors) if errors else None,
+        "is_outdated": bool(pypi_version and docs_version and pypi_version != docs_version),
+    }
 
 
 def _build_interrupt_action_items(
@@ -1058,6 +1138,7 @@ def clear_interrupt_caches() -> None:
     page_caches = (
         get_interrupt_data_snapshot,
         get_monitored_repo_open_prs,
+        get_docs_release_status,
         build_interrupt_action_items,
         get_python_test_coverage_metrics,
         get_frontend_test_coverage_metrics,

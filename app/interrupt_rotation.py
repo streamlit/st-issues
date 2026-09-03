@@ -13,8 +13,10 @@ from app.utils.interrupt_data import (
     BOT_PR_INTERRUPT_REPOS,
     CONDA_FORGE_STREAMLIT_FEEDSTOCK,
     DEVELOP_COMMIT_WINDOW,
+    DOCS_RELEASE_NOTES_URL,
     JS_UNIT_TESTS_JOB,
     MONITORED_INTERRUPT_REPOS,
+    PYPI_STREAMLIT_PROJECT_URL,
     PYTHON_UNIT_TESTS_MAX_JOB,
     build_interrupt_action_items,
     clear_interrupt_caches,
@@ -23,6 +25,7 @@ from app.utils.interrupt_data import (
     get_ci_test_annotations,
     get_confirmed_bugs_without_repro_script,
     get_dependabot_alerts,
+    get_docs_release_status,
     get_flaky_tests,
     get_frontend_test_coverage_metrics,
     get_monitored_repo_open_prs,
@@ -517,6 +520,27 @@ For Dependabot dependency updates:
 
 
 @st.fragment(parallel=True)
+def render_docs_release_mismatch() -> None:
+    """Warn Interrupt when PyPI's latest Streamlit version is missing from the docs."""
+    status = get_docs_release_status()
+    pypi_version = status["pypi_version"]
+    docs_version = status["docs_version"]
+    fetch_error = status["error"]
+    if fetch_error and not status["is_outdated"]:
+        st.warning(f"Could not compare the PyPI and docs Streamlit versions. {fetch_error}")
+        return
+    if not status["is_outdated"]:
+        return
+    st.error(
+        f"[PyPI]({PYPI_STREAMLIT_PROJECT_URL}) has **{pypi_version}**, but the "
+        f"[release notes]({DOCS_RELEASE_NOTES_URL}) still list **{docs_version}** as latest. "
+        "Update the docs so the same version appears on that page.",
+        icon=":material/error:",
+        title="Release notes are behind PyPI",
+    )
+
+
+@st.fragment(parallel=True)
 def render_flaky_tests(selected_since: date) -> None:
     st.subheader(
         f"Flaky tests with ≥ {FLAKY_TEST_MIN_FAILURES} failures",
@@ -934,6 +958,7 @@ with st.expander("Helpful processes", icon=":material/menu_book:"):
     """)
 
 st.header(":material/checklist: Action required")
+render_docs_release_mismatch()
 
 render_issue_action_items(since)
 
@@ -947,24 +972,31 @@ render_monitored_repo_prs()
 
 st.header(":material/visibility: For reference")
 st.caption("Informational views only. No action is required from the person on Interrupt.")
-with st.expander("Show reference views", expanded=False):
-    st.markdown(
-        "[![OSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/streamlit/streamlit"
-        "?label=openssf+scorecard&style=flat)](https://scorecard.dev/viewer/?uri=github.com/streamlit/streamlit) "
-        "[![Socket.dev Rating](https://badge.socket.dev/pypi/package/streamlit)]"
-        "(https://socket.dev/pypi/package/streamlit) "
-        "[![Spectra Assure Community Badge](https://secure.software/pypi/badge/streamlit)]"
-        "(https://secure.software/pypi/packages/streamlit) "
-        "[![Libraries.io dependency status for latest release]"
-        "(https://img.shields.io/librariesio/release/pypi/streamlit)]"
-        "(https://libraries.io/pypi/streamlit) "
-        "[![Libraries.io SourceRank](https://img.shields.io/librariesio/sourcerank/pypi/streamlit)]"
-        "(https://libraries.io/pypi/streamlit) "
-        "[![Snyk Monitoring](https://snyk.io/test/github/streamlit/streamlit/badge.svg)]"
-        "(https://security.snyk.io/package/pip/streamlit)"
-    )
-    render_confirmed_bugs_without_repro(since)
+reference_views = st.expander(
+    "Show reference views",
+    expanded=False,
+    key="show_reference_views",
+    on_change="rerun",
+)
+with reference_views:
+    if reference_views.open:
+        st.markdown(
+            "[![OSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/streamlit/streamlit"
+            "?label=openssf+scorecard&style=flat)](https://scorecard.dev/viewer/?uri=github.com/streamlit/streamlit) "
+            "[![Socket.dev Rating](https://badge.socket.dev/pypi/package/streamlit)]"
+            "(https://socket.dev/pypi/package/streamlit) "
+            "[![Spectra Assure Community Badge](https://secure.software/pypi/badge/streamlit)]"
+            "(https://secure.software/pypi/packages/streamlit) "
+            "[![Libraries.io dependency status for latest release]"
+            "(https://img.shields.io/librariesio/release/pypi/streamlit)]"
+            "(https://libraries.io/pypi/streamlit) "
+            "[![Libraries.io SourceRank](https://img.shields.io/librariesio/sourcerank/pypi/streamlit)]"
+            "(https://libraries.io/pypi/streamlit) "
+            "[![Snyk Monitoring](https://snyk.io/test/github/streamlit/streamlit/badge.svg)]"
+            "(https://security.snyk.io/package/pip/streamlit)"
+        )
+        render_confirmed_bugs_without_repro(since)
 
-    render_reported_bugs(since)
+        render_reported_bugs(since)
 
-    render_community_pr_action_items(since)
+        render_community_pr_action_items(since)

@@ -218,6 +218,47 @@ def test_get_interrupt_data_snapshot_includes_feedstock_prs(monkeypatch: pytest.
     ]
 
 
+def test_parse_docs_latest_version_from_heading() -> None:
+    html = '<a href="#version-1630-latest"></a><strong>Version 1.63.0 (latest)</strong>'
+    assert interrupt_data._parse_docs_latest_version(html) == "1.63.0"
+
+
+def test_parse_docs_latest_version_from_json_fallback() -> None:
+    html = '{"LATEST_VERSION":"1.61.0","DEFAULT_VERSION":"latest"}'
+    assert interrupt_data._parse_docs_latest_version(html) == "1.61.0"
+
+
+def test_parse_pypi_streamlit_version() -> None:
+    assert interrupt_data._parse_pypi_streamlit_version({"info": {"version": "1.63.0"}}) == "1.63.0"
+    assert interrupt_data._parse_pypi_streamlit_version({"info": {}}) is None
+
+
+def test_get_docs_release_status_outdated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(interrupt_data, "_fetch_pypi_streamlit_version", lambda: ("1.63.0", None))
+    monkeypatch.setattr(interrupt_data, "_fetch_docs_latest_version", lambda: ("1.62.0", None))
+    interrupt_data.get_docs_release_status.clear()
+
+    status = interrupt_data.get_docs_release_status()
+
+    assert status == {
+        "pypi_version": "1.63.0",
+        "docs_version": "1.62.0",
+        "error": None,
+        "is_outdated": True,
+    }
+
+
+def test_get_docs_release_status_in_sync(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(interrupt_data, "_fetch_pypi_streamlit_version", lambda: ("1.63.0", None))
+    monkeypatch.setattr(interrupt_data, "_fetch_docs_latest_version", lambda: ("1.63.0", None))
+    interrupt_data.get_docs_release_status.clear()
+
+    status = interrupt_data.get_docs_release_status()
+
+    assert status["is_outdated"] is False
+    assert status["error"] is None
+
+
 def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
     repo_payloads = {
         "streamlit/docs": [
@@ -841,6 +882,7 @@ def test_clear_interrupt_caches_clears_page_and_nested_helpers(monkeypatch: pyte
         "get_nightly_run_metrics",
         "get_flaky_tests",
         "build_interrupt_action_items",
+        "get_docs_release_status",
         "fetch_workflow_runs",
         "fetch_workflow_run_jobs",
         "fetch_workflow_run_annotations",
