@@ -18,6 +18,8 @@ from app.utils.interrupt_data import (
     MONITORED_INTERRUPT_REPOS,
     PYPI_STREAMLIT_PROJECT_URL,
     PYTHON_UNIT_TESTS_MAX_JOB,
+    RELEASE_PROCESS_DOCS_SECTION_URL,
+    RELEASE_PROCESS_URL,
     build_interrupt_action_items,
     clear_interrupt_caches,
     get_bundle_size_metrics,
@@ -534,7 +536,8 @@ def render_docs_release_mismatch() -> None:
     st.error(
         f"[PyPI]({PYPI_STREAMLIT_PROJECT_URL}) has **{pypi_version}**, but the "
         f"[release notes]({DOCS_RELEASE_NOTES_URL}) still list **{docs_version}** as latest. "
-        "Update the docs so the same version appears on that page.",
+        "Update the docs so the same version appears on that page. "
+        f"See [Update the documentation]({RELEASE_PROCESS_DOCS_SECTION_URL}).",
         icon=":material/error:",
         title="Release notes are behind PyPI",
     )
@@ -952,9 +955,10 @@ since = date.today() - timedelta(days=days)
 render_ci_metrics(since)
 
 with st.expander("Helpful processes", icon=":material/menu_book:"):
-    st.markdown("""
+    st.markdown(f"""
     - [Issues on Community Cloud](https://www.notion.so/snowflake-corp/Streamlit-OS-Issues-Community-Cloud-dfa2c315cafd434081166f33077c3eb2)
     - [Evaluating Memory Leaks in Streamlit](https://www.notion.so/snowflake-corp/Evaluating-Memory-Leaks-in-Streamlit-2af7170bb41680ed8634dbd5ee414f57)
+    - [Core release and patch process]({RELEASE_PROCESS_URL})
     """)
 
 st.header(":material/checklist: Action required")
