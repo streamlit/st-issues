@@ -11,6 +11,7 @@ from app.utils.github_utils import (
 )
 from app.utils.interrupt_data import (
     BOT_PR_INTERRUPT_REPOS,
+    CONDA_FORGE_STREAMLIT_FEEDSTOCK,
     DEVELOP_COMMIT_WINDOW,
     JS_UNIT_TESTS_JOB,
     MONITORED_INTERRUPT_REPOS,
@@ -433,10 +434,14 @@ Every confirmed bug is expected to be labeled with a `priority:P{0,1,2,3,4}` lab
 
         st.subheader(
             "Open release PRs",
-            help="""
+            help=f"""
 Lists open automated release PRs (`[chore] Release vX.Y.Z` from `github-actions[bot]`).
 These back-merge the release branch into `develop` and only update version identifiers
 (`lib/pyproject.toml`, `uv.lock`, `frontend/package.json` and the frontend workspace packages).
+
+Also lists every open PR in [`{CONDA_FORGE_STREAMLIT_FEEDSTOCK}`](https://github.com/{CONDA_FORGE_STREAMLIT_FEEDSTOCK}).
+After a Streamlit release, the conda-forge version bump PR needs to be reviewed and merged
+so the new version is available on conda-forge.
 
 These PRs need a human approval before they become mergeable and are not assigned to anyone
 by default, so they can sit unnoticed. The Interrupt should make sure each one gets reviewed
@@ -453,8 +458,10 @@ and merged.
                 hide_index=True,
                 column_config={
                     "Title": st.column_config.TextColumn("Title", width="large"),
+                    "Repository": st.column_config.TextColumn("Repository", width="medium"),
                     "URL": st.column_config.LinkColumn("URL", display_text="Open"),
                     "Created": st.column_config.DatetimeColumn("Created", format="distance"),
+                    "Author": st.column_config.TextColumn("Author"),
                 },
             )
 

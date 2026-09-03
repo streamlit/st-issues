@@ -108,8 +108,26 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
             repo="streamlit/docs",
         ),
     ]
+    feedstock_prs = [
+        _pr(
+            number=280,
+            title="streamlit v1.63.0",
+            labels=[],
+            author="regro-cf-autotick-bot",
+            repo="conda-forge/streamlit-feedstock",
+            created_at="2026-02-12T00:00:00+00:00",
+        ),
+        _pr(
+            number=281,
+            title="MNT: rerender",
+            labels=[],
+            author="conda-forge-admin",
+            repo="conda-forge/streamlit-feedstock",
+            created_at="2026-02-09T00:00:00+00:00",
+        ),
+    ]
 
-    monkeypatch.setattr(interrupt_data, "get_interrupt_data_snapshot", lambda: (issues, prs))
+    monkeypatch.setattr(interrupt_data, "get_interrupt_data_snapshot", lambda: (issues, prs, feedstock_prs))
     monkeypatch.setattr(interrupt_data, "get_reproducible_example_exists", lambda issue_number: issue_number == 3)
     interrupt_data.build_interrupt_action_items.clear()
 
@@ -135,17 +153,32 @@ def test_build_interrupt_action_items_shapes(monkeypatch: pytest.MonkeyPatch) ->
         "Dependabot update",
         "[snapshots] Update E2E snapshots for #15693",
     }
-    # Only `github-actions[bot]` PRs with the release title prefix count: the snapshot-update bot
-    # PR lands in open_bot_prs instead, and the human-authored release PR is excluded.
-    assert set(data["open_release_prs"]["Title"]) == {"[chore] Release v1.61.0"}
+    # Automated streamlit/streamlit release PRs plus every open conda-forge feedstock PR.
+    # The snapshot-update bot PR lands in open_bot_prs instead, and the human-authored
+    # streamlit release PR is excluded.
+    assert list(data["open_release_prs"]["Title"]) == [
+        "streamlit v1.63.0",
+        "[chore] Release v1.61.0",
+        "MNT: rerender",
+    ]
+    assert list(data["open_release_prs"]["Repository"]) == [
+        "conda-forge/streamlit-feedstock",
+        "streamlit/streamlit",
+        "conda-forge/streamlit-feedstock",
+    ]
+    assert list(data["open_release_prs"]["Author"]) == [
+        "regro-cf-autotick-bot",
+        "github-actions[bot]",
+        "conda-forge-admin",
+    ]
 
 
 def test_build_interrupt_action_items_clear_busts_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     call_count = {"value": 0}
 
-    def fake_snapshot() -> tuple[list[dict], list[dict]]:
+    def fake_snapshot() -> tuple[list[dict], list[dict], list[dict]]:
         call_count["value"] += 1
-        return [], []
+        return [], [], []
 
     monkeypatch.setattr(interrupt_data, "get_interrupt_data_snapshot", fake_snapshot)
     interrupt_data.build_interrupt_action_items.clear()
@@ -158,6 +191,31 @@ def test_build_interrupt_action_items_clear_busts_cache(monkeypatch: pytest.Monk
     interrupt_data.build_interrupt_action_items.clear()
     interrupt_data.build_interrupt_action_items(since)
     assert call_count["value"] == 2
+
+
+def test_get_interrupt_data_snapshot_includes_feedstock_prs(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def fake_get_all_github_prs(
+        state: str = "all",
+        repo: str = "streamlit/streamlit",
+    ) -> list[dict]:
+        calls.append((repo, state))
+        return []
+
+    monkeypatch.setattr(interrupt_data, "get_all_github_issues", lambda state="open": [])
+    monkeypatch.setattr(interrupt_data, "get_all_github_prs", fake_get_all_github_prs)
+    interrupt_data.get_interrupt_data_snapshot.clear()
+
+    issues, prs, feedstock_prs = interrupt_data.get_interrupt_data_snapshot()
+
+    assert issues == []
+    assert prs == []
+    assert feedstock_prs == []
+    assert calls == [
+        (interrupt_data.STREAMLIT_REPO, "open"),
+        (interrupt_data.CONDA_FORGE_STREAMLIT_FEEDSTOCK, "open"),
+    ]
 
 
 def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:

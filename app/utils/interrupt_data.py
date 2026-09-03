@@ -37,6 +37,7 @@ DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.parent.resolve()
 PATH_TO_ISSUES = pathlib.Path(PATH_OF_SCRIPT).parent.joinpath(DEFAULT_ISSUES_FOLDER).resolve()
 STREAMLIT_REPO = "streamlit/streamlit"
+CONDA_FORGE_STREAMLIT_FEEDSTOCK = "conda-forge/streamlit-feedstock"
 GITHUB_ACTIONS_LOGIN = "github-actions[bot]"
 BOT_PR_LOGINS = frozenset({"dependabot[bot]", GITHUB_ACTIONS_LOGIN})
 MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
@@ -120,6 +121,16 @@ def _pr_row(pr: dict[str, Any], labels: set[str], author: str | None) -> dict[st
     }
 
 
+def _release_pr_row(pr: dict[str, Any], repo: str) -> dict[str, Any]:
+    return {
+        "Title": pr["title"],
+        "Repository": repo,
+        "URL": pr["html_url"],
+        "Created": pr["created_at"],
+        "Author": pr.get("user", {}).get("login"),
+    }
+
+
 def _monitored_pr_row(pr: dict[str, Any], repo: str) -> dict[str, Any]:
     return {
         "Repository": repo,
@@ -133,11 +144,17 @@ def _monitored_pr_row(pr: dict[str, Any], repo: str) -> dict[str, Any]:
 
 
 @st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False, refresh_mode="background")
-def get_interrupt_data_snapshot() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Fetch the open issue/PR snapshot used by the Interrupt Rotation page."""
+def get_interrupt_data_snapshot() -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fetch the open issue/PR snapshot used by the Interrupt Rotation page.
+
+    Returns Streamlit issues, open ``streamlit/streamlit`` PRs, and open PRs from
+    ``conda-forge/streamlit-feedstock`` (those also need to be merged as part of a
+    Streamlit release).
+    """
     issues = get_all_github_issues(state="open")
     prs = get_all_github_prs(state="open", repo=STREAMLIT_REPO)
-    return issues, prs
+    feedstock_prs = get_all_github_prs(state="open", repo=CONDA_FORGE_STREAMLIT_FEEDSTOCK)
+    return issues, prs, feedstock_prs
 
 
 @st.cache_data(ttl=60 * 10, max_entries=64, show_spinner=False, refresh_mode="background")
@@ -176,6 +193,7 @@ def _build_interrupt_action_items(
     issues: list[dict[str, Any]],
     prs: list[dict[str, Any]],
     since_date: date,
+    feedstock_prs: list[dict[str, Any]],
 ) -> dict[str, pd.DataFrame]:
     needs_triage: list[dict[str, Any]] = []
     missing_label_issues: list[dict[str, Any]] = []
@@ -263,13 +281,7 @@ def _build_interrupt_action_items(
             and _is_streamlit_repo_pr(pr)
         )
         if is_release_pr:
-            release_prs.append(
-                {
-                    "Title": pr["title"],
-                    "URL": pr["html_url"],
-                    "Created": pr["created_at"],
-                }
-            )
+            release_prs.append(_release_pr_row(pr, STREAMLIT_REPO))
         elif author and author.endswith("[bot]") and "do-not-merge" not in labels and _is_streamlit_repo_pr(pr):
             # Dependabot, github-actions, and other bots from streamlit/streamlit only.
             # Release PRs are listed separately above; docs bot PRs are in important repos.
@@ -325,6 +337,14 @@ def _build_interrupt_action_items(
             }
         )
 
+    release_prs.extend(_release_pr_row(pr, CONDA_FORGE_STREAMLIT_FEEDSTOCK) for pr in feedstock_prs)
+    release_prs_df = pd.DataFrame(release_prs)
+    if not release_prs_df.empty:
+        release_prs_df = release_prs_df.sort_values(
+            by=["Created", "Title"],
+            ascending=[False, True],
+        ).reset_index(drop=True)
+
     return {
         "needs_triage": pd.DataFrame(needs_triage),
         "missing_labels_issues": pd.DataFrame(missing_label_issues),
@@ -334,7 +354,7 @@ def _build_interrupt_action_items(
         "missing_labels_prs": pd.DataFrame(missing_label_prs),
         "prs_needing_approval": pd.DataFrame(needs_approval_prs),
         "open_bot_prs": pd.DataFrame(bot_prs),
-        "open_release_prs": pd.DataFrame(release_prs),
+        "open_release_prs": release_prs_df,
         "community_prs_ready_for_review": pd.DataFrame(ready_for_review),
         "confirmed_bugs_without_repro": pd.DataFrame(bugs_without_repro),
     }
@@ -343,8 +363,13 @@ def _build_interrupt_action_items(
 @st.cache_data(ttl=60 * 5, max_entries=64, show_spinner=False, refresh_mode="background")
 def build_interrupt_action_items(since_date: date) -> dict[str, pd.DataFrame]:
     """Build all interrupt action-item tables from a shared issue/PR snapshot."""
-    issues, prs = get_interrupt_data_snapshot()
-    return _build_interrupt_action_items(issues=issues, prs=prs, since_date=since_date)
+    issues, prs, feedstock_prs = get_interrupt_data_snapshot()
+    return _build_interrupt_action_items(
+        issues=issues,
+        prs=prs,
+        since_date=since_date,
+        feedstock_prs=feedstock_prs,
+    )
 
 
 @st.cache_data(
@@ -1018,7 +1043,7 @@ def get_open_bot_prs() -> pd.DataFrame:
 
 
 def get_open_release_prs() -> pd.DataFrame:
-    """Get open automated release PRs that bump the version identifiers."""
+    """Get open automated Streamlit release PRs and conda-forge feedstock PRs."""
     data = build_interrupt_action_items(date.today())
     return data["open_release_prs"].copy()
 
