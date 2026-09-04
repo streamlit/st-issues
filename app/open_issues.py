@@ -9,7 +9,7 @@ import streamlit as st
 
 from app.utils.agent_wiki import build_wiki_explorer_url, fetch_wiki_issue_repros, get_synced_wiki_repo_path
 from app.utils.github_utils import fetch_issue_reactions, fetch_issue_view_counts, get_all_github_issues
-from app.utils.issue_formatting import labels_to_type_emoji, reactions_to_str
+from app.utils.issue_formatting import compute_importance_scores, labels_to_type_emoji, reactions_to_str
 
 DEFAULT_ISSUES_FOLDER = "issues"
 PATH_OF_SCRIPT = pathlib.Path(__file__).parent.resolve()
@@ -147,7 +147,7 @@ worth_working_on = st.sidebar.checkbox(
     help=(
         "Show only confirmed, non-upstream bugs prioritized up to P3, plus papercut "
         "enhancements. Sorted by priority tier (P0-P2 bugs first, then papercuts and "
-        "P3 bugs), and by reactions within each tier."
+        "P3 bugs), and by importance within each tier."
     ),
 )
 
@@ -207,6 +207,7 @@ else:
     if view_error:
         st.warning("Some issue view counts could not be loaded. Displaying partial view metrics.")
     df["views"] = df["number"].map(view_counts)
+    df["importance"] = compute_importance_scores(df["created_at"], df["total_reactions"], df["views"])
 
     if show_reactions_growth:
         # --- NEW LOGIC FOR REACTION GROWTH ---
@@ -229,11 +230,11 @@ else:
     if worth_working_on:
         df["worth_working_on_category"] = df["labels"].map(worth_working_on_category)
         df = df.sort_values(
-            by=["worth_working_on_category", "total_reactions", "updated_at"],
+            by=["worth_working_on_category", "importance", "total_reactions"],
             ascending=[True, False, False],
         )
     else:
-        df = df.sort_values(by=["total_reactions", "updated_at"], ascending=[False, False])
+        df = df.sort_values(by=["importance", "total_reactions"], ascending=[False, False])
 
     link_qs_labels = "+".join([quote("label:" + label) for label in filter_labels])
     link = f"https://github.com/streamlit/streamlit/issues?q={quote('is:open')}+{quote('is:issue')}+{link_qs_labels}"
@@ -247,6 +248,7 @@ else:
 
     columns_to_display = [
         "title",
+        "importance",
         "total_reactions",
         "author_avatar",
         "updated_at",
@@ -267,6 +269,18 @@ else:
     column_config = {
         "title": st.column_config.TextColumn("Title", width=300),
         "type": "Type",
+        "importance": st.column_config.ProgressColumn(
+            "Importance",
+            help=(
+                "Age-weighted score from reaction + comment totals and views. "
+                "Newer issues rank higher for the same engagement; views are "
+                "log-scaled so outliers don't dominate."
+            ),
+            min_value=0,
+            max_value=max(float(df["importance"].max()), 1.0),
+            format="%.1f",
+            width="small",
+        ),
         "updated_at": st.column_config.DatetimeColumn("Last Updated", format="distance"),
         "created_at": st.column_config.DatetimeColumn("Created at", format="distance"),
         "author_avatar": st.column_config.ImageColumn("Author"),
