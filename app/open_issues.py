@@ -147,7 +147,7 @@ worth_working_on = st.sidebar.checkbox(
     help=(
         "Show only confirmed, non-upstream bugs prioritized up to P3, plus papercut "
         "enhancements. Sorted by priority tier (P0-P2 bugs first, then papercuts and "
-        "P3 bugs), and by importance within each tier."
+        "P3 bugs), and by reactions within each tier."
     ),
 )
 
@@ -230,11 +230,11 @@ else:
     if worth_working_on:
         df["worth_working_on_category"] = df["labels"].map(worth_working_on_category)
         df = df.sort_values(
-            by=["worth_working_on_category", "importance", "total_reactions"],
+            by=["worth_working_on_category", "total_reactions", "updated_at"],
             ascending=[True, False, False],
         )
     else:
-        df = df.sort_values(by=["importance", "total_reactions"], ascending=[False, False])
+        df = df.sort_values(by=["total_reactions", "updated_at"], ascending=[False, False])
 
     link_qs_labels = "+".join([quote("label:" + label) for label in filter_labels])
     link = f"https://github.com/streamlit/streamlit/issues?q={quote('is:open')}+{quote('is:issue')}+{link_qs_labels}"
