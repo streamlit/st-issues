@@ -248,7 +248,6 @@ else:
 
     columns_to_display = [
         "title",
-        "importance",
         "total_reactions",
         "author_avatar",
         "updated_at",
@@ -257,6 +256,7 @@ else:
         "reaction_types",
         "comments",
         "views",
+        "importance",
         "assignee_avatar",
         "labels",
         "reproducible_example",
