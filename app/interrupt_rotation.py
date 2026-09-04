@@ -32,6 +32,7 @@ from app.utils.interrupt_data import (
     get_frontend_test_coverage_metrics,
     get_monitored_repo_open_prs,
     get_nightly_run_metrics,
+    get_playwright_e2e_resource_metrics,
     get_playwright_test_count_metrics,
     get_python_test_coverage_metrics,
     get_reported_bugs,
@@ -57,6 +58,7 @@ WHEEL_SIZE_WARNING_BYTES = 12 * 1024 * 1024
 TOTAL_BUNDLE_WARNING_BYTES = 10 * 1024 * 1024
 ENTRY_BUNDLE_WARNING_BYTES = 500 * 1024
 CI_FAILING_TEST_WARNING_PCT = 1.0
+E2E_GROWTH_WARNING_RATIO = 0.20
 FLAKY_TEST_MIN_FAILURES = 5
 
 
@@ -207,6 +209,47 @@ def render_ci_metrics(selected_since: date) -> None:
                 "The delta shows the failure rate and failed/total completed runs. "
                 "Skipped, cancelled, and in-progress runs are ignored. "
                 "A warning is shown when any nightly run failed."
+            ),
+        )
+
+    col1, col2, _col3, _col4 = st.columns(4)
+    with col1, st.skeleton(height=110):
+        memory_mb, memory_delta, median_s, median_delta = get_playwright_e2e_resource_metrics(selected_since)
+        memory_baseline = memory_mb - memory_delta
+        memory_warn = memory_baseline > 0 and memory_delta / memory_baseline > E2E_GROWTH_WARNING_RATIO
+        st.metric(
+            _metric_text("E2E Total Memory", warn=memory_warn),
+            _metric_text(f"{memory_mb / 1024:.1f} GB", warn=memory_warn),
+            f"{memory_delta / 1024:+.1f} GB",
+            delta_color="inverse",
+            delta_arrow="off",
+            border=True,
+            icon=_metric_icon(warn=memory_warn),
+            help=(
+                "Total RSS memory of the latest successful [`playwright.yml`]"
+                "(https://github.com/streamlit/streamlit/actions/workflows/playwright.yml) "
+                "run on `develop`, compared with the oldest successful `develop` run in the "
+                "selected timeframe. A warning is shown when memory grew by more than "
+                f"{E2E_GROWTH_WARNING_RATIO:.0%}."
+            ),
+        )
+    with col2, st.skeleton(height=110):
+        median_baseline = median_s - median_delta
+        median_warn = median_baseline > 0 and median_delta / median_baseline > E2E_GROWTH_WARNING_RATIO
+        st.metric(
+            _metric_text("Median E2E Test Duration", warn=median_warn),
+            _metric_text(f"{median_s:.2f}s", warn=median_warn),
+            f"{median_delta:+.2f}s",
+            delta_color="inverse",
+            delta_arrow="off",
+            border=True,
+            icon=_metric_icon(warn=median_warn),
+            help=(
+                "Median Playwright test duration from the latest successful "
+                "[`playwright.yml`](https://github.com/streamlit/streamlit/actions/"
+                "workflows/playwright.yml) run on `develop`, compared with the oldest "
+                "successful `develop` run in the selected timeframe. A warning is shown "
+                f"when duration grew by more than {E2E_GROWTH_WARNING_RATIO:.0%}."
             ),
         )
 

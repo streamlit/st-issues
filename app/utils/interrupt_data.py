@@ -768,6 +768,60 @@ def get_playwright_test_count_metrics(since_date: date) -> tuple[int, int]:
     return latest_count, latest_count - oldest_count
 
 
+def _playwright_memory_mb_and_median_s(stats: dict[str, Any] | None) -> tuple[float, float]:
+    """Extract total RSS memory (MB) and median test duration (seconds)."""
+    if not stats:
+        return 0.0, 0.0
+    memory = stats.get("memory")
+    duration = stats.get("duration")
+    memory_mb = memory.get("total_rss_mb", 0) if isinstance(memory, dict) else 0
+    median_s = duration.get("median_duration_seconds", 0) if isinstance(duration, dict) else 0
+    return float(memory_mb or 0), float(median_s or 0)
+
+
+def _latest_and_oldest_playwright_stats(
+    runs: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Return stats from the newest and oldest runs that have a test-stats artifact."""
+    latest = None
+    for run in runs:
+        stats = _load_playwright_test_stats(run["id"])
+        if stats:
+            latest = stats
+            break
+    oldest = None
+    for run in reversed(runs):
+        stats = _load_playwright_test_stats(run["id"])
+        if stats:
+            oldest = stats
+            break
+    return latest, oldest
+
+
+@st.cache_data(ttl=60 * 60 * 6, show_spinner="Fetching Playwright E2E metrics...", refresh_mode="background")
+def get_playwright_e2e_resource_metrics(since_date: date) -> tuple[float, float, float, float]:
+    """Latest vs start-of-window Playwright memory and median test duration.
+
+    Uses successful ``playwright.yml`` runs on ``develop``. Returns
+    ``(memory_mb, memory_delta_mb, median_s, median_delta_s)``.
+    """
+    runs_in_period = fetch_workflow_runs("playwright.yml", since=since_date)
+    if not runs_in_period:
+        runs_in_period = fetch_workflow_runs("playwright.yml", limit=1)
+        if not runs_in_period:
+            return 0.0, 0.0, 0.0, 0.0
+
+    latest_stats, oldest_stats = _latest_and_oldest_playwright_stats(runs_in_period)
+    latest_memory, latest_median = _playwright_memory_mb_and_median_s(latest_stats)
+    oldest_memory, oldest_median = _playwright_memory_mb_and_median_s(oldest_stats)
+    return (
+        latest_memory,
+        latest_memory - oldest_memory,
+        latest_median,
+        latest_median - oldest_median,
+    )
+
+
 def get_bug_metrics(since_date: date) -> tuple[int, int]:
     """Get the total number of open bugs and closed bugs in the period.
 
@@ -1149,6 +1203,7 @@ def clear_interrupt_caches() -> None:
         get_ci_failing_test_run_metrics,
         get_nightly_run_metrics,
         get_playwright_test_count_metrics,
+        get_playwright_e2e_resource_metrics,
         _load_playwright_test_stats,
         get_reported_bugs,
         get_ci_test_annotations,

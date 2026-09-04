@@ -600,6 +600,94 @@ def test_get_nightly_run_metrics_fetches_all_conclusions(monkeypatch: pytest.Mon
     assert (percent, failing, total) == (50.0, 1, 2)
 
 
+def _playwright_stats(*, memory_mb: float, median_s: float) -> dict:
+    return {
+        "memory": {"total_rss_mb": memory_mb},
+        "duration": {"median_duration_seconds": median_s},
+    }
+
+
+def test_playwright_memory_mb_and_median_s_reads_artifact_fields() -> None:
+    assert interrupt_data._playwright_memory_mb_and_median_s(_playwright_stats(memory_mb=2048, median_s=1.5)) == (
+        2048.0,
+        1.5,
+    )
+    assert interrupt_data._playwright_memory_mb_and_median_s(None) == (0.0, 0.0)
+    assert interrupt_data._playwright_memory_mb_and_median_s({}) == (0.0, 0.0)
+    assert interrupt_data._playwright_memory_mb_and_median_s({"memory": None, "duration": "bad"}) == (0.0, 0.0)
+
+
+def test_latest_and_oldest_playwright_stats_skips_missing_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stats_by_id = {
+        2: _playwright_stats(memory_mb=100, median_s=1.0),
+        4: _playwright_stats(memory_mb=200, median_s=2.0),
+    }
+    monkeypatch.setattr(interrupt_data, "_load_playwright_test_stats", stats_by_id.get)
+
+    latest, oldest = interrupt_data._latest_and_oldest_playwright_stats([{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}])
+
+    assert latest == stats_by_id[2]
+    assert oldest == stats_by_id[4]
+
+
+def test_get_playwright_e2e_resource_metrics_compares_window_ends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stats_by_id = {
+        10: _playwright_stats(memory_mb=2400, median_s=2.5),
+        30: _playwright_stats(memory_mb=2000, median_s=2.0),
+    }
+
+    def fake_fetch_workflow_runs(workflow_name: str, **kwargs: object) -> list[dict]:
+        assert workflow_name == "playwright.yml"
+        assert kwargs == {"since": date(2026, 9, 1)}
+        return [{"id": 10}, {"id": 20}, {"id": 30}]
+
+    monkeypatch.setattr(interrupt_data, "fetch_workflow_runs", fake_fetch_workflow_runs)
+    monkeypatch.setattr(interrupt_data, "_load_playwright_test_stats", stats_by_id.get)
+    interrupt_data.get_playwright_e2e_resource_metrics.clear()
+
+    assert interrupt_data.get_playwright_e2e_resource_metrics(date(2026, 9, 1)) == (
+        2400.0,
+        400.0,
+        2.5,
+        0.5,
+    )
+
+
+def test_get_playwright_e2e_resource_metrics_empty_period_falls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    def fake_fetch_workflow_runs(workflow_name: str, **kwargs: object) -> list[dict]:
+        calls.append({"workflow": workflow_name, **kwargs})
+        if "since" in kwargs:
+            return []
+        return [{"id": 99}]
+
+    monkeypatch.setattr(interrupt_data, "fetch_workflow_runs", fake_fetch_workflow_runs)
+    monkeypatch.setattr(
+        interrupt_data,
+        "_load_playwright_test_stats",
+        lambda _run_id: _playwright_stats(memory_mb=1024, median_s=1.25),
+    )
+    interrupt_data.get_playwright_e2e_resource_metrics.clear()
+
+    assert interrupt_data.get_playwright_e2e_resource_metrics(date(2026, 9, 1)) == (
+        1024.0,
+        0.0,
+        1.25,
+        0.0,
+    )
+    assert calls == [
+        {"workflow": "playwright.yml", "since": date(2026, 9, 1)},
+        {"workflow": "playwright.yml", "limit": 1},
+    ]
+
+
 def _annotation(
     *,
     level: str,
