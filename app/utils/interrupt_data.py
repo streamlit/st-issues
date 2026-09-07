@@ -20,6 +20,7 @@ import streamlit as st
 
 from app.utils.agent_wiki import fetch_wiki_issue_repros, get_synced_wiki_repo_path
 from app.utils.github_utils import (
+    _request_json,
     download_artifact,
     fetch_artifacts,
     fetch_dependabot_alerts,
@@ -44,6 +45,7 @@ PYPI_STREAMLIT_PROJECT_URL = "https://pypi.org/project/streamlit"
 DOCS_RELEASE_NOTES_URL = "https://docs.streamlit.io/develop/quick-reference/release-notes"
 RELEASE_PROCESS_URL = "https://github.com/streamlit/streamlit/blob/develop/wiki/release-process.md"
 RELEASE_PROCESS_DOCS_SECTION_URL = f"{RELEASE_PROCESS_URL}#7-update-the-documentation"
+GITHUB_MILESTONES_URL = f"https://github.com/{STREAMLIT_REPO}/milestones"
 _HTTP_USER_AGENT = "st-issues-interrupt/1.0 (+https://github.com/streamlit/st-issues)"
 _DOCS_LATEST_HEADING_RE = re.compile(r"Version\s+(\d+\.\d+\.\d+)\s*\(\s*latest\s*\)", re.IGNORECASE)
 _DOCS_LATEST_VERSION_JSON_RE = re.compile(r'"LATEST_VERSION"\s*:\s*"(\d+\.\d+\.\d+)"')
@@ -268,6 +270,81 @@ def get_docs_release_status() -> dict[str, str | bool | None]:
         "docs_version": docs_version,
         "error": " ".join(errors) if errors else None,
         "is_outdated": bool(pypi_version and docs_version and pypi_version != docs_version),
+    }
+
+
+def _pypi_milestone_title(version: str) -> str:
+    """Map a PyPI version like 1.63.0 to the GitHub milestone title 1.63."""
+    parts = version.strip().lstrip("v").split(".")
+    if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+        return f"{parts[0]}.{parts[1]}"
+    return version.strip()
+
+
+def _find_pypi_milestone(milestones: list[dict[str, Any]], pypi_version: str) -> dict[str, Any] | None:
+    """Return the milestone for a PyPI version, preferring an exact title match."""
+    exact: dict[str, Any] | None = None
+    major_minor: dict[str, Any] | None = None
+    target_major_minor = _pypi_milestone_title(pypi_version)
+    normalized_pypi = pypi_version.strip().lstrip("v")
+    for milestone in milestones:
+        title = milestone.get("title")
+        if not isinstance(title, str):
+            continue
+        normalized_title = title.strip().lstrip("v")
+        if normalized_title == normalized_pypi:
+            exact = milestone
+        elif normalized_title == target_major_minor:
+            major_minor = milestone
+    return exact or major_minor
+
+
+def _fetch_open_github_milestones() -> tuple[list[dict[str, Any]], str | None]:
+    payload, error, _status = _request_json(
+        f"https://api.github.com/repos/{STREAMLIT_REPO}/milestones",
+        params={"state": "open", "per_page": 100},
+    )
+    if error:
+        return [], error
+    if not isinstance(payload, list):
+        return [], "Unexpected GitHub milestones payload."
+    return [item for item in payload if isinstance(item, dict)], None
+
+
+@st.cache_data(ttl=60 * 10, max_entries=8, show_spinner=False, refresh_mode="background")
+def get_pypi_milestone_status() -> dict[str, str | bool | int | None]:
+    """Check whether the GitHub milestone for the latest PyPI version is still open."""
+    pypi_version, pypi_error = _fetch_pypi_streamlit_version()
+    empty: dict[str, str | bool | int | None] = {
+        "pypi_version": pypi_version,
+        "milestone_title": None,
+        "milestone_url": None,
+        "open_issue_count": None,
+        "is_open": False,
+        "error": pypi_error,
+    }
+    if pypi_error or not pypi_version:
+        return empty
+
+    milestones, milestone_error = _fetch_open_github_milestones()
+    if milestone_error:
+        empty["error"] = milestone_error
+        return empty
+
+    milestone = _find_pypi_milestone(milestones, pypi_version)
+    if milestone is None:
+        return empty
+
+    title = milestone.get("title")
+    url = milestone.get("html_url")
+    open_issues = milestone.get("open_issues")
+    return {
+        "pypi_version": pypi_version,
+        "milestone_title": title if isinstance(title, str) else _pypi_milestone_title(pypi_version),
+        "milestone_url": url if isinstance(url, str) else GITHUB_MILESTONES_URL,
+        "open_issue_count": open_issues if isinstance(open_issues, int) else None,
+        "is_open": True,
+        "error": None,
     }
 
 
@@ -1195,6 +1272,7 @@ def clear_interrupt_caches() -> None:
         get_interrupt_data_snapshot,
         get_monitored_repo_open_prs,
         get_docs_release_status,
+        get_pypi_milestone_status,
         build_interrupt_action_items,
         get_python_test_coverage_metrics,
         get_frontend_test_coverage_metrics,

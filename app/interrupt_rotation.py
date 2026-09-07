@@ -14,6 +14,7 @@ from app.utils.interrupt_data import (
     CONDA_FORGE_STREAMLIT_FEEDSTOCK,
     DEVELOP_COMMIT_WINDOW,
     DOCS_RELEASE_NOTES_URL,
+    GITHUB_MILESTONES_URL,
     JS_UNIT_TESTS_JOB,
     MONITORED_INTERRUPT_REPOS,
     PYPI_STREAMLIT_PROJECT_URL,
@@ -34,6 +35,7 @@ from app.utils.interrupt_data import (
     get_nightly_run_metrics,
     get_playwright_e2e_resource_metrics,
     get_playwright_test_count_metrics,
+    get_pypi_milestone_status,
     get_python_test_coverage_metrics,
     get_reported_bugs,
     get_wheel_size_metrics,
@@ -587,6 +589,34 @@ def render_docs_release_mismatch() -> None:
 
 
 @st.fragment(parallel=True)
+def render_open_pypi_milestone() -> None:
+    """Warn Interrupt when the GitHub milestone for the latest PyPI version is still open."""
+    status = get_pypi_milestone_status()
+    pypi_version = status["pypi_version"]
+    milestone_title = status["milestone_title"]
+    milestone_url = status["milestone_url"]
+    fetch_error = status["error"]
+    if fetch_error and not status["is_open"]:
+        st.warning(f"Could not check the GitHub milestone for the PyPI version. {fetch_error}")
+        return
+    if not status["is_open"]:
+        return
+    open_issue_count = status["open_issue_count"]
+    open_issues_text = ""
+    if isinstance(open_issue_count, int):
+        issue_word = "issue" if open_issue_count == 1 else "issues"
+        open_issues_text = f" ({open_issue_count} open {issue_word})"
+    st.error(
+        f"[PyPI]({PYPI_STREAMLIT_PROJECT_URL}) has **{pypi_version}**, but the "
+        f"[`{milestone_title}` milestone]({milestone_url}) is still open{open_issues_text}. "
+        "Close that GitHub milestone now that the version is released. "
+        f"See the [milestones list]({GITHUB_MILESTONES_URL}).",
+        icon=":material/error:",
+        title="Release milestone is still open",
+    )
+
+
+@st.fragment(parallel=True)
 def render_flaky_tests(selected_since: date) -> None:
     st.subheader(
         f"Flaky tests with ≥ {FLAKY_TEST_MIN_FAILURES} failures",
@@ -1006,6 +1036,7 @@ with st.expander("Helpful processes", icon=":material/menu_book:"):
 
 st.header(":material/checklist: Action required")
 render_docs_release_mismatch()
+render_open_pypi_milestone()
 
 render_issue_action_items(since)
 

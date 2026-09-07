@@ -259,6 +259,101 @@ def test_get_docs_release_status_in_sync(monkeypatch: pytest.MonkeyPatch) -> Non
     assert status["error"] is None
 
 
+def test_pypi_milestone_title_uses_major_minor() -> None:
+    assert interrupt_data._pypi_milestone_title("1.63.0") == "1.63"
+    assert interrupt_data._pypi_milestone_title("v1.63.1") == "1.63"
+    assert interrupt_data._pypi_milestone_title("1.63") == "1.63"
+
+
+def test_find_pypi_milestone_prefers_exact_version_title() -> None:
+    milestones = [
+        {"title": "1.64", "html_url": "https://github.com/streamlit/streamlit/milestone/6"},
+        {"title": "1.63.0", "html_url": "https://github.com/streamlit/streamlit/milestone/5"},
+        {"title": "Planned", "html_url": "https://github.com/streamlit/streamlit/milestone/9"},
+    ]
+    match = interrupt_data._find_pypi_milestone(milestones, "1.63.0")
+    assert match is not None
+    assert match["title"] == "1.63.0"
+
+
+def test_find_pypi_milestone_matches_major_minor_title() -> None:
+    milestones = [
+        {"title": "1.63", "html_url": "https://github.com/streamlit/streamlit/milestone/5"},
+        {"title": "1.64", "html_url": "https://github.com/streamlit/streamlit/milestone/6"},
+    ]
+    match = interrupt_data._find_pypi_milestone(milestones, "1.63.0")
+    assert match is not None
+    assert match["title"] == "1.63"
+
+
+def test_get_pypi_milestone_status_open(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(interrupt_data, "_fetch_pypi_streamlit_version", lambda: ("1.63.0", None))
+    monkeypatch.setattr(
+        interrupt_data,
+        "_fetch_open_github_milestones",
+        lambda: (
+            [
+                {
+                    "title": "1.63",
+                    "html_url": "https://github.com/streamlit/streamlit/milestone/5",
+                    "open_issues": 4,
+                    "state": "open",
+                },
+                {
+                    "title": "1.64",
+                    "html_url": "https://github.com/streamlit/streamlit/milestone/6",
+                    "open_issues": 5,
+                    "state": "open",
+                },
+            ],
+            None,
+        ),
+    )
+    interrupt_data.get_pypi_milestone_status.clear()
+
+    status = interrupt_data.get_pypi_milestone_status()
+
+    assert status == {
+        "pypi_version": "1.63.0",
+        "milestone_title": "1.63",
+        "milestone_url": "https://github.com/streamlit/streamlit/milestone/5",
+        "open_issue_count": 4,
+        "is_open": True,
+        "error": None,
+    }
+
+
+def test_get_pypi_milestone_status_closed_or_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(interrupt_data, "_fetch_pypi_streamlit_version", lambda: ("1.63.0", None))
+    monkeypatch.setattr(
+        interrupt_data,
+        "_fetch_open_github_milestones",
+        lambda: ([{"title": "1.64", "html_url": "https://example", "open_issues": 1}], None),
+    )
+    interrupt_data.get_pypi_milestone_status.clear()
+
+    status = interrupt_data.get_pypi_milestone_status()
+
+    assert status["is_open"] is False
+    assert status["milestone_title"] is None
+    assert status["error"] is None
+
+
+def test_get_pypi_milestone_status_fetch_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(interrupt_data, "_fetch_pypi_streamlit_version", lambda: ("1.63.0", None))
+    monkeypatch.setattr(
+        interrupt_data,
+        "_fetch_open_github_milestones",
+        lambda: ([], "Failed to fetch milestones"),
+    )
+    interrupt_data.get_pypi_milestone_status.clear()
+
+    status = interrupt_data.get_pypi_milestone_status()
+
+    assert status["is_open"] is False
+    assert status["error"] == "Failed to fetch milestones"
+
+
 def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
     repo_payloads = {
         "streamlit/docs": [
