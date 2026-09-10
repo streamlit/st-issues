@@ -76,9 +76,9 @@ editor or a patch/upstream change to Glide's overlay.
 - **Status:** Confirmed on reported version 1.61.1 and latest stable release
   1.63.0
 - **Areas:** frontend, `st.data_editor`, `NumberColumn`
-- **Priority:** P3 — the bug silently commits plausible but incorrect data and
-  is worth fixing, but it requires a specific shorthand typing pattern and has
-  straightforward leading-zero and paste workarounds.
+- **Priority:** P2 — the bug silently commits plausible but incorrect data in a
+  core editing workflow. A leading-zero or paste workaround exists, but users
+  who encounter the bug may not realize their data was corrupted.
 - **Fix complexity:** Medium — preserve raw transient text in the controlled
   numeric overlay and add typed-entry regression coverage without changing
   valid number, formatting, paste, or IME behavior.
