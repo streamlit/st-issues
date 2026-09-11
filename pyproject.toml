@@ -5,7 +5,7 @@ description = "Various tools to help with the Streamlit library development."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-  "streamlit[performance]>=1.61.1",
+  "streamlit[performance]",
   "pandas",
   "numpy",
   "plotly",
@@ -40,6 +40,9 @@ packages = ["app"]
 # =============================================================================
 [tool.uv]
 default-groups = ["dev"]
+
+[tool.uv.sources]
+streamlit = { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.63.0-py3-none-any.whl" }
 
 # =============================================================================
 # Development dependencies

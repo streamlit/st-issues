@@ -6,3 +6,5 @@ enableRich = true
 
 [server]
 enableStaticServing = true
+enableAgentApi = true
+agentRunTimeout = 180
