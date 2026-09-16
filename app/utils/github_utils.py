@@ -645,8 +645,7 @@ def get_all_github_issues(
     Returns all issues as a list of dicts.
     """
     issues = []
-    state_param = f"state={state}" if state else ""
-    url: str | None = f"https://api.github.com/repos/streamlit/streamlit/issues?{state_param}&per_page=100"
+    url: str | None = f"https://api.github.com/repos/streamlit/streamlit/issues?state={state}&per_page=100"
 
     while url:
         try:
@@ -690,8 +689,7 @@ def get_all_github_prs(
     Returns all PRs as a list of dicts.
     """
     prs = []
-    state_param = f"state={state}" if state else ""
-    url: str | None = f"https://api.github.com/repos/{repo}/pulls?{state_param}&per_page=100"
+    url: str | None = f"https://api.github.com/repos/{repo}/pulls?state={state}&per_page=100"
 
     while url:
         try:
