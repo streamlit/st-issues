@@ -343,8 +343,7 @@ def render() -> None:
 
     st.caption(
         f"Covering {len(history)} stable releases ({history['version'].iloc[0]} → {history['version'].iloc[-1]}), "
-        "measured from the built frontend inside each published PyPI wheel. "
-        "This history does not expire, unlike the per-commit artifacts above."
+        "measured from the built frontend inside each published PyPI wheel."
     )
 
     render_headline_metrics(view)
