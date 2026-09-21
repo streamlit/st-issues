@@ -1,0 +1,191 @@
+name: Update Bundle History
+
+# Keeps the per-release bundle size history on the Frontend bundle analysis page
+# current. Releases are published by streamlit/streamlit and land on PyPI, so
+# this job polls PyPI rather than hooking into the release workflow: no change to
+# the release process, and a run that fails or is skipped self-heals on the next
+# one instead of losing a release permanently.
+#
+# When new releases are found a PR is opened to main (same pattern as the
+# update-python-lock workflow). The CSV is append-only, so self-heal works
+# whether or not the previous data PR has been merged yet.
+#
+# Measuring one release costs a ~10 MB wheel download and a few seconds, so
+# daily is cheap even though releases ship roughly every two weeks.
+
+on:
+  schedule:
+    # 07:17 UTC daily — off the hour, so it does not pile onto the :00 rush.
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Measure new releases without creating a branch or PR"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  # Required by github-script for issues.addLabels on PRs.
+  issues: write
+
+# One update at a time; a scheduled and a manual run must not race on the CSV.
+concurrency:
+  group: update-bundle-history
+  cancel-in-progress: false
+
+jobs:
+  update-bundle-history:
+    runs-on: ubuntu-latest
+    if: github.repository == 'streamlit/st-issues'
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Measure any releases missing from the history
+        id: update
+        working-directory: scripts/bundle_history
+        run: |
+          set -euo pipefail
+          uv run --no-project python update_bundle_history.py \
+            --history ../../static/bundle_history/bundle_history.csv
+
+      - name: Configure Git
+        if: ${{ steps.update.outputs.added_count != '0' && inputs.dry_run != true }}
+        run: |
+          git config user.name "Streamlit Bot"
+          git config user.email "core+streamlitbot-github@streamlit.io"
+
+      - name: Create update branch
+        id: create-branch
+        if: ${{ steps.update.outputs.added_count != '0' && inputs.dry_run != true }}
+        run: |
+          branch_name="update-bundle-history-$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
+          echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+          git checkout -b "$branch_name"
+
+      - name: Commit and push the new releases
+        if: ${{ steps.update.outputs.added_count != '0' && inputs.dry_run != true }}
+        env:
+          ADDED: ${{ steps.update.outputs.added }}
+          BRANCH_NAME: ${{ steps.create-branch.outputs.branch_name }}
+        run: |
+          set -euo pipefail
+          git add static/bundle_history/bundle_history.csv
+          git commit -m "[chore] Add bundle size history for ${ADDED}"
+          git push --set-upstream origin "$BRANCH_NAME"
+
+      - name: Close superseded bundle-history PRs
+        if: ${{ steps.update.outputs.added_count != '0' && inputs.dry_run != true }}
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          NEW_BRANCH: ${{ steps.create-branch.outputs.branch_name }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Close any still-open bundle-history PRs so only the latest one accumulates.
+            const repoFullName = `${context.repo.owner}/${context.repo.repo}`;
+            const openPrs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              base: 'main',
+              per_page: 100,
+            });
+            for (const pr of openPrs) {
+              // Restrict to our own automation branches; a fork PR could share
+              // the update-bundle-history- prefix but must never be closed here.
+              if (
+                pr.head.ref !== process.env.NEW_BRANCH &&
+                pr.head.ref.startsWith('update-bundle-history-') &&
+                pr.head.repo?.full_name === repoFullName
+              ) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: 'Superseded by a newer automated bundle history update.',
+                });
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  state: 'closed',
+                });
+              }
+            }
+
+      - name: Create pull request
+        id: create-pr
+        if: ${{ steps.update.outputs.added_count != '0' && inputs.dry_run != true }}
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BRANCH_NAME: ${{ steps.create-branch.outputs.branch_name }}
+          ADDED: ${{ steps.update.outputs.added }}
+          ADDED_COUNT: ${{ steps.update.outputs.added_count }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const added = process.env.ADDED || '';
+            const count = process.env.ADDED_COUNT || '0';
+            const versions = added.split(',').map(v => v.trim()).filter(Boolean);
+            const versionList = versions.map(v => `- ${v}`).join('\n');
+
+            const created = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[chore] Add bundle size history for ${added}`,
+              head: process.env.BRANCH_NAME,
+              base: 'main',
+              body: [
+                `Automated update: ${count} new Streamlit release(s) measured from PyPI wheels and appended to \`static/bundle_history/bundle_history.csv\`.`,
+                '',
+                '## Releases added',
+                '',
+                versionList,
+              ].join('\n'),
+              draft: false,
+            });
+
+            core.setOutput('pr_url', created.data.html_url);
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: created.data.number,
+              labels: ['data'],
+            });
+
+      - name: Write workflow summary
+        env:
+          ADDED: ${{ steps.update.outputs.added }}
+          ADDED_COUNT: ${{ steps.update.outputs.added_count }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PR_URL: ${{ steps.create-pr.outputs.pr_url }}
+        run: |
+          {
+            echo "## Bundle size history update"
+            if [[ "$ADDED_COUNT" == "0" ]]; then
+              echo "- No new stable releases on PyPI; history already current."
+            elif [[ "$DRY_RUN" == "true" ]]; then
+              echo "- Dry run: measured ${ADDED_COUNT} release(s) (${ADDED}), no branch or PR created."
+            else
+              echo "- Added ${ADDED_COUNT} release(s): ${ADDED}"
+              echo "- PR: ${PR_URL:-n/a}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+# Note: this job maintains the size history only. The attribution datasets
+# (package_deltas.csv, dep_changes.csv) need a checkout of streamlit/streamlit
+# and are refreshed on demand rather than on every release.
