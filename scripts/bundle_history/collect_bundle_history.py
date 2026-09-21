@@ -13,17 +13,19 @@ download bytes. This differs from the analyzer's `gzipSize`, which sums
 
 Retention policy
 ----------------
-The primary way to seed or rebuild the history is ``--since-days`` (default 730,
-i.e. the last two years of stable releases). The CSV is append-only: once a row
-is present it is never removed, so the full history accumulates over time even as
-the seed window moves forward.
+The CSV is **append-only**: once a release row is present it is never removed.
+The page shows every row in the file. New releases are added by
+``update_bundle_history.py`` (CI) or by re-running this script.
 
-``--releases`` is a hard cap on how many releases to fetch from PyPI in a single
-run. Use it only for ad-hoc sampling; for the normal seed/rebuild omit it and
-rely on ``--since-days``.
+``--since-days`` is only a cold-seed helper: on an empty (or missing) output
+file it limits how far back on PyPI to measure. It does not prune existing
+rows. Re-running against an existing CSV merges newly measured releases and
+keeps everything already collected.
+
+``--releases`` is an optional hard cap for ad-hoc sampling.
 
 Usage:
-    # Seed / rebuild: all stable releases in the last 2 years
+    # Cold seed: measure recent stables (default window: last 730 days)
     uv run python collect_bundle_history.py --out bundle_history.csv
 
     # Ad-hoc: measure only the 5 most recent releases
@@ -97,9 +99,7 @@ def fetch_release_index(
     for version, files in releases.items():
         if not STABLE_VERSION.match(version):
             continue
-        wheels = [
-            f for f in files if f["filename"].endswith(".whl") and not f.get("yanked")
-        ]
+        wheels = [f for f in files if f["filename"].endswith(".whl") and not f.get("yanked")]
         if not wheels:
             continue
         wheel = wheels[0]
@@ -164,9 +164,7 @@ def resolve_via_asset_manifest(asset_manifest: dict) -> tuple[str, set[str]]:
     return entry_file, files
 
 
-def resolve_via_import_scan(
-    archive: zipfile.ZipFile, names: set[str], html: str
-) -> tuple[str, set[str]]:
+def resolve_via_import_scan(archive: zipfile.ZipFile, names: set[str], html: str) -> tuple[str, set[str]]:
     """Vite before manifests were emitted: follow static ESM imports from the entry.
 
     Only *static* specifiers count toward first paint — `import("x")` is a lazy
@@ -216,9 +214,7 @@ def normalize_specifier(base: str, specifier: str) -> str:
     return "/".join(parts)
 
 
-def resolve_assets(
-    archive: zipfile.ZipFile, names: set[str]
-) -> tuple[str, str, set[str]]:
+def resolve_assets(archive: zipfile.ZipFile, names: set[str]) -> tuple[str, str, set[str]]:
     """Return (era, entry file, initial-load files) for whichever build produced this wheel.
 
     Three eras appear across the releases measured here: webpack/CRA through
@@ -227,15 +223,11 @@ def resolve_assets(
     html = archive.read(STATIC_PREFIX + "index.html").decode("utf-8", "replace")
 
     if "asset-manifest.json" in names:
-        entry, files = resolve_via_asset_manifest(
-            json.loads(archive.read(STATIC_PREFIX + "asset-manifest.json"))
-        )
+        entry, files = resolve_via_asset_manifest(json.loads(archive.read(STATIC_PREFIX + "asset-manifest.json")))
         return "webpack", entry, files
 
     if "manifest.json" in names:
-        entry, files = resolve_via_manifest(
-            json.loads(archive.read(STATIC_PREFIX + "manifest.json"))
-        )
+        entry, files = resolve_via_manifest(json.loads(archive.read(STATIC_PREFIX + "manifest.json")))
         return "vite+manifest", entry, files
 
     entry, files = resolve_via_import_scan(archive, names, html)
@@ -255,11 +247,7 @@ def categorize(name: str) -> str:
 
 def measure(wheel_path: Path, release: dict) -> dict:
     archive = zipfile.ZipFile(wheel_path)
-    names = {
-        n[len(STATIC_PREFIX) :]
-        for n in archive.namelist()
-        if n.startswith(STATIC_PREFIX) and not n.endswith("/")
-    }
+    names = {n[len(STATIC_PREFIX) :] for n in archive.namelist() if n.startswith(STATIC_PREFIX) and not n.endswith("/")}
 
     era, entry_file, initial_files = resolve_assets(archive, names)
 
@@ -322,14 +310,17 @@ def main() -> None:
         type=int,
         default=730,
         metavar="DAYS",
-        help="include stable releases from the last DAYS calendar days (default: 730, i.e. ~2 years)",
+        help=(
+            "cold-seed helper: when measuring from PyPI, only consider stables "
+            "from the last DAYS days (default: 730). Does not prune existing CSV rows."
+        ),
     )
     parser.add_argument(
         "--releases",
         type=int,
         default=None,
         metavar="N",
-        help="hard cap: fetch at most N releases (default: unlimited, rely on --since-days)",
+        help="hard cap: fetch at most N releases (default: unlimited)",
     )
     parser.add_argument("--out", type=Path, default=Path("bundle_history.csv"))
     parser.add_argument("--cache-dir", type=Path, default=Path("wheel_cache"))
@@ -348,8 +339,7 @@ def main() -> None:
         sys.exit(0)
     print(f"  {releases[-1]['version']} .. {releases[0]['version']} ({len(releases)} releases)", file=sys.stderr)
 
-    # Load any rows already present in the output file so a rebuild merges
-    # rather than truncates: older rows outside the --since-days window are kept.
+    # Merge into any existing CSV: never drop older rows already collected.
     existing_rows: list[dict] = []
     existing_fieldnames: list[str] = []
     if args.out.exists():

@@ -99,19 +99,22 @@ def release_rule_layer(since: pd.Timestamp, until: pd.Timestamp) -> alt.Chart | 
     history = load_history()
 
     # The per-commit data is tz-aware (GitHub timestamps); release dates are not.
-    bounds = [pd.Timestamp(value) for value in (since, until)]
-    bounds = [value.tz_localize(None) if value.tzinfo is not None else value for value in bounds]
+    left, right = (pd.Timestamp(value) for value in (since, until))
+    if left.tzinfo is not None:
+        left = left.tz_localize(None)
+    if right.tzinfo is not None:
+        right = right.tz_localize(None)
 
-    in_window = history[history["released_at"].between(*bounds)]
+    in_window = history[history["released_at"].between(left, right)]
     if in_window.empty:
         return None
 
     base = alt.Chart(in_window[["version", "released_at"]])
-    rule = base.mark_rule(color="#8a8a86", strokeDash=[4, 3], strokeWidth=1).encode(
+    rule = base.mark_rule(color="#8a8a86", strokeDash=[4, 3], strokeWidth=1).encode(  # ty: ignore[unresolved-attribute]
         x=alt.X("released_at:T"),
         tooltip=[alt.Tooltip("version:N", title="Released")],
     )
-    label = base.mark_text(align="left", baseline="top", dx=3, dy=2, fontSize=10, color="#8a8a86").encode(
+    label = base.mark_text(align="left", baseline="top", dx=3, dy=2, fontSize=10, color="#8a8a86").encode(  # ty: ignore[unresolved-attribute]
         x=alt.X("released_at:T"),
         text="version:N",
     )
@@ -125,7 +128,7 @@ def trend_chart(view: pd.DataFrame, column: str, title: str, unit: str, color: s
     return (
         alt.Chart(data)
         .mark_line(point=alt.OverlayMarkDef(size=60, filled=True), strokeWidth=2, color=color)
-        .encode(
+        .encode(  # ty: ignore[unresolved-attribute]
             x=alt.X(
                 "version:N",
                 title=None,
@@ -156,7 +159,7 @@ def split_marker(view: pd.DataFrame) -> alt.Chart | None:
     return (
         alt.Chart(pd.DataFrame({"version": [split["version"].iloc[0]]}))
         .mark_rule(color="#8a8a86", strokeDash=[4, 3], strokeWidth=1)
-        .encode(x=alt.X("version:N", sort=view["version"].tolist()))
+        .encode(x=alt.X("version:N", sort=view["version"].tolist()))  # ty: ignore[unresolved-attribute]
     )
 
 
@@ -320,7 +323,8 @@ def render_methodology() -> None:
             **Staying current.** A scheduled workflow checks PyPI daily for stable releases missing from
             `static/bundle_history/bundle_history.csv`, measures each one, and opens a pull request with the new rows.
             One release costs a 10 MB wheel download and about 3 seconds, so it needs no changes to the release
-            process. History goes back ~2 years from the initial seed and grows append-only from there.
+            process. The CSV is append-only: new releases are added and older rows are never dropped, so the
+            history grows from the initial seed (today: 1.33.0) onward.
             """
         )
 

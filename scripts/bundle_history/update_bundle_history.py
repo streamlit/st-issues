@@ -78,9 +78,7 @@ def main() -> None:
     missing = [release for release in candidates if release["version"] not in known]
 
     if not missing:
-        print(
-            f"Up to date: {len(existing)} releases, newest {max(known, key=version_key)}."
-        )
+        print(f"Up to date: {len(existing)} releases, newest {max(known, key=version_key)}.")
         emit_output("added_count", "0")
         emit_output("added", "")
         return
@@ -92,9 +90,7 @@ def main() -> None:
         wheel = download_wheel(release, args.cache_dir)
         added.append(measure(wheel, release))
 
-    merged = existing + [
-        {key: str(value) for key, value in row.items()} for row in added
-    ]
+    merged = existing + [{key: str(value) for key, value in row.items()} for row in added]
     merged.sort(key=lambda row: version_key(row["version"]))
 
     with args.history.open("w", newline="") as handle:
