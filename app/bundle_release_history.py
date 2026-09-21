@@ -221,25 +221,6 @@ def render_trends(view: pd.DataFrame) -> None:
                 "the entry chunk *is* essentially the initial load, right of it the two measure different things."
             )
 
-    def swing(column: str) -> tuple[str, str, float]:
-        low, high = view[column].min(), view[column].max()
-        return (
-            format_bytes(low),
-            format_bytes(high),
-            (high / low if low else float("nan")),
-        )
-
-    entry_low, entry_high, entry_ratio = swing("entry_gzip")
-    initial_low, initial_high, initial_ratio = swing("initial_gzip")
-
-    st.info(
-        ":material/info: **Why both charts.** Code splitting moves code *out* of the entry chunk into siblings the "
-        "entry still statically imports - which the browser still fetches before first paint. So Entry can fall while "
-        f"users download the same bytes, or more. Across the releases shown Entry spans {entry_low} to {entry_high} "
-        f"({entry_ratio:.1f}x swing) while Initial load spans {initial_low} to {initial_high} ({initial_ratio:.1f}x). "
-        "**Where the two disagree the build reshuffled chunks; where they move together the payload genuinely changed.**"
-    )
-
 
 def render_release_table(view: pd.DataFrame) -> None:
     st.subheader("Release detail")
@@ -313,8 +294,8 @@ def render_methodology() -> None:
             chunk's `gzipSize` as the *sum of its modules' individual gzip sizes*, which throws away redundancy shared
             across modules. The release figures are real gzip of each emitted file at level 6 (Node's zlib default, and
             what CDNs typically serve). Both are internally consistent, so trends agree; only the analyzer's absolute
-            figures overstate what users actually download. The overstatement is typically around −27% on the entry
-            chunk and −6% on the total. Both are internally consistent, so **trends** computed within each source agree;
+            figures overstate what users actually download. The overstatement is typically around -27% on the entry
+            chunk and -6% on the total. Both are internally consistent, so **trends** computed within each source agree;
             only the absolute figures differ. Never compare a release-section number directly to a per-commit-section
             number.
 
@@ -348,7 +329,7 @@ def render() -> None:
     """Render the per-release sections at the bottom of the bundle analysis page."""
     history = load_history()
 
-    st.subheader("Across releases")
+    st.subheader("Bundle size trends — by release")
 
     st.sidebar.header("Releases")
     window = st.sidebar.slider(
@@ -361,9 +342,9 @@ def render() -> None:
     view = history.tail(window).reset_index(drop=True)
 
     st.caption(
-        f"Measured from the built frontend inside each published wheel, for the last {len(history)} stable releases "
-        f"({history['version'].iloc[0]} → {history['version'].iloc[-1]}). This history does not expire, unlike the "
-        "per-commit artifacts above."
+        f"Covering {len(history)} stable releases ({history['version'].iloc[0]} → {history['version'].iloc[-1]}), "
+        "measured from the built frontend inside each published PyPI wheel. "
+        "This history does not expire, unlike the per-commit artifacts above."
     )
 
     render_headline_metrics(view)

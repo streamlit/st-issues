@@ -687,7 +687,7 @@ for col, (label, key, help_text) in zip(asset_cols_overview, asset_metric_config
 
 
 # Charts
-st.subheader("Bundle Size Trends")
+st.subheader("Bundle Size Trends — recent commits")
 
 tab_gzip, tab_brotli, tab_parsed = st.tabs(["Gzip Size", "Brotli Size", "Parsed Size"])
 
@@ -755,7 +755,7 @@ with tab_parsed:
 
 
 # Detailed Data Table
-st.subheader("Bundle Size History")
+st.subheader("Bundle Size History — recent commits")
 st.caption(":material/keyboard_arrow_down: Select a row to view the Bundle Analysis HTML report.")
 
 # Prepare display dataframe
