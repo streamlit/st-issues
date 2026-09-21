@@ -95,6 +95,10 @@ def release_rule_layer(since: pd.Timestamp, until: pd.Timestamp) -> alt.Chart | 
     Lets a commit-level move be read against the release that shipped it. Returns
     None when no release falls in the window - releases ship every two weeks or
     so, and the per-commit window is often shorter than that.
+
+    Release dates are date-only (midnight). Commit timestamps are wall-clock, so
+    the window is expanded to full calendar days: a release on the same day as
+    any commit in the chart is included even when every commit is later that day.
     """
     history = load_history()
 
@@ -104,6 +108,10 @@ def release_rule_layer(since: pd.Timestamp, until: pd.Timestamp) -> alt.Chart | 
         left = left.tz_localize(None)
     if right.tzinfo is not None:
         right = right.tz_localize(None)
+
+    # Inclusive calendar-day bounds so midnight release dates match same-day commits.
+    left = left.normalize()
+    right = right.normalize() + pd.Timedelta(days=1) - pd.Timedelta(nanoseconds=1)
 
     in_window = history[history["released_at"].between(left, right)]
     if in_window.empty:
