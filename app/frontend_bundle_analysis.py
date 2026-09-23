@@ -10,6 +10,8 @@ import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
 
+from app.bundle_release_history import release_rule_layer
+from app.bundle_release_history import render as render_release_history
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
@@ -475,9 +477,14 @@ if pr_number:
     handle_pr_mode(int(pr_number))
     st.stop()
 
-st.caption("This page visualizes the frontend bundle size metrics tracked in the PR preview workflow.")
+st.caption(
+    "Per-commit metrics from the `pr-preview.yml` artifacts: the most recent successful develop runs, about a week at "
+    "the default run limit and roughly three weeks at 250. Dashed markers show any release landing inside the window. "
+    "The release history further down is the only view here that reaches back past a few weeks."
+)
 
 # Sidebar
+st.sidebar.header("Recent commits")
 time_period = st.sidebar.selectbox(
     "Time period",
     options=["All time", "Last 7 days", "Last 30 days", "Last 90 days"],
@@ -509,6 +516,9 @@ runs = fetch_workflow_runs("pr-preview.yml", limit=limit, since=since.date() if 
 
 if not runs:
     st.warning("No workflow runs found.")
+    # The release sections read a local CSV, so they survive a failed fetch.
+    st.divider()
+    render_release_history()
     st.stop()
 
 data = []
@@ -547,6 +557,8 @@ with st.spinner("Processing bundle analysis data..."):
 
 if not data:
     st.info("No bundle analysis artifacts found in the recent runs.")
+    st.divider()
+    render_release_history()
     st.stop()
 
 df = pd.DataFrame(data)
@@ -675,7 +687,7 @@ for col, (label, key, help_text) in zip(asset_cols_overview, asset_metric_config
 
 
 # Charts
-st.subheader("Bundle Size Trends")
+st.subheader("Bundle Size Trends — recent commits")
 
 tab_gzip, tab_brotli, tab_parsed = st.tabs(["Gzip Size", "Brotli Size", "Parsed Size"])
 
@@ -716,7 +728,11 @@ def create_trend_chart(df: pd.DataFrame, metric_suffix: str, title: str) -> alt.
         .properties(title=title)
         .interactive()
     )
-    return chart
+
+    # Releases inside the window, so a commit-level move can be read against the
+    # release that shipped it.
+    markers = release_rule_layer(chart_data["created_at"].min(), chart_data["created_at"].max())
+    return chart + markers if markers is not None else chart
 
 
 with tab_gzip:
@@ -739,7 +755,7 @@ with tab_parsed:
 
 
 # Detailed Data Table
-st.subheader("Bundle Size History")
+st.subheader("Bundle Size History — recent commits")
 st.caption(":material/keyboard_arrow_down: Select a row to view the Bundle Analysis HTML report.")
 
 # Prepare display dataframe
@@ -848,3 +864,7 @@ if selection["selection"]["rows"]:
         display_bundle_report(selected_row["html_artifact_url"], "the selected bundle analysis report")
     else:
         st.warning("No HTML report available for this run.")
+
+st.divider()
+
+render_release_history()
