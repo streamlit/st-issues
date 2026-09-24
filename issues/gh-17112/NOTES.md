@@ -17,8 +17,9 @@ evicted from fragment storage after the opener fragment reruns.
 | 1.61.1 | Count 0 → 1 | works |
 | 1.62.0 | Count stays 0 | **broken** |
 | 1.64.0 (reported / latest) | Count stays 0 | **broken** |
+| `origin/develop` (includes #17039) | Count 0 → 1 | **already fixed** |
 
-On 1.62+ the server logs:
+On 1.62–1.64 the server logs:
 
 ```
 The fragment with id <id> does not exist anymore - it might have been
@@ -65,19 +66,21 @@ This repro hits a different path:
 
 `#16314` is correct for inline nested `run_every` fragments; it is too
 aggressive when a descendant fragment is created only in a parent-fragment
-**callback** (dialogs opened via `on_click`). Related follow-up context:
-coalesced descendant suppression / PR #17039; this issue is the eviction
-path, not the `has_ancestor_in` skip path.
+**callback** (dialogs opened via `on_click`).
 
-**Fix direction (do not implement here):** treat fragments registered during
-the current run's callbacks as still live, or skip descendant eviction for
-dialog fragments that remain open; alternatively re-register an open dialog
-when its parent fragment reruns.
+**Already fixed on develop** by [#17039](https://github.com/streamlit/streamlit/pull/17039)
+(same bug as #17011: dialog fragments are `FULL_APP_SCOPED` so parent-fragment
+reruns do not evict them). Re-verified this issue's repro on
+`origin/develop` after that merge.
+
+**Workaround until the next release:** open the dialog from the parent fragment
+body (session-state flag), not `on_click`. The published `app.py` includes a
+live workaround demo.
 
 ## Classification
 
 - **Type:** Bug (regression)
-- **Status:** Confirmed on 1.62.0–1.64.0; last good 1.61.1
+- **Status:** Confirmed on 1.62.0–1.64.0; last good 1.61.1; already fixed on develop (#17039)
 - **Areas:** backend, fragments / dialogs (`runtime/fragment.py`,
   `runtime/scriptrunner/script_runner.py`, `runtime/app_session.py`,
   `elements/dialog_decorator.py`)
