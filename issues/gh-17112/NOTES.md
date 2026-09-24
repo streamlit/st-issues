@@ -75,7 +75,9 @@ reruns do not evict them). Re-verified this issue's repro on
 
 **Workaround until the next release:** open the dialog from the parent fragment
 body (session-state flag), not `on_click`. The published `app.py` includes a
-live workaround demo.
+live workaround demo, verified on 1.64.0 by
+`verify_workaround_gh_17112.py` (Count reaches 1 via the workaround dialog
+while the `on_click` dialog in the same app still fails).
 
 ## Classification
 
