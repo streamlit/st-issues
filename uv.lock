@@ -1926,7 +1926,7 @@ dependencies = [
     { name = "websockets" },
 ]
 wheels = [
-    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.64.0-py3-none-any.whl", hash = "sha256:be82c597c27d1741be19c76e2e044b06d8911ee84edbdb1292121cef085cf5b1" },
+    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.64.0-py3-none-any.whl", hash = "sha256:4fe3596df704ecd980052ac63a00f86a39b82d200d42731e5996f48a30bc771e" },
 ]
 
 [package.optional-dependencies]
@@ -1964,7 +1964,7 @@ requires-dist = [
     { name = "sqlalchemy", marker = "extra == 'sql'", specifier = ">=2.0.0" },
     { name = "starlette", specifier = ">=0.46.0,<2" },
     { name = "streamlit", extras = ["auth", "charts", "pdf", "performance", "snowflake", "sql"], marker = "extra == 'all'" },
-    { name = "streamlit-pdf", marker = "extra == 'pdf'", specifier = ">=1.0.0" },
+    { name = "streamlit-pdf", marker = "extra == 'pdf'", specifier = ">=2.1.0" },
     { name = "toml", specifier = ">=0.10.1,<2" },
     { name = "typing-extensions", specifier = ">=4.10.0,<5" },
     { name = "uvicorn", specifier = ">=0.30.0,<1" },
