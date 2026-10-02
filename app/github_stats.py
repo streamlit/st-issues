@@ -27,7 +27,11 @@ def get_issue_emoji(labels: list) -> str:
     return labels_to_type_emoji([label["name"] for label in labels])
 
 
-@st.cache_data(show_spinner="Cloning and analyzing repository...")
+@st.cache_data(
+    ttl=60 * 60 * 24,
+    show_spinner="Cloning and analyzing repository...",
+    refresh_mode="background",
+)  # cache for 24 hours
 def get_git_fame_stats() -> dict:
     # Use a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:

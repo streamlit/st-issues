@@ -8,3 +8,7 @@ enableRich = true
 enableStaticServing = true
 enableAgentApi = true
 agentRunTimeout = 180
+
+[runner]
+# Hard-expire background caches at 4× ttl (stale window is 3× ttl).
+cacheBackgroundRefreshTTLMultiplier = 4

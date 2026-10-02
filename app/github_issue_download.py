@@ -24,7 +24,6 @@ st.caption(
 IssueState = Literal["open", "closed", "all"]
 
 
-@st.cache_data(show_spinner=False)
 def _fetch_issue_data(state: IssueState) -> list[dict[str, object]]:
     """Retrieve raw issue payloads for the configured repository."""
     return get_all_github_issues(state=state)
