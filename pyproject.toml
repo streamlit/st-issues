@@ -42,7 +42,7 @@ packages = ["app"]
 default-groups = ["dev"]
 
 [tool.uv.sources]
-streamlit = { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.64.0-py3-none-any.whl" }
+streamlit = { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.65.0-py3-none-any.whl" }
 
 # =============================================================================
 # Development dependencies
