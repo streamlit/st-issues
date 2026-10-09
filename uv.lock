@@ -1919,14 +1919,14 @@ dependencies = [
     { name = "python-multipart" },
     { name = "requests" },
     { name = "starlette" },
-    { name = "toml" },
+    { name = "tomli-w" },
     { name = "typing-extensions" },
     { name = "uvicorn" },
     { name = "watchdog", marker = "sys_platform != 'darwin'" },
     { name = "websockets" },
 ]
 wheels = [
-    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.65.0-py3-none-any.whl", hash = "sha256:ae54b43de062416bdce1e57ffe817f6e47bfe88399ce795c1df67f330cacfed9" },
+    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.65.0-py3-none-any.whl", hash = "sha256:60c7ad56933cb655cfc061af7b0276d9066bad739cb8f6dc8d1e45bcc8eb5579" },
 ]
 
 [package.optional-dependencies]
@@ -1946,15 +1946,15 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'auth'", specifier = ">=0.24.1" },
     { name = "itsdangerous", specifier = ">=2.1.2,<3" },
     { name = "matplotlib", marker = "extra == 'charts'", specifier = ">=3.0.0" },
-    { name = "numpy", specifier = ">=1.23,<3" },
+    { name = "numpy", specifier = ">=1.25.0,<3" },
     { name = "orjson", marker = "extra == 'charts'", specifier = ">=3.5.0" },
     { name = "orjson", marker = "extra == 'performance'", specifier = ">=3.5.0" },
     { name = "packaging", specifier = ">=20" },
-    { name = "pandas", specifier = ">=1.4.0,<4" },
-    { name = "pillow", specifier = ">=7.1.0,<13" },
+    { name = "pandas", specifier = ">=1.5.3,<4" },
+    { name = "pillow", specifier = ">=9.2.0,<13" },
     { name = "plotly", marker = "extra == 'charts'", specifier = ">=4.0.0" },
     { name = "protobuf", specifier = ">=5.26.1,<8" },
-    { name = "pyarrow", specifier = ">=7.0,!=25.0.0,<26" },
+    { name = "pyarrow", specifier = ">=10.0.1,!=25.0.0,<26" },
     { name = "pydeck", specifier = ">=0.8.0b4,<1" },
     { name = "python-multipart", specifier = ">=0.0.10,<1" },
     { name = "requests", specifier = ">=2.27,<3" },
@@ -1965,7 +1965,7 @@ requires-dist = [
     { name = "starlette", specifier = ">=0.46.0,<2" },
     { name = "streamlit", extras = ["auth", "charts", "pdf", "performance", "snowflake", "sql"], marker = "extra == 'all'" },
     { name = "streamlit-pdf", marker = "extra == 'pdf'", specifier = ">=2.1.0" },
-    { name = "toml", specifier = ">=0.10.1,<2" },
+    { name = "tomli-w", specifier = ">=1.0.0,<2" },
     { name = "typing-extensions", specifier = ">=4.10.0,<5" },
     { name = "uvicorn", specifier = ">=0.30.0,<1" },
     { name = "uvloop", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32' and extra == 'performance'", specifier = ">=0.15.2" },
@@ -2035,12 +2035,12 @@ wheels = [
 ]
 
 [[package]]
-name = "toml"
-version = "0.10.2"
+name = "tomli-w"
+version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/be/ba/1f744cdc819428fc6b5084ec34d9b30660f6f9daaf70eead706e3203ec3c/toml-0.10.2.tar.gz", hash = "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f", size = 22253, upload-time = "2020-11-01T01:40:22.204Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/75/241269d1da26b624c0d5e110e8149093c759b7a286138f4efd61a60e75fe/tomli_w-1.2.0.tar.gz", hash = "sha256:2dd14fac5a47c27be9cd4c976af5a12d87fb1f0b4512f81d69cce3b35ae25021", size = 7184, upload-time = "2025-01-15T12:07:24.262Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/6f/7120676b6d73228c96e17f1f794d8ab046fc910d781c8d151120c3f1569e/toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b", size = 16588, upload-time = "2020-11-01T01:40:20.672Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/18/c86eb8e0202e32dd3df50d43d7ff9854f8e0603945ff398974c1d91ac1ef/tomli_w-1.2.0-py3-none-any.whl", hash = "sha256:188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90", size = 6675, upload-time = "2025-01-15T12:07:22.074Z" },
 ]
 
 [[package]]
