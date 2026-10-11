@@ -1926,7 +1926,7 @@ dependencies = [
     { name = "websockets" },
 ]
 wheels = [
-    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.65.0-py3-none-any.whl", hash = "sha256:227b6563f5ad251d2b08e68aa5bcdc7a712289a764f4e69237e2f5a7d4437195" },
+    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.65.0-py3-none-any.whl", hash = "sha256:06d2115426373ecdf265f111a4179ea2bd1752bf4a6f9abf74fbaa25ae1ac7ac" },
 ]
 
 [package.optional-dependencies]
