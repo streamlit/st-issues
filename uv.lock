@@ -1955,7 +1955,7 @@ requires-dist = [
     { name = "pytz" },
     { name = "scipy" },
     { name = "seaborn" },
-    { name = "streamlit", extras = ["performance"], url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.65.0-py3-none-any.whl" },
+    { name = "streamlit", extras = ["performance"], url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.66.0-py3-none-any.whl" },
     { name = "streamlit-aggrid" },
     { name = "streamlit-extras" },
     { name = "streamlit-folium" },
@@ -1988,8 +1988,8 @@ wheels = [
 
 [[package]]
 name = "streamlit"
-version = "1.65.0"
-source = { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.65.0-py3-none-any.whl" }
+version = "1.66.0"
+source = { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.66.0-py3-none-any.whl" }
 dependencies = [
     { name = "altair" },
     { name = "anyio" },
@@ -2011,7 +2011,7 @@ dependencies = [
     { name = "websockets" },
 ]
 wheels = [
-    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.65.0-py3-none-any.whl", hash = "sha256:106bd37f8adf6446a8952b5c1ddf811d28afe64e3389c56d6df22881b233d511" },
+    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.66.0-py3-none-any.whl", hash = "sha256:5f7290e279086057247c4fe4f28a75425d1ce22abbfc54ad0c09f99b876dc636" },
 ]
 
 [package.optional-dependencies]

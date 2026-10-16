@@ -862,23 +862,23 @@ if run_summary_records:
 
             st.subheader(scenario.get("scenario", "unknown"))
 
-            cols = st.columns(4)
-            cols[0].metric(
+            detail_cols = st.columns(4)
+            detail_cols[0].metric(
                 "Concurrent users",
                 scenario.get("concurrent_users", 0),
                 border=True,
             )
-            cols[1].metric(
+            detail_cols[1].metric(
                 "Duration",
                 f"{scenario.get('duration_seconds', 0):.1f}s",
                 border=True,
             )
-            cols[2].metric(
+            detail_cols[2].metric(
                 "Sessions completed",
                 f"{session.get('sessions_completed', 0)}/{session.get('total_sessions', 0)}",
                 border=True,
             )
-            cols[3].metric(
+            detail_cols[3].metric(
                 "Failed",
                 session.get("sessions_failed", 0),
                 border=True,
