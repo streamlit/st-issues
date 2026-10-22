@@ -568,7 +568,11 @@ For Dependabot dependency updates:
 
 @st.fragment(parallel=True)
 def render_docs_release_mismatch() -> None:
-    """Warn Interrupt when PyPI's latest Streamlit version is missing from the docs."""
+    """Warn when docs release notes lag a newer minor or major PyPI release.
+
+    Patch releases are not published in the release notes, so a patch-only
+    difference does not raise this warning.
+    """
     status = get_docs_release_status()
     pypi_version = status["pypi_version"]
     docs_version = status["docs_version"]

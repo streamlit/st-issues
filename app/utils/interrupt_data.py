@@ -49,6 +49,7 @@ GITHUB_MILESTONES_URL = f"https://github.com/{STREAMLIT_REPO}/milestones"
 _HTTP_USER_AGENT = "st-issues-interrupt/1.0 (+https://github.com/streamlit/st-issues)"
 _DOCS_LATEST_HEADING_RE = re.compile(r"Version\s+(\d+\.\d+\.\d+)\s*\(\s*latest\s*\)", re.IGNORECASE)
 _DOCS_LATEST_VERSION_JSON_RE = re.compile(r'"LATEST_VERSION"\s*:\s*"(\d+\.\d+\.\d+)"')
+_RELEASE_VERSION_RE = re.compile(r"^v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)")
 GITHUB_ACTIONS_LOGIN = "github-actions[bot]"
 BOT_PR_LOGINS = frozenset({"dependabot[bot]", GITHUB_ACTIONS_LOGIN})
 MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
@@ -259,9 +260,36 @@ def get_monitored_repo_open_prs() -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def _release_version_key(version: str) -> tuple[int, int] | None:
+    """Return the major.minor key for a release version, ignoring the patch."""
+    match = _RELEASE_VERSION_RE.match(version.strip())
+    if match is None:
+        return None
+    return int(match.group("major")), int(match.group("minor"))
+
+
+def _release_notes_are_behind(pypi_version: str | None, docs_version: str | None) -> bool:
+    """Return whether docs release notes lag a newer minor or major PyPI release.
+
+    Patch releases are not published in the release notes, so a PyPI version that
+    stays on the same major.minor as the docs is not treated as outdated.
+    """
+    if not pypi_version or not docs_version:
+        return False
+    pypi_key = _release_version_key(pypi_version)
+    docs_key = _release_version_key(docs_version)
+    if pypi_key is None or docs_key is None:
+        return pypi_version != docs_version
+    return pypi_key > docs_key
+
+
 @st.cache_data(ttl=60 * 10, max_entries=8, show_spinner=False, refresh_mode="background")
 def get_docs_release_status() -> dict[str, str | bool | None]:
-    """Compare the latest PyPI Streamlit version to the docs release notes."""
+    """Compare the latest PyPI Streamlit version to the docs release notes.
+
+    ``is_outdated`` is true only when PyPI is on a newer minor or major release.
+    Patch releases do not get release notes, so a patch-only difference is ignored.
+    """
     pypi_version, pypi_error = _fetch_pypi_streamlit_version()
     docs_version, docs_error = _fetch_docs_latest_version()
     errors = [error for error in (pypi_error, docs_error) if error]
@@ -269,7 +297,7 @@ def get_docs_release_status() -> dict[str, str | bool | None]:
         "pypi_version": pypi_version,
         "docs_version": docs_version,
         "error": " ".join(errors) if errors else None,
-        "is_outdated": bool(pypi_version and docs_version and pypi_version != docs_version),
+        "is_outdated": _release_notes_are_behind(pypi_version, docs_version),
     }
 
 

@@ -259,6 +259,36 @@ def test_get_docs_release_status_in_sync(monkeypatch: pytest.MonkeyPatch) -> Non
     assert status["error"] is None
 
 
+def test_get_docs_release_status_patch_release_not_outdated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(interrupt_data, "_fetch_pypi_streamlit_version", lambda: ("1.63.1", None))
+    monkeypatch.setattr(interrupt_data, "_fetch_docs_latest_version", lambda: ("1.63.0", None))
+    interrupt_data.get_docs_release_status.clear()
+
+    status = interrupt_data.get_docs_release_status()
+
+    assert status["is_outdated"] is False
+    assert status["error"] is None
+
+
+def test_get_docs_release_status_newer_minor_patch_is_outdated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(interrupt_data, "_fetch_pypi_streamlit_version", lambda: ("1.64.1", None))
+    monkeypatch.setattr(interrupt_data, "_fetch_docs_latest_version", lambda: ("1.63.0", None))
+    interrupt_data.get_docs_release_status.clear()
+
+    status = interrupt_data.get_docs_release_status()
+
+    assert status["is_outdated"] is True
+
+
+def test_release_notes_are_behind_only_for_minor_or_major() -> None:
+    assert interrupt_data._release_notes_are_behind("1.64.0", "1.63.0") is True
+    assert interrupt_data._release_notes_are_behind("2.0.0", "1.63.1") is True
+    assert interrupt_data._release_notes_are_behind("1.63.2", "1.63.0") is False
+    assert interrupt_data._release_notes_are_behind("v1.63.1", "1.63.0") is False
+    assert interrupt_data._release_notes_are_behind("1.63.0", "1.64.0") is False
+    assert interrupt_data._release_notes_are_behind(None, "1.63.0") is False
+
+
 def test_pypi_milestone_title_uses_major_minor() -> None:
     assert interrupt_data._pypi_milestone_title("1.63.0") == "1.63"
     assert interrupt_data._pypi_milestone_title("v1.63.1") == "1.63"
