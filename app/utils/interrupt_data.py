@@ -55,7 +55,6 @@ BOT_PR_LOGINS = frozenset({"dependabot[bot]", GITHUB_ACTIONS_LOGIN})
 MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
     "streamlit/gallery",
     "streamlit/component-template",
-    "streamlit/streamlit-bokeh",
     "streamlit/streamlit-pdf",
     "streamlit/agent-skills",
     "streamlit/st-issues",
@@ -66,7 +65,6 @@ MONITORED_INTERRUPT_REPOS: tuple[str, ...] = (
 BOT_PR_INTERRUPT_REPOS: tuple[str, ...] = (
     "streamlit/docs",
     "streamlit/streamlit-pivot-table",
-    "streamlit/streamlit-bokeh",
     "streamlit/streamlit-pdf",
     "streamlit/blank-app-template",
 )

@@ -468,24 +468,6 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
             )
         ],
         "streamlit/component-template": [],
-        "streamlit/streamlit-bokeh": [
-            _pr(
-                number=102,
-                repo="streamlit/streamlit-bokeh",
-                title="Bokeh cleanup",
-                labels=[],
-                author="bob",
-                updated_at="2026-02-09T10:00:00+00:00",
-            ),
-            _pr(
-                number=105,
-                repo="streamlit/streamlit-bokeh",
-                title="Bump bokeh in streamlit-bokeh",
-                labels=["dependencies"],
-                author="dependabot[bot]",
-                updated_at="2026-02-10T12:00:00+00:00",
-            ),
-        ],
         "streamlit/streamlit-pdf": [
             _pr(
                 number=103,
@@ -546,8 +528,6 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
         "Bump pdf.js in streamlit-pdf",
         "Pdf fix",
         "Gallery draft",
-        "Bump bokeh in streamlit-bokeh",
-        "Bokeh cleanup",
     ]
     assert list(monitored_prs["Repository"]) == [
         "streamlit/blank-app-template",
@@ -559,8 +539,6 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
         "streamlit/streamlit-pdf",
         "streamlit/streamlit-pdf",
         "streamlit/gallery",
-        "streamlit/streamlit-bokeh",
-        "streamlit/streamlit-bokeh",
     ]
     assert list(monitored_prs["Draft"]) == [
         False,
@@ -572,8 +550,6 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
         False,
         False,
         True,
-        False,
-        False,
     ]
     assert list(monitored_prs["Author"]) == [
         "dependabot[bot]",
@@ -585,8 +561,6 @@ def test_get_monitored_repo_open_prs(monkeypatch: pytest.MonkeyPatch) -> None:
         "dependabot[bot]",
         "carol",
         "alice",
-        "dependabot[bot]",
-        "bob",
     ]
 
 
