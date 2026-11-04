@@ -806,7 +806,6 @@ def display_pr_detailed_comparison(pr_coverage_data: dict, develop_coverage_data
                 "pieces": [{"lt": 0, "color": "#d73027"}, {"gte": 0, "color": "#1a9850"}],
             },
         )
-        change_option["series"][0]["label"] = {"show": True, "position": "right", "formatter": "{@[1]}%"}
         st.echarts_chart(
             change_option,
             height=max(300, 26 * len(display_df) + 80),
@@ -954,9 +953,7 @@ coverage_option = ec.cartesian_chart(
     title="Code Coverage Over Time",
     x_title="Date",
     y_title="Coverage %",
-    tooltip_dims=["commit_sha", "total_stmts", "total_miss"],
 )
-coverage_option["tooltip"]["trigger"] = "axis"
 coverage_option["tooltip"]["formatter"] = (
     "<b>Date:</b> {@date}<br/><b>Commit:</b> {@commit_sha}<br/><b>Coverage:</b> {@coverage_pct}%"
     "<br/><b>Total Statements:</b> {@total_stmts}<br/><b>Missed Statements:</b> {@total_miss}"

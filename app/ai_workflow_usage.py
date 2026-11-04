@@ -562,10 +562,10 @@ with chart_tab_duration:
 
         with st.container(horizontal=True, vertical_alignment="top"):
             avg_bar_option = ec.cartesian_chart(
-                duration_by_workflow,
+                duration_by_workflow.assign(series=duration_by_workflow["workflow"]),
                 x="workflow",
                 y=duration_column,
-                color="workflow",
+                color="series",
                 kind="bar",
                 x_type="category",
                 stack=True,

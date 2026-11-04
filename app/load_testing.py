@@ -455,7 +455,7 @@ def display_load_test_comparison(pr_data: dict[str, Any], develop_data: dict[str
     )
 
 
-def scenario_trend_chart(chart_df: pd.DataFrame, *, metric_col: str, y_title: str, value_format: str, alt: str) -> None:
+def scenario_trend_chart(chart_df: pd.DataFrame, *, metric_col: str, y_title: str, decimals: int, alt: str) -> None:
     """Plot one line per scenario over time, with each run's date and commit in the tooltip."""
     option = ec.cartesian_chart(
         chart_df,
@@ -463,13 +463,16 @@ def scenario_trend_chart(chart_df: pd.DataFrame, *, metric_col: str, y_title: st
         y=metric_col,
         color="scenario",
         y_title=y_title,
-        value_format=value_format,
         agg="mean",
         legend=True,
         tooltip_dims=["Date", "Commit"],
     )
+    option["legend"] = {"type": "scroll", "top": 0, "left": "center"}
     runs = chart_df.drop_duplicates("created_at").set_index("created_at")
     source = option["dataset"]["source"]
+    scenario_columns = [series["encode"]["y"] for series in option["series"]]
+    # Item tooltips with extra dimensions don't apply `valueFormatter`, so round the plotted values instead.
+    source[scenario_columns] = source[scenario_columns].round(decimals)
     option["dataset"]["source"] = source.assign(
         Date=source["created_at"].dt.strftime("%Y-%m-%d"),
         Commit=source["created_at"].map(runs["commit_sha"]),
@@ -635,7 +638,7 @@ for tab, metric_col, label in [
             chart_df,
             metric_col="value_s",
             y_title=f"Initial load {label} (seconds)",
-            value_format="%.2fs",
+            decimals=2,
             alt=f"Initial load time {label} per scenario over time",
         )
 
@@ -655,7 +658,7 @@ for tab, metric_col, label in [
             filtered_df,
             metric_col=metric_col,
             y_title=f"Rerun {label} (ms)",
-            value_format="%.1f ms",
+            decimals=1,
             alt=f"Rerun time {label} per scenario over time",
         )
 
@@ -675,7 +678,7 @@ for tab, metric_col, label in [
             filtered_df,
             metric_col=metric_col,
             y_title=label,
-            value_format="%.1f MB",
+            decimals=1,
             alt=f"{label} per scenario over time",
         )
 
@@ -694,7 +697,7 @@ for tab, metric_col, label in [
             filtered_df,
             metric_col=metric_col,
             y_title=label,
-            value_format="%.1f%%",
+            decimals=1,
             alt=f"{label} per scenario over time",
         )
 
@@ -706,7 +709,7 @@ scenario_trend_chart(
     filtered_df,
     metric_col="duration_seconds",
     y_title="Duration (seconds)",
-    value_format="%.1fs",
+    decimals=1,
     alt="Load test duration per scenario over time",
 )
 

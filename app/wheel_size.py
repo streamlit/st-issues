@@ -102,7 +102,7 @@ st.subheader("Wheel Size Over Time")
 size_df = pd.DataFrame(
     {
         "created_at": df["created_at"],
-        "Size": df["size_mb"],
+        "Size": df["size_mb"].round(2),
         "Date": df["created_at"].dt.strftime("%Y-%m-%d"),
         "Commit": df["commit_sha"],
     }
@@ -112,7 +112,6 @@ size_option = ec.cartesian_chart(
     x="created_at",
     y="Size",
     y_title="Size (MB)",
-    value_format="%.2f MB",
     series_names={"Size": "Wheel size"},
     tooltip_dims=["Date", "Commit"],
 )
@@ -163,7 +162,7 @@ if len(df) > 1:
         changes_df = pd.DataFrame(
             {
                 "Commit": top_changes["commit_sha"],
-                "Size change": top_changes["size_change_percent"],
+                "Size change": top_changes["size_change_percent"].round(2),
                 "Change": top_changes["size_change_human"],
                 "Date": top_changes["created_at"].dt.strftime("%Y-%m-%d"),
             }
@@ -176,7 +175,6 @@ if len(df) > 1:
             x_type="category",
             x_title="Commit",
             y_title="Size change (%)",
-            value_format="%+.2f%%",
             tooltip_dims=["Change", "Date"],
         )
         max_change = float(changes_df["Size change"].abs().max()) or 1.0

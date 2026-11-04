@@ -41,7 +41,7 @@ def color_by(option: dict[str, Any], *, dimension: str, colors: list[str], title
         "itemHeight": 120,
     }
     if title:
-        visual_map["text"] = [title, ""]
+        visual_map["text"] = [f"{title}\n{values.max():.4g}", f"{values.min():.4g}"]
         option.setdefault("grid", {})["right"] = 110
     option["visualMap"] = visual_map
     return option
@@ -357,6 +357,7 @@ fig_failures = ec.cartesian_chart(
     y_title="Count",
     series_names={"failed": "Failed", "errors": "Errors", "total_reruns": "Reruns"},
 )
+fig_failures["yAxis"]["minInterval"] = 1
 st.echarts_chart(fig_failures, alt="Failed tests, errors, and reruns per develop run")
 
 # ── Memory usage over time ───────────────────────────────────────────────────
@@ -493,6 +494,7 @@ def display_run_details(stats: dict[str, Any], run_record: pd.Series) -> None:
                 values="Total",
                 title="Test Distribution by Browser",
                 donut=False,
+                label="{b}\n{d}%",
                 colors=[BROWSER_COLORS.get(name, "#8a8a86") for name in browser_df["Browser"]],
             )
             st.echarts_chart(fig_pie, alt="Share of Playwright tests per browser")
