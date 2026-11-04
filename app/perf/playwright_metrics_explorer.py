@@ -2,7 +2,8 @@ import datetime
 import json
 from typing import Any
 
-import plotly.express as px
+import altair as alt
+import pandas as pd
 import streamlit as st
 
 from app.perf.utils.charting import make_gantt_entry
@@ -83,34 +84,32 @@ def render_metrics_explorer() -> None:
                     for measurement in the_data["capturedTraces"][trace]
                 )
 
-        all_start_times = [entry["Start"] for entry in gantt_data]
-        all_finish_times = [entry["Finish"] for entry in gantt_data]
-
-        return {
-            "gantt_data": gantt_data,
-            "start_time": min(all_start_times),
-            "finish_time": max(all_finish_times),
-        }
+        return {"gantt_data": gantt_data}
 
     gantt_data = get_gantt_data(data)
 
-    # Create a Gantt chart
-    fig = px.timeline(
-        gantt_data["gantt_data"],
-        x_start="Start",
-        x_end="Finish",
-        y="Task",
-        color="Location",
-        title="Performance Metrics",
-    )
-    # Update layout for better readability
-    fig.update_layout(
-        xaxis_title="Time",
-        yaxis_title="Measurement",
-        xaxis=dict(range=[gantt_data["start_time"], gantt_data["finish_time"]]),
+    gantt_df = pd.DataFrame(gantt_data["gantt_data"])
+    gantt_df["Duration (ms)"] = (gantt_df["Finish"] - gantt_df["Start"]).dt.total_seconds() * 1000
+
+    chart = (
+        alt.Chart(gantt_df, title="Performance metrics")
+        .mark_bar()
+        .encode(  # ty: ignore[unresolved-attribute]
+            x=alt.X("Start:T", title="Time", scale=alt.Scale(nice=False)),
+            x2="Finish:T",
+            y=alt.Y("Task:N", title="Measurement"),
+            color=alt.Color("Location:N"),
+            tooltip=[
+                "Task:N",
+                "Location:N",
+                alt.Tooltip("Duration (ms):Q", format=",.1f"),
+                alt.Tooltip("Start:T", format="%H:%M:%S.%L"),
+                alt.Tooltip("Finish:T", format="%H:%M:%S.%L"),
+            ],
+        )
     )
 
-    st.plotly_chart(fig, width="stretch")
+    st.altair_chart(chart, alt="Timeline of captured performance phases by measurement and location")
 
     st.divider()
 

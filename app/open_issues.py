@@ -1,12 +1,13 @@
 import operator
 import pathlib
 from datetime import date, datetime
+from typing import Any
 from urllib.parse import quote
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
+from app.utils import echarts as ec
 from app.utils.agent_wiki import build_wiki_explorer_url, fetch_wiki_issue_repros, get_synced_wiki_repo_path
 from app.utils.github_utils import fetch_issue_reactions, fetch_issue_view_counts, get_all_github_issues
 from app.utils.issue_formatting import compute_importance_scores, labels_to_type_emoji, reactions_to_str
@@ -378,40 +379,41 @@ else:
             # Create tabs for different categories
             tabs = st.tabs(["Priority", "Status", "Feature", "Area", "Type"])
 
-            # Helper function to create horizontal bar chart
-            def create_horizontal_bar_chart(data_df: pd.DataFrame, title: str, x_field: str, y_field: str) -> alt.Chart:
+            # Helper function to render a horizontal bar chart
+            def render_horizontal_bar_chart(data_df: pd.DataFrame, title: str, x_field: str, y_field: str) -> None:
                 # Set minimum bar height and spacing
                 bar_height = 15  # Minimum height for each bar in pixels
                 bar_padding = 1  # Padding between bars (proportion of bar height)
 
-                # Calculate chart height based on number of items
-                chart_height = max(200, len(data_df) * (bar_height * (1 + bar_padding)))
+                # Calculate chart height based on number of items, plus room for the title and axis
+                chart_height = max(200, len(data_df) * (bar_height * (1 + bar_padding))) + 80
 
-                # Create the chart with improved styling
-                chart = (
-                    alt.Chart(data_df, title=title)
-                    .mark_bar(
-                        cornerRadiusTopRight=3,
-                        cornerRadiusBottomRight=3,
-                        height=bar_height,
-                    )
-                    .encode(  # ty: ignore[unresolved-attribute]
-                        x=alt.X(f"{x_field}:Q", title="Count"),
-                        y=alt.Y(
-                            f"{y_field}:N",
-                            title=title,
-                            sort="-x",
-                            axis=alt.Axis(labelLimit=200),  # Allow longer labels
-                        ),
-                        tooltip=[y_field, x_field],
-                        color=alt.Color(f"{x_field}:Q", legend=None, scale=alt.Scale(scheme="blues")),
-                    )
-                    .properties(height=chart_height)
-                    .configure_axis(labelFontSize=12, titleFontSize=14)
-                    .configure_title(fontSize=16, anchor="start")
+                option = ec.cartesian_chart(
+                    data_df[[y_field, x_field]],
+                    x=y_field,
+                    y=x_field,
+                    kind="bar",
+                    x_type="category",
+                    horizontal=True,
+                    title=title,
+                    y_title="Count",
                 )
+                option["xAxis"]["minInterval"] = 1
+                option["yAxis"]["axisLabel"] = {"width": 200, "overflow": "truncate"}  # Allow longer labels
+                series: dict[str, Any] = option["series"][0]
+                series.update({"barWidth": bar_height, "itemStyle": {"borderRadius": [0, 3, 3, 0]}})
+                counts = data_df[x_field]
+                option["visualMap"] = {
+                    "type": "continuous",
+                    "show": False,
+                    "seriesIndex": 0,
+                    "dimension": 1,
+                    "min": float(counts.min()),
+                    "max": float(counts.max()),
+                    "inRange": {"color": ec.BLUES},
+                }
 
-                return chart
+                st.echarts_chart(option, height=chart_height, alt=f"Open issues per {title.lower()} label")
 
             # Priority tab
             with tabs[0]:
@@ -424,10 +426,7 @@ else:
                     priority_df = priority_df[priority_df["Priority"] != "(not specified)"]
                     if not priority_df.empty:
                         priority_df = priority_df.sort_values("Count", ascending=False)
-                        st.altair_chart(
-                            create_horizontal_bar_chart(priority_df, "Priority", "Count", "Priority"),
-                            width="stretch",
-                        )
+                        render_horizontal_bar_chart(priority_df, "Priority", "Count", "Priority")
                     else:
                         st.write("No priority data available")
                 else:
@@ -441,10 +440,7 @@ else:
                     status_df = status_df[status_df["Status"] != "(not specified)"]
                     if not status_df.empty:
                         status_df = status_df.sort_values("Count", ascending=False)
-                        st.altair_chart(
-                            create_horizontal_bar_chart(status_df, "Status", "Count", "Status"),
-                            width="stretch",
-                        )
+                        render_horizontal_bar_chart(status_df, "Status", "Count", "Status")
                     else:
                         st.write("No status data available")
                 else:
@@ -461,10 +457,7 @@ else:
                     feature_df = feature_df[feature_df["Feature"] != "(not specified)"]
                     if not feature_df.empty:
                         feature_df = feature_df.sort_values("Count", ascending=False)
-                        st.altair_chart(
-                            create_horizontal_bar_chart(feature_df, "Feature", "Count", "Feature"),
-                            width="stretch",
-                        )
+                        render_horizontal_bar_chart(feature_df, "Feature", "Count", "Feature")
                     else:
                         st.write("No feature data available")
                 else:
@@ -478,10 +471,7 @@ else:
                     area_df = area_df[area_df["Area"] != "(not specified)"]
                     if not area_df.empty:
                         area_df = area_df.sort_values("Count", ascending=False)
-                        st.altair_chart(
-                            create_horizontal_bar_chart(area_df, "Area", "Count", "Area"),
-                            width="stretch",
-                        )
+                        render_horizontal_bar_chart(area_df, "Area", "Count", "Area")
                     else:
                         st.write("No area data available")
                 else:
@@ -495,10 +485,7 @@ else:
                     type_df = type_df[type_df["Type"] != "(not specified)"]
                     if not type_df.empty:
                         type_df = type_df.sort_values("Count", ascending=False)
-                        st.altair_chart(
-                            create_horizontal_bar_chart(type_df, "Type", "Count", "Type"),
-                            width="stretch",
-                        )
+                        render_horizontal_bar_chart(type_df, "Type", "Count", "Type")
                     else:
                         st.write("No type data available")
                 else:

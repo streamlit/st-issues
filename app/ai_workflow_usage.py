@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
+from app.utils import echarts as ec
 from app.utils.ai_workflow_runs import (
     OUTCOME_CANCELLED,
     OUTCOME_FAILED,
@@ -16,6 +16,9 @@ from app.utils.ai_workflow_runs import (
     fetch_ai_workflow_runs,
 )
 from app.utils.streamlit_date_input import normalize_date_range
+
+if TYPE_CHECKING:
+    from streamlit.typing import EChartsState
 
 st.set_page_config(page_title="AI workflow usage", page_icon=":material/smart_toy:", layout="wide")
 
@@ -122,6 +125,19 @@ def _selected_period_timestamp(value: Any, grouping: str) -> pd.Timestamp:
     if selected_ts.tzinfo is not None:
         selected_ts = selected_ts.tz_convert("UTC").tz_localize(None)
     return selected_ts.to_period(GROUPING_FREQ[grouping]).to_timestamp()
+
+
+def _with_series_colors(option: dict[str, Any], colors: dict[str, str]) -> dict[str, Any]:
+    option["color"] = [colors.get(series["name"], "#8B8E97") for series in option["series"]]
+    return option
+
+
+def _selected_period(event: EChartsState, option: dict[str, Any]) -> datetime | None:
+    source = option["dataset"]["source"]
+    rows = [row for row in ec.selected_rows(event) if row < len(source)]
+    if not rows:
+        return None
+    return pd.Timestamp(source.iloc[rows[0]]["period"]).to_pydatetime()
 
 
 def _as_str_list(value: object) -> list[str]:
@@ -442,63 +458,71 @@ chart_tab_workflow, chart_tab_outcome, chart_tab_rate, chart_tab_duration = st.t
 selected_period_start: datetime | None = None
 
 with chart_tab_workflow:
-    fig_workflow = px.bar(
+    workflow_option = ec.cartesian_chart(
         workflow_counts,
         x="period",
         y="runs",
         color="workflow",
-        color_discrete_map=WORKFLOW_COLORS,
-        labels={"period": grouping, "runs": "Runs", "workflow": "Workflow"},
-        category_orders={"workflow": list(WORKFLOW_LABELS)},
+        kind="bar",
+        stack=True,
+        y_title="Runs",
+        select="single",
+        color_order=list(WORKFLOW_LABELS),
+        legend=True,
     )
-    fig_workflow.update_layout(bargap=0.15, legend_title="Workflow", xaxis_title=None, yaxis_title="Runs")
-    workflow_selection = st.plotly_chart(
-        fig_workflow,
-        width="stretch",
+    workflow_selection = st.echarts_chart(
+        _with_series_colors(workflow_option, WORKFLOW_COLORS),
         on_select="rerun",
         key="ai_runs_by_workflow",
+        alt=f"AI workflow runs per {grouping.lower()}, stacked by workflow",
     )
     st.caption(":material/web_traffic: Click a bar to inspect the runs in that period.")
-    if workflow_selection and workflow_selection["selection"]["points"]:
-        selected_period_start = pd.to_datetime(workflow_selection["selection"]["points"][0]["x"]).to_pydatetime()
+    selected_period_start = _selected_period(workflow_selection, workflow_option)
 
 with chart_tab_outcome:
-    fig_outcome = px.bar(
+    outcome_option = ec.cartesian_chart(
         outcome_counts,
         x="period",
         y="runs",
         color="outcome",
-        color_discrete_map=OUTCOME_COLORS,
-        labels={"period": grouping, "runs": "Runs", "outcome": "Outcome"},
-        category_orders={"outcome": list(OUTCOME_OPTIONS)},
+        kind="bar",
+        stack=True,
+        y_title="Runs",
+        select="single",
+        color_order=list(OUTCOME_OPTIONS),
+        legend=True,
     )
-    fig_outcome.update_layout(bargap=0.15, legend_title="Outcome", xaxis_title=None, yaxis_title="Runs")
-    outcome_selection = st.plotly_chart(
-        fig_outcome,
-        width="stretch",
+    outcome_selection = st.echarts_chart(
+        _with_series_colors(outcome_option, OUTCOME_COLORS),
         on_select="rerun",
         key="ai_runs_by_outcome",
+        alt=f"AI workflow runs per {grouping.lower()}, stacked by outcome",
     )
     st.caption(":material/web_traffic: Click a bar to inspect the runs in that period.")
-    if selected_period_start is None and outcome_selection and outcome_selection["selection"]["points"]:
-        selected_period_start = pd.to_datetime(outcome_selection["selection"]["points"][0]["x"]).to_pydatetime()
+    if selected_period_start is None:
+        selected_period_start = _selected_period(outcome_selection, outcome_option)
 
 with chart_tab_rate:
     if success_rate_df.empty:
         st.info("No succeeded or failed runs in the selected filters.")
     else:
-        fig_rate = px.line(
+        rate_option = ec.cartesian_chart(
             success_rate_df,
             x="period",
             y="success_rate",
             color="workflow",
-            markers=True,
-            color_discrete_map=WORKFLOW_COLORS,
-            labels={"period": grouping, "success_rate": "Success rate (%)", "workflow": "Workflow"},
-            category_orders={"workflow": list(WORKFLOW_LABELS)},
+            y_title="Success rate (%)",
+            value_format="%.1f%%",
+            axis_label_format="{value}%",
+            y_min=0,
+            y_max=100,
+            color_order=list(WORKFLOW_LABELS),
+            legend=True,
         )
-        fig_rate.update_layout(yaxis_range=[0, 100], xaxis_title=None, yaxis_title="Success rate (%)")
-        st.plotly_chart(fig_rate, width="stretch")
+        st.echarts_chart(
+            _with_series_colors(rate_option, WORKFLOW_COLORS),
+            alt=f"Success rate of AI workflow runs per {grouping.lower()}",
+        )
         st.caption("Cancelled runs are excluded from the success rate.")
 
 with chart_tab_duration:
@@ -520,58 +544,55 @@ with chart_tab_duration:
         else:
             st.caption("Cancelled runs are included and are often much shorter than completed runs.")
 
-        fig_duration = px.line(
+        duration_option = ec.cartesian_chart(
             duration_by_period,
             x="period",
             y=duration_column,
             color="workflow",
-            markers=True,
-            color_discrete_map=WORKFLOW_COLORS,
-            labels={
-                "period": grouping,
-                duration_column: duration_label,
-                "workflow": "Workflow",
-            },
-            category_orders={"workflow": list(WORKFLOW_LABELS)},
+            y_title=duration_label,
+            value_format="%.1f min",
+            y_min=0,
+            color_order=list(WORKFLOW_LABELS),
+            legend=True,
         )
-        fig_duration.update_layout(xaxis_title=None, yaxis_title=duration_label)
-        st.plotly_chart(fig_duration, width="stretch")
+        st.echarts_chart(
+            _with_series_colors(duration_option, WORKFLOW_COLORS),
+            alt=f"{duration_stat} AI workflow runtime per {grouping.lower()}",
+        )
 
         with st.container(horizontal=True, vertical_alignment="top"):
-            fig_avg_bar = px.bar(
+            avg_bar_option = ec.cartesian_chart(
                 duration_by_workflow,
                 x="workflow",
                 y=duration_column,
                 color="workflow",
-                color_discrete_map=WORKFLOW_COLORS,
-                labels={"workflow": "Workflow", duration_column: duration_label},
-                category_orders={"workflow": list(WORKFLOW_LABELS)},
-            )
-            fig_avg_bar.update_layout(
+                kind="bar",
+                x_type="category",
+                stack=True,
                 title=f"{duration_stat} runtime by workflow",
-                showlegend=False,
-                xaxis_title=None,
-                yaxis_title=duration_label,
+                y_title=duration_label,
+                value_format="%.1f min",
+                color_order=list(WORKFLOW_LABELS),
+                legend=False,
             )
-            st.plotly_chart(fig_avg_bar, width="stretch")
+            avg_bar_option["tooltip"]["trigger"] = "item"
+            st.echarts_chart(
+                _with_series_colors(avg_bar_option, WORKFLOW_COLORS),
+                alt=f"{duration_stat} runtime per AI workflow",
+            )
 
-            fig_box = px.box(
-                runtime_df,
-                x="workflow",
-                y="duration_minutes",
-                color="workflow",
-                color_discrete_map=WORKFLOW_COLORS,
-                points="outliers",
-                labels={"workflow": "Workflow", "duration_minutes": "Duration (min)"},
-                category_orders={"workflow": list(WORKFLOW_LABELS)},
+            st.echarts_chart(
+                ec.boxplot_chart(
+                    runtime_df,
+                    x="workflow",
+                    y="duration_minutes",
+                    title="Runtime distribution",
+                    y_title="Duration (min)",
+                    value_format="%.1f min",
+                    order=list(WORKFLOW_LABELS),
+                ),
+                alt="Runtime distribution per AI workflow",
             )
-            fig_box.update_layout(
-                title="Runtime distribution",
-                showlegend=False,
-                xaxis_title=None,
-                yaxis_title="Duration (min)",
-            )
-            st.plotly_chart(fig_box, width="stretch")
 
 detail_df = filtered_df
 if selected_period_start is not None:

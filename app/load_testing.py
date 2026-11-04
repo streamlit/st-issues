@@ -7,10 +7,10 @@ from typing import Any
 from zipfile import ZipFile
 
 import pandas as pd
-import plotly.express as px
 import requests
 import streamlit as st
 
+from app.utils import echarts as ec
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
@@ -455,6 +455,28 @@ def display_load_test_comparison(pr_data: dict[str, Any], develop_data: dict[str
     )
 
 
+def scenario_trend_chart(chart_df: pd.DataFrame, *, metric_col: str, y_title: str, value_format: str, alt: str) -> None:
+    """Plot one line per scenario over time, with each run's date and commit in the tooltip."""
+    option = ec.cartesian_chart(
+        chart_df,
+        x="created_at",
+        y=metric_col,
+        color="scenario",
+        y_title=y_title,
+        value_format=value_format,
+        agg="mean",
+        legend=True,
+        tooltip_dims=["Date", "Commit"],
+    )
+    runs = chart_df.drop_duplicates("created_at").set_index("created_at")
+    source = option["dataset"]["source"]
+    option["dataset"]["source"] = source.assign(
+        Date=source["created_at"].dt.strftime("%Y-%m-%d"),
+        Commit=source["created_at"].map(runs["commit_sha"]),
+    )
+    st.echarts_chart(option, alt=alt)
+
+
 def handle_pr_mode(pr_number: str) -> None:
     """Fetch and display load test comparison for a PR number."""
     normalized_pr_number = pr_number.strip()
@@ -609,28 +631,13 @@ for tab, metric_col, label in [
     with tab:
         chart_df = filtered_df.copy()
         chart_df["value_s"] = chart_df[metric_col] / 1000
-        fig = px.line(
+        scenario_trend_chart(
             chart_df,
-            x="created_at",
-            y="value_s",
-            color="scenario",
-            labels={
-                "created_at": "Date",
-                "value_s": f"Initial load {label} (s)",
-                "scenario": "Scenario",
-            },
-            markers=True,
+            metric_col="value_s",
+            y_title=f"Initial load {label} (seconds)",
+            value_format="%.2fs",
+            alt=f"Initial load time {label} per scenario over time",
         )
-        fig.update_layout(
-            xaxis_title="Date",
-            yaxis_title=f"Initial load {label} (seconds)",
-            hovermode="closest",
-        )
-        fig.update_traces(
-            hovertemplate=("<b>Date:</b> %{x|%Y-%m-%d}<br><b>Commit:</b> %{customdata[0]}<br><b>Value:</b> %{y:.2f}s"),
-            customdata=chart_df[["commit_sha"]],
-        )
-        st.plotly_chart(fig, width="stretch")
 
 # ── Rerun time over time ────────────────────────────────────────────────────
 
@@ -644,31 +651,13 @@ for tab, metric_col, label in [
     (tab_p99, "rerun_p99_ms", "p99"),
 ]:
     with tab:
-        chart_df = filtered_df.copy()
-        fig = px.line(
-            chart_df,
-            x="created_at",
-            y=metric_col,
-            color="scenario",
-            labels={
-                "created_at": "Date",
-                metric_col: f"Rerun {label} (ms)",
-                "scenario": "Scenario",
-            },
-            markers=True,
+        scenario_trend_chart(
+            filtered_df,
+            metric_col=metric_col,
+            y_title=f"Rerun {label} (ms)",
+            value_format="%.1f ms",
+            alt=f"Rerun time {label} per scenario over time",
         )
-        fig.update_layout(
-            xaxis_title="Date",
-            yaxis_title=f"Rerun {label} (ms)",
-            hovermode="closest",
-        )
-        fig.update_traces(
-            hovertemplate=(
-                "<b>Date:</b> %{x|%Y-%m-%d}<br><b>Commit:</b> %{customdata[0]}<br><b>Value:</b> %{y:.1f} ms"
-            ),
-            customdata=chart_df[["commit_sha"]],
-        )
-        st.plotly_chart(fig, width="stretch")
 
 # ── Memory usage over time ──────────────────────────────────────────────────
 
@@ -682,26 +671,13 @@ for tab, metric_col, label in [
     (tab_avg, "memory_avg_mb", "Average RSS (MB)"),
 ]:
     with tab:
-        fig = px.line(
+        scenario_trend_chart(
             filtered_df,
-            x="created_at",
-            y=metric_col,
-            color="scenario",
-            labels={
-                "created_at": "Date",
-                metric_col: label,
-                "scenario": "Scenario",
-            },
-            markers=True,
+            metric_col=metric_col,
+            y_title=label,
+            value_format="%.1f MB",
+            alt=f"{label} per scenario over time",
         )
-        fig.update_layout(xaxis_title="Date", yaxis_title=label, hovermode="closest")
-        fig.update_traces(
-            hovertemplate=(
-                "<b>Date:</b> %{x|%Y-%m-%d}<br><b>Commit:</b> %{customdata[0]}<br><b>Value:</b> %{y:.1f} MB"
-            ),
-            customdata=filtered_df[["commit_sha"]],
-        )
-        st.plotly_chart(fig, width="stretch")
 
 # ── CPU usage over time ─────────────────────────────────────────────────────
 
@@ -714,47 +690,25 @@ for tab, metric_col, label in [
     (tab_peak_cpu, "cpu_peak_pct", "Peak CPU (%)"),
 ]:
     with tab:
-        fig = px.line(
+        scenario_trend_chart(
             filtered_df,
-            x="created_at",
-            y=metric_col,
-            color="scenario",
-            labels={
-                "created_at": "Date",
-                metric_col: label,
-                "scenario": "Scenario",
-            },
-            markers=True,
+            metric_col=metric_col,
+            y_title=label,
+            value_format="%.1f%%",
+            alt=f"{label} per scenario over time",
         )
-        fig.update_layout(xaxis_title="Date", yaxis_title=label, hovermode="closest")
-        fig.update_traces(
-            hovertemplate=("<b>Date:</b> %{x|%Y-%m-%d}<br><b>Commit:</b> %{customdata[0]}<br><b>Value:</b> %{y:.1f}%"),
-            customdata=filtered_df[["commit_sha"]],
-        )
-        st.plotly_chart(fig, width="stretch")
 
 # ── Test duration over time ─────────────────────────────────────────────────
 
 st.subheader("Scenario duration over time")
 
-fig_duration = px.line(
+scenario_trend_chart(
     filtered_df,
-    x="created_at",
-    y="duration_seconds",
-    color="scenario",
-    labels={
-        "created_at": "Date",
-        "duration_seconds": "Duration (s)",
-        "scenario": "Scenario",
-    },
-    markers=True,
+    metric_col="duration_seconds",
+    y_title="Duration (seconds)",
+    value_format="%.1fs",
+    alt="Load test duration per scenario over time",
 )
-fig_duration.update_layout(xaxis_title="Date", yaxis_title="Duration (seconds)", hovermode="closest")
-fig_duration.update_traces(
-    hovertemplate=("<b>Date:</b> %{x|%Y-%m-%d}<br><b>Commit:</b> %{customdata[0]}<br><b>Duration:</b> %{y:.1f}s"),
-    customdata=filtered_df[["commit_sha"]],
-)
-st.plotly_chart(fig_duration, width="stretch")
 
 # ── Run history table ────────────────────────────────────────────────────────
 

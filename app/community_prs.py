@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
+from app.utils import echarts as ec
 from app.utils.github_utils import (
     STREAMLIT_TEAM_MEMBERS,
     fetch_pr_info,
@@ -239,40 +239,42 @@ else:  # Year
     df_grouped["created_at"] = pd.to_datetime(df_grouped["year"], format="%Y")
     df_grouped = df_grouped.drop("year", axis=1)
 
-# Create the stacked bar chart
-fig = px.bar(
+pr_status_colors = {
+    "Open": "#FFA500",
+    "Merged": "#008000",
+    "Closed without merge": "#FF0000",
+}
+prs_option = ec.cartesian_chart(
     df_grouped,
     x="created_at",
     y="count",
     color="status",
-    labels={
-        "created_at": "Created date",
-        "count": "Number of PRs",
-        "status": "PR status",
-    },
-    color_discrete_map={
-        "Open": "#FFA500",  # Orange
-        "Merged": "#008000",  # Green
-        "Closed without merge": "#FF0000",  # Red
-    },
+    kind="bar",
+    stack=True,
+    x_title="Created date",
+    y_title="Number of PRs",
+    select="single",
+    color_order=list(pr_status_colors),
+    legend=True,
 )
+prs_option["color"] = [pr_status_colors.get(series["name"], "#8B8E97") for series in prs_option["series"]]
 
-# Customize the chart
-fig.update_layout(
-    xaxis_title="Created date",
-    yaxis_title="Number of PRs",
-    bargap=0.1,
-    legend_title="PR status",
+event_data = st.echarts_chart(
+    prs_option,
+    on_select="rerun",
+    key="community_prs_over_time",
+    alt=f"Community PRs opened per {time_grouping.lower()}, stacked by status",
 )
-
-# Display the chart
-event_data = st.plotly_chart(fig, width="stretch", on_select="rerun")
 
 # Show PRs for selected time period when a bar is clicked
-if event_data and "selection" in event_data and event_data["selection"]["points"]:
-    selected_point = event_data["selection"]["points"][0]
-    selected_date = pd.to_datetime(selected_point["x"])
-    selected_status = selected_point.get("customdata", [None])[0] if "customdata" in selected_point else None
+prs_source = prs_option["dataset"]["source"]
+selected_bar = next(
+    (group for group in event_data.selection.selected if 0 <= group["data_indices"][0] < len(prs_source)),
+    None,
+)
+if selected_bar:
+    selected_date = pd.to_datetime(prs_source.iloc[selected_bar["data_indices"][0]]["created_at"])
+    selected_status = selected_bar["series_name"]
 
     # Filter PRs based on time grouping
     if time_grouping == "Day":
@@ -403,23 +405,19 @@ if not closed_prs.empty:
     velocity_df["month"] = velocity_df["month"].dt.start_time
 
     # Create a line chart for PR velocity
-    fig_velocity = px.line(
+    velocity_option = ec.cartesian_chart(
         velocity_df,
         x="month",
         y=["days_to_merge", "days_to_close"],
-        labels={"month": "Month", "value": "Average days", "variable": "Metric"},
         title="Average time to merge/close PRs by month",
-    )
-
-    # Customize the chart
-    fig_velocity.update_layout(
-        xaxis_title="Month",
-        yaxis_title="Average days",
-        legend_title="Metric",
+        y_title="Average days",
+        value_format="%.1f days",
+        symbols=False,
+        series_names={"days_to_merge": "Days to merge", "days_to_close": "Days to close"},
     )
 
     # Display the chart
-    st.plotly_chart(fig_velocity, width="stretch")
+    st.echarts_chart(velocity_option, alt="Average days to merge and close community PRs by month")
 
     # Display overall metrics
     col1, col2 = st.columns(2)

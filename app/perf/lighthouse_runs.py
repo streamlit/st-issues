@@ -2,7 +2,6 @@ import concurrent.futures
 import operator
 from datetime import datetime
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -14,13 +13,14 @@ from app.perf.utils.artifacts import get_artifact_results
 from app.perf.utils.commit_details import (
     render_selected_commit_sidebar,
     reset_selection_on_page_change,
-    update_selected_commit_from_selection,
+    update_selected_commit,
 )
 from app.perf.utils.perf_github_artifacts import (
     append_to_performance_scores,
     get_commit_hashes_for_branch_name,
 )
 from app.perf.utils.tab_nav import segmented_tabs
+from app.utils import echarts as ec
 
 TITLE = "Lighthouse performance"
 
@@ -134,53 +134,61 @@ df = df.sort_values(by=["app_name", "index"])
 # Calculate rolling mean
 df["rolling_mean"] = df.groupby("app_name")["score"].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
 
-points_selection = alt.selection_point(
-    name="points",
-    fields=["commit_sha_full"],
-    on="click",
-    clear="dblclick",
-    toggle=False,
-)
+df["score"] = df["score"].round(1)
+df["rolling_mean"] = df["rolling_mean"].round(1)
+df["date"] = df["datetime"].dt.strftime("%Y-%m-%d %H:%M")
 
-chart = (
-    alt.Chart(df)
-    .mark_point()
-    .encode(  # ty: ignore[unresolved-attribute]
-        x=alt.X(
-            "index:Q",
-            # Ensure x-axis shows only integers
-            axis=alt.Axis(format="d"),
-        ),
-        y=alt.Y("score:Q", scale=alt.Scale(domain=[0, 100])),
-        color="app_name:N",
-        tooltip=["datetime:T", "score:Q", "app_name:N", "commit_hash:N"],
+app_frames = [app_df.reset_index(drop=True) for _app_name, app_df in df.groupby("app_name", sort=True)]
+series: list[dict] = []
+series_frames: list[pd.DataFrame] = []
+for dataset_index, app_df in enumerate(app_frames):
+    app_name = str(app_df["app_name"].iloc[0])
+    series.extend(
+        [
+            {
+                "type": "line",
+                "name": app_name,
+                "datasetIndex": dataset_index,
+                "encode": {"x": "index", "y": "rolling_mean"},
+                "tooltip": ec.item_tooltip(
+                    ["rolling_mean", "date", "commit_hash"], labels={"rolling_mean": "Rolling mean"}
+                ),
+                "showSymbol": False,
+            },
+            {
+                "type": "scatter",
+                "name": app_name,
+                "datasetIndex": dataset_index,
+                "encode": {"x": "index", "y": "score"},
+                "tooltip": ec.item_tooltip(["score", "date", "commit_hash"]),
+                "selectedMode": "single",
+                "symbolSize": 7,
+            },
+        ]
     )
-    .properties(title="Lighthouse Scores Over Time")
-    .add_params(points_selection)
-)
+    series_frames.extend([app_df, app_df])
 
-rolling_mean_line = (
-    alt.Chart(df)
-    .mark_line()
-    .encode(  # ty: ignore[unresolved-attribute]
-        x=alt.X(
-            "index:Q",
-            # Ensure x-axis shows only integers
-            axis=alt.Axis(format="d"),
-        ),
-        y=alt.Y("rolling_mean:Q"),
-        color="app_name:N",
-        tooltip=["datetime:T", "rolling_mean:Q", "app_name:N", "commit_hash:N"],
-    )
-)
-
-selection = st.altair_chart(
-    rolling_mean_line + chart,
-    width="stretch",
+selection = st.echarts_chart(
+    {
+        "title": {"text": "Lighthouse scores over time"},
+        "legend": {"type": "scroll", "top": 32},
+        "grid": {"top": 72},
+        "tooltip": {"trigger": "item"},
+        "dataset": [{"source": app_df} for app_df in app_frames],
+        "xAxis": {"type": "value", "name": "Run", "minInterval": 1},
+        "yAxis": {"type": "value", "min": 0, "max": 100, "name": "Score"},
+        "series": series,
+    },
+    key="lighthouse-runs",
     on_select="rerun",
-    selection_mode="points",
+    alt="Lighthouse scores per app over recent develop runs, with five-run rolling means",
 )
-update_selected_commit_from_selection(selection, selection_key="lighthouse-runs")
+selected_shas = [
+    series_frames[group["series_index"]]["commit_sha_full"].iloc[row]
+    for group in selection.selection.selected
+    for row in group["data_indices"]
+]
+update_selected_commit(selected_shas, selection_key="lighthouse-runs")
 
 with st.expander("Raw Data"):
     st.dataframe(df)

@@ -6,11 +6,10 @@ from typing import Any
 from zipfile import ZipFile
 
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+from app.utils import echarts as ec
 from app.utils.coverage_parsers import extract_python_coverage_summary, parse_python_coverage_payload
 from app.utils.github_utils import (
     download_artifact,
@@ -97,6 +96,69 @@ def parse_coverage_json(coverage_file: Any) -> dict | None:
 def extract_coverage_summary(coverage_data: dict) -> dict[str, Any]:
     """Extract summary statistics from coverage data."""
     return extract_python_coverage_summary(coverage_data)
+
+
+COVERAGE_GAUGE_BANDS = ((0.6, "#d73027"), (0.8, "#f5a623"), (1.0, "#1a9850"))
+COVERAGE_RANGE_COLORS = {
+    "0-20%": "#d73027",
+    "20-40%": "#fc8d59",
+    "40-60%": "#fee08b",
+    "60-80%": "#91cf60",
+    "80-100%": "#1a9850",
+}
+
+
+def build_coverage_treemap_nodes(df: pd.DataFrame, path: list[str]) -> list[dict[str, Any]]:
+    """Nest files into treemap nodes with ``value: [total lines, coverage %, covered, missed]``.
+
+    Parent coverage is the line-weighted average of its files, like Plotly treemaps.
+    """
+    nodes: list[dict[str, Any]] = []
+    for name, group in df.groupby(path[0], sort=False):
+        total_lines = int(group["Total Lines"].sum())
+        if total_lines > 0:
+            coverage_pct = (group["Coverage %"] * group["Total Lines"]).sum() / total_lines
+        else:
+            coverage_pct = group["Coverage %"].mean()
+        node: dict[str, Any] = {
+            "name": str(name),
+            "value": [
+                total_lines,
+                round(float(coverage_pct), 2),
+                int(group["Lines Covered"].sum()),
+                int(group["Lines Missed"].sum()),
+            ],
+        }
+        if len(path) > 1:
+            node["children"] = build_coverage_treemap_nodes(group, path[1:])
+        nodes.append(node)
+    return sorted(nodes, key=lambda node: node["value"][0], reverse=True)
+
+
+def coverage_bar_chart(df: pd.DataFrame, *, x: str, x_title: str, visual_map: dict[str, Any]) -> dict[str, Any]:
+    """Build a horizontal bar chart of a coverage metric per file, lowest value on top.
+
+    Files that share a name are labeled with their path so each one gets its own bar.
+    """
+    chart_df = df[["Filename", x]].assign(
+        Filename=df["Filename"].where(~df["Filename"].duplicated(keep=False), df["Path"])
+    )
+    option = ec.cartesian_chart(
+        chart_df,
+        x="Filename",
+        y=x,
+        kind="bar",
+        x_type="category",
+        horizontal=True,
+        y_title=x_title,
+        value_format="%.2f%%",
+        axis_label_format="{value}%",
+    )
+    option["yAxis"]["axisLabel"] = {"interval": 0}
+    option["xAxis"]["nameLocation"] = "middle"
+    option["xAxis"]["nameGap"] = 28
+    option["visualMap"] = {"show": False, "dimension": 1, "seriesIndex": 0, **visual_map}
+    return option
 
 
 @st.cache_data(show_spinner=False)
@@ -193,30 +255,11 @@ def display_coverage_details(
         st.metric("Overall Coverage", f"{overall_coverage:.2f}%")
 
     # Create a gauge chart for overall coverage
-    fig = go.Figure(
-        go.Indicator(
-            mode="gauge+number",
-            value=overall_coverage,
-            domain={"x": [0, 1], "y": [0, 1]},
-            title={"text": "Overall Coverage"},
-            gauge={
-                "axis": {"range": [0, 100]},
-                "bar": {"color": "darkblue"},
-                "steps": [
-                    {"range": [0, 60], "color": "red"},
-                    {"range": [60, 80], "color": "orange"},
-                    {"range": [80, 100], "color": "green"},
-                ],
-                "threshold": {
-                    "line": {"color": "black", "width": 4},
-                    "thickness": 0.75,
-                    "value": overall_coverage,
-                },
-            },
-        )
+    st.echarts_chart(
+        ec.gauge_chart(float(overall_coverage), title="Overall Coverage", bands=COVERAGE_GAUGE_BANDS),
+        height=300,
+        alt=f"Overall Python test coverage: {overall_coverage:.2f}%",
     )
-
-    st.plotly_chart(fig, width="stretch")
 
     # Display file-level coverage
     st.header("File Coverage Details")
@@ -335,17 +378,18 @@ def display_coverage_details(
         # Extract directory structure
         treemap_df["Directory"] = treemap_df["Path"].apply(lambda x: pathlib.Path(x).parent.name or "root")
 
-        fig = px.treemap(
-            treemap_df,
-            path=["Directory", "Filename"],
-            values="Total Lines",
-            color="Coverage %",
-            color_continuous_scale=["red", "orange", "green"],
-            range_color=[0, 100],
-            hover_data=["Lines Covered", "Lines Missed", "Total Lines"],
+        treemap_option = ec.treemap_chart(
+            build_coverage_treemap_nodes(treemap_df, ["Directory", "Filename"]),
+            name="Coverage",
+            color_range=ec.RED_TO_GREEN,
+            color_min=0,
+            color_max=100,
+            color_dimension=1,
         )
-
-        st.plotly_chart(fig, width="stretch")
+        treemap_option["tooltip"]["formatter"] = (
+            "{b}<br/>Coverage: {@[1]}%<br/>Lines covered: {@[2]}<br/>Lines missed: {@[3]}<br/>Total lines: {@[0]}"
+        )
+        st.echarts_chart(treemap_option, height=550, alt="Python files sized by lines and colored by test coverage")
 
         st.subheader("Coverage by File")
 
@@ -355,22 +399,18 @@ def display_coverage_details(
             display_df = display_df.head(20)
             st.info("Showing only the 20 files with the lowest coverage. Use the table above to see all files.")
 
-        fig = px.bar(
+        bar_option = coverage_bar_chart(
             display_df,
-            y="Filename",
             x="Coverage %",
-            orientation="h",
-            color="Coverage %",
-            color_continuous_scale=["red", "orange", "green"],
-            range_color=[0, 100],
-            labels={
-                "Coverage %": "Coverage Percentage",
-                "Filename": "Filename",
-            },
+            x_title="Coverage Percentage",
+            visual_map={"type": "continuous", "min": 0, "max": 100, "inRange": {"color": ec.RED_TO_GREEN}},
         )
-
-        fig.update_layout(yaxis={"categoryorder": "total descending"})
-        st.plotly_chart(fig, width="stretch")
+        bar_option["xAxis"]["max"] = 100
+        st.echarts_chart(
+            bar_option,
+            height=max(300, 26 * len(display_df) + 80),
+            alt="Python files with the lowest test coverage",
+        )
 
         # Display coverage distribution
         st.subheader("Coverage Distribution of Files")
@@ -387,23 +427,22 @@ def display_coverage_details(
         )
 
         # Count files in each bin
-        distribution = coverage_df["Coverage Range"].value_counts().reindex(labels)
+        distribution = coverage_df["Coverage Range"].value_counts().reindex(labels, fill_value=0)
+        distribution_df = distribution[distribution > 0].rename_axis("Coverage Range").reset_index(name="Files")
+        distribution_df["Coverage Range"] = distribution_df["Coverage Range"].astype(str)
 
         # Create a pie chart
-        fig = px.pie(
-            names=distribution.index,
-            values=distribution.values,
-            color=distribution.index,
-            color_discrete_map={
-                "0-20%": "red",
-                "20-40%": "orangered",
-                "40-60%": "orange",
-                "60-80%": "yellowgreen",
-                "80-100%": "green",
-            },
+        st.echarts_chart(
+            ec.pie_chart(
+                distribution_df,
+                names="Coverage Range",
+                values="Files",
+                donut=False,
+                value_format="%,d files",
+                colors=[COVERAGE_RANGE_COLORS[name] for name in distribution_df["Coverage Range"]],
+            ),
+            alt="Share of Python files per coverage range",
         )
-
-        st.plotly_chart(fig, width="stretch")
 
 
 def get_latest_develop_coverage() -> dict[str, Any] | None:
@@ -756,23 +795,23 @@ def display_pr_detailed_comparison(pr_coverage_data: dict, develop_coverage_data
         display_df = changed_files
 
     if len(display_df) > 0:
-        fig = px.bar(
+        display_df = display_df.assign(**{"Coverage Change": display_df["Coverage Change"].round(2)})
+        display_df = display_df.sort_values("Coverage Change", ascending=True)
+        change_option = coverage_bar_chart(
             display_df,
-            y="Filename",
             x="Coverage Change",
-            orientation="h",
-            color="Coverage Change",
-            color_continuous_scale=["red", "white", "green"],
-            color_continuous_midpoint=0,
-            labels={
-                "Coverage Change": "Coverage Change (%)",
-                "Filename": "Filename",
+            x_title="Coverage Change (%)",
+            visual_map={
+                "type": "piecewise",
+                "pieces": [{"lt": 0, "color": "#d73027"}, {"gte": 0, "color": "#1a9850"}],
             },
-            title="Files with Coverage Changes",
         )
-
-        fig.update_layout(yaxis={"categoryorder": "total descending"})
-        st.plotly_chart(fig, width="stretch")
+        change_option["series"][0]["label"] = {"show": True, "position": "right", "formatter": "{@[1]}%"}
+        st.echarts_chart(
+            change_option,
+            height=max(300, 26 * len(display_df) + 80),
+            alt="Coverage change per Python file in this PR compared to develop",
+        )
     else:
         st.info("No files with coverage changes found.")
 
@@ -903,69 +942,43 @@ with col3:
     )
 
 
-# Create a Plotly figure for the coverage over time
-fig_coverage = px.line(
-    df,
+# Create a chart for the coverage over time
+coverage_chart_df = df[["created_at", "coverage_pct", "commit_sha", "total_stmts", "total_miss"]].assign(
+    date=df["created_at"].dt.strftime("%Y-%m-%d"),
+    coverage_pct=df["coverage_pct"].round(2),
+)
+coverage_option = ec.cartesian_chart(
+    coverage_chart_df,
     x="created_at",
     y="coverage_pct",
     title="Code Coverage Over Time",
-    labels={"created_at": "Date", "coverage_pct": "Coverage %"},
-    markers=True,
+    x_title="Date",
+    y_title="Coverage %",
+    tooltip_dims=["commit_sha", "total_stmts", "total_miss"],
 )
-
-# Add hover information
-fig_coverage.update_traces(
-    hovertemplate="<b>Date:</b> %{x|%Y-%m-%d}<br><b>Commit:</b> %{customdata[0]}<br><b>Coverage:</b> %{y:.2f}%<br><b>Total Statements:</b> %{customdata[1]}<br><b>Missed Statements:</b> %{customdata[2]}",
-    customdata=df[["commit_sha", "total_stmts", "total_miss"]],
+coverage_option["tooltip"]["trigger"] = "axis"
+coverage_option["tooltip"]["formatter"] = (
+    "<b>Date:</b> {@date}<br/><b>Commit:</b> {@commit_sha}<br/><b>Coverage:</b> {@coverage_pct}%"
+    "<br/><b>Total Statements:</b> {@total_stmts}<br/><b>Missed Statements:</b> {@total_miss}"
 )
+st.echarts_chart(coverage_option, height=450, alt="Python test coverage percentage per develop commit over time")
 
-# Update layout
-fig_coverage.update_layout(
-    xaxis_title="Date",
-    yaxis_title="Coverage %",
-    hovermode="closest",
-)
-
-# Display the chart with selection
-plotly_chart_state = st.plotly_chart(
-    fig_coverage,
-    width="stretch",
-    theme="streamlit",
-)
-
-# Create a multi-line chart for statements with Plotly
-df_melted = pd.melt(
-    df,
-    id_vars=["created_at", "commit_sha"],
-    value_vars=["total_stmts", "covered_stmts", "total_miss"],
-    var_name="Metric",
-    value_name="Value",
-)
-
-fig_metrics = px.line(
-    df_melted,
+# Create a multi-line chart for statements
+metrics_option = ec.cartesian_chart(
+    df[["created_at", "total_stmts", "covered_stmts", "total_miss"]],
     x="created_at",
-    y="Value",
-    color="Metric",
+    y=["total_stmts", "covered_stmts", "total_miss"],
     title="Coverage Metrics Over Time",
-    labels={"created_at": "Date", "Value": "Count", "Metric": "Metric"},
-    markers=True,
+    x_title="Date",
+    y_title="Count",
+    value_format="localized",
+    series_names={
+        "total_stmts": "Total statements",
+        "covered_stmts": "Covered statements",
+        "total_miss": "Missed statements",
+    },
 )
-
-# Add hover information
-fig_metrics.update_traces(
-    hovertemplate="<b>Date:</b> %{x|%Y-%m-%d}<br><b>Commit:</b> %{customdata[0]}<br><b>Value:</b> %{y}<br><b>Metric:</b> %{customdata[1]}",
-    customdata=df_melted[["commit_sha", "Metric"]],
-)
-
-# Update layout
-fig_metrics.update_layout(
-    xaxis_title="Date",
-    yaxis_title="Count",
-    hovermode="closest",
-)
-
-st.plotly_chart(fig_metrics, width="stretch", theme="streamlit")
+st.echarts_chart(metrics_option, height=450, alt="Total, covered, and missed Python statements over time")
 
 # Create a table with the data
 st.subheader("Coverage History")

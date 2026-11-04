@@ -4,9 +4,9 @@ import operator
 import pathlib
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
+from app.utils import echarts as ec
 from app.utils.github_utils import get_all_github_issues
 from app.utils.issue_formatting import get_issue_type, reactions_to_str
 from app.utils.streamlit_date_input import normalize_date_range
@@ -95,28 +95,31 @@ else:  # Year
     df_grouped["closed_at"] = pd.to_datetime(df_grouped["closed_at"], format="%Y")
 
 
-fig = px.bar(
+reactions_option = ec.cartesian_chart(
     df_grouped,
     x="closed_at",
     y="total_reactions",
-    labels={"closed_at": "Closed Date", "total_reactions": "Total Reactions"},
-)
-
-# Customize the chart
-fig.update_layout(
-    xaxis_title="Closed Date",
-    yaxis_title="Total Reactions",
-    bargap=0.1,
+    kind="bar",
+    x_title="Closed date",
+    y_title="Total reactions",
+    select="single",
+    series_names={"total_reactions": "Total reactions"},
 )
 
 
 # Display the chart
-event_data = chart_container.plotly_chart(fig, width="stretch", on_select="rerun")
+event_data = chart_container.echarts_chart(
+    reactions_option,
+    on_select="rerun",
+    key="issue_reactions_over_time",
+    alt=f"Total reactions on closed issues per {time_grouping.lower()}",
+)
 
 # Show issues for selected month when a bar is clicked
-if event_data and "selection" in event_data and event_data["selection"]["points"]:
-    selected_point = event_data["selection"]["points"][0]
-    selected_date = pd.to_datetime(selected_point["x"])
+reactions_source = reactions_option["dataset"]["source"]
+selected_rows = [row for row in ec.selected_rows(event_data) if row < len(reactions_source)]
+if selected_rows:
+    selected_date = pd.to_datetime(reactions_source.iloc[selected_rows[0]]["closed_at"])
 
     # Filter issues based on time grouping
     if time_grouping == "Day":
@@ -235,29 +238,32 @@ with title_container:
     st.caption(":material/web_traffic: Click on a bar to view all open issues with that label.")
 
 top_labels = label_df.groupby("label")["reactions"].sum().nlargest(top_x).reset_index()
-# Create the bar chart for top 10 feature labels
-fig_labels = px.bar(
+labels_option = ec.cartesian_chart(
     top_labels,
     x="label",
     y="reactions",
-    labels={"label": "Feature Label", "reactions": "Total Reactions"},
+    kind="bar",
+    x_type="category",
+    x_title="Feature label",
+    y_title="Total reactions",
+    select="single",
+    series_names={"reactions": "Total reactions"},
 )
-
-# Customize the chart
-fig_labels.update_layout(
-    xaxis_title="Feature Label",
-    yaxis_title="Total Reactions",
-    xaxis_tickangle=-45,
-    bargap=0.1,
-)
+labels_option["xAxis"]["axisLabel"] = {"rotate": 45, "interval": 0}
 
 # Display the chart
-feature_event_data = chart_container.plotly_chart(fig_labels, width="stretch", on_select="rerun")
+feature_event_data = chart_container.echarts_chart(
+    labels_option,
+    on_select="rerun",
+    key="feature_label_reactions",
+    alt=f"Top {top_x} feature labels by total reactions on open issues",
+)
 
 # Show issues for selected feature label when a bar is clicked
-if feature_event_data and "selection" in feature_event_data and feature_event_data["selection"]["points"]:
-    selected_point = feature_event_data["selection"]["points"][0]
-    selected_label = selected_point["x"]
+labels_source = labels_option["dataset"]["source"]
+selected_label_rows = [row for row in ec.selected_rows(feature_event_data) if row < len(labels_source)]
+if selected_label_rows:
+    selected_label = labels_source.iloc[selected_label_rows[0]]["label"]
 
     # Filter issues with the selected feature label
     selected_feature_issues = open_issues_df[

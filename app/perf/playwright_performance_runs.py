@@ -2,7 +2,6 @@ import concurrent.futures
 import operator
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 from app.perf import (
@@ -11,10 +10,11 @@ from app.perf import (
     playwright_writing_a_test,
 )
 from app.perf.utils.artifacts import get_artifact_results
+from app.perf.utils.charting import run_distribution_chart
 from app.perf.utils.commit_details import (
     render_selected_commit_sidebar,
     reset_selection_on_page_change,
-    update_selected_commit_from_selection,
+    update_selected_commit,
 )
 from app.perf.utils.help_text import get_help_text
 from app.perf.utils.perf_github_artifacts import (
@@ -24,6 +24,7 @@ from app.perf.utils.tab_nav import segmented_tabs
 from app.perf.utils.test_diff_analyzer import (
     find_and_remove_outliers,
 )
+from app.utils import echarts as ec
 
 TITLE = "Playwright performance"
 
@@ -239,19 +240,8 @@ for metric_name in filtered_test_names:
         metric_help_text = get_help_text(short_metric_name)
         display_metric_name = format_metric_name(short_metric_name)
 
-        scatter_fig = px.scatter(
-            df,
-            x="index",
-            y="value",
-            # title=metric_name,
-            hover_data=[
-                "timestamp",
-                "commit_hash",
-            ],  # Display commit hash in hover data
-            custom_data=["commit_sha_full"],
-        )
-        scatter_fig.update_traces(marker=dict(symbol="circle", opacity=0.6))
-        mean_df = df.groupby("index").agg({"value": "mean", "commit_sha_full": "first"}).reset_index()
+        df["run"] = df["commit_hash"]
+        mean_df = df.groupby("run", sort=False).agg(mean=("value", "mean")).reset_index()
 
         if y_domain_includes_zero:
             data_min = min([min(df["value"]), 0])
@@ -266,34 +256,17 @@ for metric_name in filtered_test_names:
         y_min = data_min - range_padding
         y_max = data_max + range_padding
 
-        scatter_fig.update_layout(yaxis_range=[y_min, y_max], clickmode="event+select")
-
-        if show_mean_line:
-            line_fig = px.line(mean_df, x="index", y="value", custom_data=["commit_sha_full"])
-
-            for trace in line_fig.data:
-                scatter_fig.add_trace(trace)
-
-        if show_boxplot:
-            boxplot_fig = px.box(df, x="index", y="value", title=display_metric_name, custom_data=["commit_sha_full"])
-            for trace in boxplot_fig.data:
-                scatter_fig.add_trace(trace)
-
-        box_traces: list = []
-        line_traces: list = []
-        marker_traces: list = []
-        other_traces: list = []
-        for trace in scatter_fig.data:
-            mode = getattr(trace, "mode", "") or ""
-            if trace.type == "box":
-                box_traces.append(trace)
-            elif trace.type == "scatter" and "markers" in mode:
-                marker_traces.append(trace)
-            elif trace.type == "scatter" and "lines" in mode:
-                line_traces.append(trace)
-            else:
-                other_traces.append(trace)
-        scatter_fig.data = tuple(box_traces + line_traces + other_traces + marker_traces)
+        option = run_distribution_chart(
+            df,
+            runs=[commit_hash[:7] for commit_hash in commit_hashes_tuple],
+            value="value",
+            stats=ec.boxplot_stats(df, group="run", value="value")[0] if show_boxplot else None,
+            mean=mean_df if show_mean_line else None,
+            value_label=display_metric_name,
+            y_min=float(y_min),
+            y_max=float(y_max),
+            tooltip_dims=["timestamp", "commit_hash"],
+        )
 
         # Use a fixed-width tile so the horizontal flex container can lay out
         # multiple charts per row and wrap naturally on smaller screens.
@@ -302,14 +275,16 @@ for metric_name in filtered_test_names:
             f"**{display_metric_name}**",
             # help=metric_help_text,
         )
-        selection = tile.plotly_chart(
-            scatter_fig,
+        selection = tile.echarts_chart(
+            option,
             key=f"playwright-{metric_name}",
-            width="stretch",
             on_select="rerun",
-            selection_mode="points",
+            alt=f"{display_metric_name} per commit, oldest first",
         )
-        update_selected_commit_from_selection(selection, selection_key=f"playwright-{metric_name}")
+        update_selected_commit(
+            [df["commit_sha_full"].iloc[row] for row in ec.selected_rows(selection)],
+            selection_key=f"playwright-{metric_name}",
+        )
 
 
 st.divider()

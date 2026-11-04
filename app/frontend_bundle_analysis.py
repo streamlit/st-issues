@@ -2,16 +2,16 @@ import io
 import json
 import zipfile
 from datetime import datetime, timedelta
+from typing import Any
 
-import altair as alt
 import humanize
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
 
-from app.bundle_release_history import release_rule_layer
+from app.bundle_release_history import release_mark_lines, style_markers
 from app.bundle_release_history import render as render_release_history
+from app.utils import echarts as ec
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
@@ -247,9 +247,7 @@ def build_treemap_dataframe(bundle_data: list | None) -> pd.DataFrame:
     if df.empty:
         return df
 
-    df = df.groupby(["Category", "Label"], as_index=False).agg({"Size": "sum"})
-    df["Size (Human)"] = df["Size"].apply(format_bytes)
-    return df
+    return df.groupby(["Category", "Label"], as_index=False).agg({"Size": "sum"})
 
 
 def render_bundle_treemap(title: str, bundle_data: list | None) -> None:
@@ -258,18 +256,11 @@ def render_bundle_treemap(title: str, bundle_data: list | None) -> None:
         st.warning(f"No bundle data available for {title.lower()}.")
         return
 
-    fig = px.treemap(
-        df,
-        path=["Category", "Label"],
-        values="Size",
-        color="Size",
-        color_continuous_scale="Blues",
-        hover_data={"Size (Human)": True},
-    )
-    fig.update_traces(hovertemplate="<b>%{label}</b><br>Size: %{customdata[0]}<extra></extra>")  # ruff:ignore[missing-f-string-syntax]
+    nodes = ec.treemap_data(df, path=["Category", "Label"], value="Size")
+    option = ec.treemap_chart(nodes, name=title, value_format="bytes", color_range=ec.BLUES)
 
     st.markdown(f"**{title}**")
-    st.plotly_chart(fig, width="stretch")
+    st.echarts_chart(option, height=450, alt=f"{title} composition by chunk size")
 
 
 def display_pr_bundle_comparison(
@@ -692,65 +683,41 @@ st.subheader("Bundle Size Trends — recent commits")
 tab_gzip, tab_brotli, tab_parsed = st.tabs(["Gzip Size", "Brotli Size", "Parsed Size"])
 
 
-def create_trend_chart(df: pd.DataFrame, metric_suffix: str, title: str) -> alt.Chart:
-    chart_data = df.melt(
-        id_vars=["created_at", "commit_sha"],
-        value_vars=[f"total_{metric_suffix}", f"entry_{metric_suffix}"],
-        var_name="Category",
-        value_name="Size",
+def create_trend_chart(df: pd.DataFrame, metric_suffix: str, title: str) -> dict[str, Any]:
+    total, entry = f"total_{metric_suffix}", f"entry_{metric_suffix}"
+    option = ec.cartesian_chart(
+        df[["created_at", total, entry, "commit_sha"]],
+        x="created_at",
+        y=[total, entry],
+        title=title,
+        x_title="Date",
+        y_title="Size (Bytes)",
+        value_format="bytes",
+        series_names={total: "Total", entry: "Entry"},
+        zoom=True,
+        # Releases inside the window, so a commit-level move can be read against the
+        # release that shipped it.
+        mark_lines=release_mark_lines(df["created_at"].min(), df["created_at"].max()),
     )
-
-    # Rename categories for legend
-    chart_data["Category"] = chart_data["Category"].replace(
-        {
-            f"total_{metric_suffix}": "Total",
-            f"entry_{metric_suffix}": "Entry",
-        }
-    )
-
-    # Add human readable size for tooltip
-    chart_data["Size (Human)"] = chart_data["Size"].apply(format_bytes)
-
-    chart = (
-        alt.Chart(chart_data)
-        .mark_line(point=True)
-        .encode(  # ty: ignore[unresolved-attribute]
-            x=alt.X("created_at", title="Date"),
-            y=alt.Y("Size", title="Size (Bytes)"),
-            color="Category",
-            tooltip=[
-                alt.Tooltip("created_at", title="Date", format="%Y-%m-%d %H:%M"),
-                alt.Tooltip("Category", title="Type"),
-                alt.Tooltip("Size (Human)", title="Size"),
-                alt.Tooltip("commit_sha", title="Commit"),
-            ],
-        )
-        .properties(title=title)
-        .interactive()
-    )
-
-    # Releases inside the window, so a commit-level move can be read against the
-    # release that shipped it.
-    markers = release_rule_layer(chart_data["created_at"].min(), chart_data["created_at"].max())
-    return chart + markers if markers is not None else chart
+    return style_markers(option)
 
 
 with tab_gzip:
-    st.altair_chart(
+    st.echarts_chart(
         create_trend_chart(df, "gzip", "Gzip Size Over Time"),
-        width="stretch",
+        alt="Total and entry gzip bundle size per develop commit",
     )
 
 with tab_brotli:
-    st.altair_chart(
+    st.echarts_chart(
         create_trend_chart(df, "brotli", "Brotli Size Over Time"),
-        width="stretch",
+        alt="Total and entry brotli bundle size per develop commit",
     )
 
 with tab_parsed:
-    st.altair_chart(
+    st.echarts_chart(
         create_trend_chart(df, "parsed", "Parsed Size Over Time"),
-        width="stretch",
+        alt="Total and entry parsed bundle size per develop commit",
     )
 
 

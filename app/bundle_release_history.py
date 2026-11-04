@@ -17,11 +17,13 @@ Data is precomputed by `scripts/bundle_history/` into `static/bundle_history/`.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-import altair as alt
 import humanize
 import pandas as pd
 import streamlit as st
+
+from app.utils import echarts as ec
 
 DATA_DIR = Path(__file__).parent.parent / "static" / "bundle_history"
 
@@ -33,6 +35,8 @@ DARK_HUES = ["#3987e5", "#d95926", "#199e70"]
 
 KIB = 1024
 MIB = 1024 * 1024
+
+MARKER_COLOR = "#8a8a86"
 
 # The entry chunk stops tracking the initial load here: from this release the
 # initial load is code-split, so the entry chunk is an arbitrary fraction of it.
@@ -89,8 +93,8 @@ def load_history() -> pd.DataFrame:
     return history.drop(columns="vkey")
 
 
-def release_rule_layer(since: pd.Timestamp, until: pd.Timestamp) -> alt.Chart | None:
-    """Dashed rules at each release inside a per-commit chart's date range.
+def release_mark_lines(since: pd.Timestamp, until: pd.Timestamp) -> list[dict[str, Any]] | None:
+    """ECharts markLine entries for each release inside a per-commit chart's date range.
 
     Lets a commit-level move be read against the release that shipped it. Returns
     None when no release falls in the window - releases ship every two weeks or
@@ -117,58 +121,64 @@ def release_rule_layer(since: pd.Timestamp, until: pd.Timestamp) -> alt.Chart | 
     if in_window.empty:
         return None
 
-    base = alt.Chart(in_window[["version", "released_at"]])
-    rule = base.mark_rule(color="#8a8a86", strokeDash=[4, 3], strokeWidth=1).encode(  # ty: ignore[unresolved-attribute]
-        x=alt.X("released_at:T"),
-        tooltip=[alt.Tooltip("version:N", title="Released")],
-    )
-    label = base.mark_text(align="left", baseline="top", dx=3, dy=2, fontSize=10, color="#8a8a86").encode(  # ty: ignore[unresolved-attribute]
-        x=alt.X("released_at:T"),
-        text="version:N",
-    )
-    return rule + label
+    return [
+        {"xAxis": released_at.isoformat(), "name": version}
+        for version, released_at in zip(in_window["version"], in_window["released_at"], strict=True)
+    ]
 
 
-def trend_chart(view: pd.DataFrame, column: str, title: str, unit: str, color: str) -> alt.Chart:
+def style_markers(option: dict[str, Any]) -> dict[str, Any]:
+    """Draw the chart's markLine rules and labels in the muted marker gray."""
+    for series in option["series"]:
+        mark_line = series.get("markLine")
+        if mark_line:
+            mark_line["lineStyle"] = {**mark_line.get("lineStyle", {}), "color": MARKER_COLOR, "width": 1}
+            mark_line["label"] = {**mark_line.get("label", {}), "color": MARKER_COLOR, "fontSize": 10}
+    return option
+
+
+def trend_chart(
+    view: pd.DataFrame,
+    column: str,
+    title: str,
+    unit: str,
+    color: str,
+    mark_lines: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Single-series release trend. One measure per chart - never a second y-axis."""
     divisor = MIB if unit == "MiB" else KIB
-    data = view.assign(display=view[column] / divisor, pretty=view[column].apply(format_bytes))
-    return (
-        alt.Chart(data)
-        .mark_line(point=alt.OverlayMarkDef(size=60, filled=True), strokeWidth=2, color=color)
-        .encode(  # ty: ignore[unresolved-attribute]
-            x=alt.X(
-                "version:N",
-                title=None,
-                sort=view["version"].tolist(),
-                axis=alt.Axis(labelAngle=-45),
-            ),
-            y=alt.Y(
-                "display:Q",
-                title=f"Size ({unit})",
-                scale=alt.Scale(zero=False, nice=True),
-                axis=alt.Axis(grid=True, gridDash=[], tickCount=5),
-            ),
-            tooltip=[
-                alt.Tooltip("version:N", title="Release"),
-                alt.Tooltip("released_at:T", title="Date", format="%b %d, %Y"),
-                alt.Tooltip("pretty:N", title=title),
-            ],
-        )
-        .properties(title=title, height=280)
+    data = pd.DataFrame(
+        {
+            "version": view["version"],
+            "display": view[column] / divisor,
+            "date": view["released_at"].dt.strftime("%b %d, %Y"),
+            "pretty": view[column].apply(format_bytes),
+        }
     )
+    option = ec.cartesian_chart(
+        data,
+        x="version",
+        y="display",
+        x_type="category",
+        title=title,
+        y_title=f"Size ({unit})",
+        series_names={"display": title},
+        mark_lines=mark_lines,
+    )
+    option["tooltip"]["formatter"] = f"Release {{@version}}<br/>{{@date}}<br/>{title}: {{@pretty}}"
+    option["xAxis"]["axisLabel"] = {"rotate": 45}
+    series = option["series"][0]
+    series.update({"color": color, "symbolSize": 8, "lineStyle": {"width": 2}})
+    return style_markers(option)
 
 
-def split_marker(view: pd.DataFrame) -> alt.Chart | None:
-    """Rule at the release where the entry chunk stopped tracking the initial load."""
+def split_marker(view: pd.DataFrame) -> list[dict[str, Any]] | None:
+    """Return the markLine entry at the release where the entry chunk stopped tracking the initial load."""
     split = view[view["entry_split"]]
     if split.empty or split.index[0] == 0:
         return None
-    return (
-        alt.Chart(pd.DataFrame({"version": [split["version"].iloc[0]]}))
-        .mark_rule(color="#8a8a86", strokeDash=[4, 3], strokeWidth=1)
-        .encode(x=alt.X("version:N", sort=view["version"].tolist()))  # ty: ignore[unresolved-attribute]
-    )
+    version = str(split["version"].iloc[0])
+    return [{"xAxis": version, "name": version}]
 
 
 def render_headline_metrics(view: pd.DataFrame) -> None:
@@ -206,25 +216,27 @@ def render_headline_metrics(view: pd.DataFrame) -> None:
 def render_trends(view: pd.DataFrame) -> None:
     palette = hues()
 
-    st.altair_chart(
+    st.echarts_chart(
         trend_chart(view, "total_gzip", "Total (gzip)", "MiB", palette[0]),
-        width="stretch",
+        alt="Total gzip size of the shipped frontend per release",
     )
 
     left, right = st.columns(2)
     with left:
-        st.altair_chart(
+        st.echarts_chart(
             trend_chart(view, "initial_gzip", "Initial load (gzip)", "KiB", palette[2]),
-            width="stretch",
+            alt="Initial load gzip size per release",
         )
         st.caption(
             ":material/check_circle: **What users download before first render** - the entry chunk plus everything it "
             "statically imports. Comparable across the whole window, including the webpack → Vite migration."
         )
     with right:
-        entry_chart = trend_chart(view, "entry_gzip", "Entry (gzip)", "KiB", palette[1])
         marker = split_marker(view)
-        st.altair_chart(entry_chart + marker if marker is not None else entry_chart, width="stretch")
+        st.echarts_chart(
+            trend_chart(view, "entry_gzip", "Entry (gzip)", "KiB", palette[1], mark_lines=marker),
+            alt="Entry chunk gzip size per release, with the code-split release marked",
+        )
         if marker is not None:
             st.caption(
                 f":material/warning: **The entry chunk alone.** Dashed line marks "

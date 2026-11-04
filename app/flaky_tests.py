@@ -5,10 +5,10 @@ from collections import Counter
 from datetime import date, datetime
 from typing import Any
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
+from app.utils import echarts as ec
 from app.utils.github_utils import (
     EXPECTED_FLAKY_TESTS,
     fetch_workflow_run_annotations,
@@ -215,48 +215,32 @@ if not workflow_df.empty:
     # Calculate overall average for reference line
     overall_avg = workflow_df["had_reruns_int"].mean()
 
-    # Format the tooltip to show percentage
-    line_chart = (
-        alt.Chart(workflow_daily_df)
-        .mark_line(point=True)
-        .encode(  # ty: ignore[unresolved-attribute]
-            x=alt.X("date:T", title="Date", axis=alt.Axis(format="%b %d")),
-            y=alt.Y(
-                "rolling_avg:Q",
-                title="Runs with Test Reruns",
-                scale=alt.Scale(domain=[0, 1]),
-                axis=alt.Axis(format=".0%"),
-            ),
-            tooltip=[
-                alt.Tooltip("date:T", title="Date", format="%Y-%m-%d"),
-                alt.Tooltip("rolling_avg:Q", title="Ratio with Test Reruns", format=".1%"),
-            ],
-        )
-        .properties(
-            title="Rolling Average of Workflow Runs Needing Test Reruns",
-            width="container",
-            height=300,
-        )
+    # Percent values so the axis labels can use a string template.
+    chart_df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(workflow_daily_df["date"]),
+            "rolling_pct": workflow_daily_df["rolling_avg"] * 100,
+        }
     )
-
-    # Add a rule for the overall average
-    rule = (
-        alt.Chart(pd.DataFrame({"y": [overall_avg]}))
-        .mark_rule(
-            strokeDash=[12, 6],
-            strokeWidth=1,
-            color="red",
-        )
-        .encode(  # ty: ignore[unresolved-attribute]
-            y="y:Q",
-            tooltip=[alt.Tooltip("y:Q", title="Overall Average", format=".1%")],
-        )
+    chart = ec.cartesian_chart(
+        chart_df,
+        x="date",
+        y="rolling_pct",
+        title="Rolling Average of Workflow Runs Needing Test Reruns",
+        x_title="Date",
+        y_title="Runs with Test Reruns",
+        value_format="%.1f%%",
+        axis_label_format="{value}%",
+        y_min=0,
+        y_max=100,
+        series_names={"rolling_pct": "Ratio with Test Reruns"},
+        mark_lines=[{"yAxis": round(float(overall_avg) * 100, 1), "name": f"Overall average: {overall_avg:.1%}"}],
     )
+    mark_line = chart["series"][0]["markLine"]
+    mark_line["lineStyle"] = {"type": [12, 6], "width": 1, "color": "red"}
+    mark_line["label"] = {**mark_line["label"], "color": "red"}
 
-    # Combine the charts
-    chart = line_chart + rule
-
-    st.altair_chart(chart, width="stretch")
+    st.echarts_chart(chart, alt="Rolling share of flaky workflow runs against the overall average")
 
     st.caption(
         f"This chart shows the rolling average (window of {rolling_window_size} runs) of the proportion of workflow runs "

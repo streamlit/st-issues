@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app.utils import echarts as ec
 from app.utils.github_utils import (
     fetch_github_user_profiles,
     fetch_issue_comments_payload,
@@ -223,10 +224,25 @@ if issue_number:
         # Company breakdown
         if companies > 0:
             st.subheader("Top Companies")
-            company_counts = df_grouped["Company"].value_counts().head(10)
+            company_counts = df_grouped["Company"].value_counts().head(10).rename("Users").reset_index()
 
             # Create a bar chart
-            st.bar_chart(company_counts)
+            option = ec.cartesian_chart(
+                company_counts,
+                x="Company",
+                y="Users",
+                kind="bar",
+                x_type="category",
+                horizontal=True,
+                y_title="Users",
+            )
+            option["xAxis"]["minInterval"] = 1
+            option["yAxis"]["axisLabel"] = {"width": 200, "overflow": "truncate"}
+            st.echarts_chart(
+                option,
+                height=max(200, len(company_counts) * 32 + 60),
+                alt="Companies with the most engaged users on this issue",
+            )
 
     else:
         st.info("No engagement found for this issue")

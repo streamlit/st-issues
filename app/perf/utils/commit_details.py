@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import streamlit as st
 
 SELECTION_SHA_KEY = "perf_selected_commit_sha"
@@ -10,76 +8,13 @@ PER_CHART_SELECTION_PREFIX = "perf_selected_commit_chart_"
 DEFAULT_COMMIT_URL_PREFIX = "https://github.com/streamlit/streamlit/commit/"
 
 
-def _normalize_selection_payload(selection: Any) -> dict[str, Any] | None:
-    if selection is None:
-        return None
+def update_selected_commit(shas: list[str], selection_key: str | None = None) -> None:
+    """Store the commit selected in a chart and rerun so the sidebar shows it.
 
-    if hasattr(selection, "selection"):
-        selection = selection.selection
-    elif hasattr(selection, "selected_data"):
-        selection = selection.selected_data
-
-    if isinstance(selection, dict):
-        payload = selection.get("selection", selection)
-        if isinstance(payload, dict):
-            return payload
-        if isinstance(payload, list):
-            return {"points": payload}
-        return None
-
-    if isinstance(selection, list):
-        return {"points": selection}
-
-    return None
-
-
-def _extract_sha_from_point(point: dict[str, Any], sha_field: str) -> str | None:
-    if sha_field in point and isinstance(point[sha_field], str):
-        return point[sha_field]
-
-    custom_data = point.get("customdata")
-    if isinstance(custom_data, str):
-        return custom_data
-    if isinstance(custom_data, (list, tuple)):
-        for entry in custom_data:
-            if isinstance(entry, str):
-                return entry
-            if isinstance(entry, dict) and sha_field in entry and isinstance(entry[sha_field], str):
-                return entry[sha_field]
-
-    datum = point.get("datum")
-    if isinstance(datum, dict) and isinstance(datum.get(sha_field), str):
-        return datum[sha_field]
-
-    return None
-
-
-def extract_selected_commit_shas(selection: Any, sha_field: str = "commit_sha_full") -> list[str]:
-    payload = _normalize_selection_payload(selection)
-    if not payload:
-        return []
-
-    points = payload.get("points")
-    if not isinstance(points, list):
-        return []
-
-    shas: list[str] = []
-    for point in points:
-        if not isinstance(point, dict):
-            continue
-        sha = _extract_sha_from_point(point, sha_field)
-        if sha and sha not in shas:
-            shas.append(sha)
-
-    return shas
-
-
-def update_selected_commit_from_selection(
-    selection: Any,
-    sha_field: str = "commit_sha_full",
-    selection_key: str | None = None,
-) -> None:
-    shas = extract_selected_commit_shas(selection, sha_field=sha_field)
+    ``shas`` are the commits of the currently selected chart points. When a
+    chart keeps earlier points selected, the most recently added one wins.
+    """
+    shas = list(dict.fromkeys(sha for sha in shas if sha))
     if not shas:
         return
 

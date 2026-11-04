@@ -3,11 +3,13 @@ import re
 import subprocess  # ruff:ignore[suspicious-subprocess-import]
 import tempfile
 from datetime import date
+from typing import Any
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
+from streamlit.typing import EChartsState
 
+from app.utils import echarts as ec
 from app.utils.github_graphql_utils import fetch_merged_pr_metrics
 from app.utils.github_utils import (
     ACTIVE_STREAMLIT_TEAM_MEMBERS,
@@ -23,8 +25,25 @@ GITHUB_REPO = "streamlit/streamlit"
 st.set_page_config(page_title="GitHub stats", page_icon=":material/bar_chart:", layout="wide")
 
 
+LOC_COLORS = {"Additions": "#28a745", "Deletions": "#dc3545"}
+
+
 def get_issue_emoji(labels: list) -> str:
     return labels_to_type_emoji([label["name"] for label in labels])
+
+
+def get_selected_row(event: EChartsState, option: dict[str, Any]) -> pd.Series | None:
+    """Return the dataset row of the first selected point, if it still exists."""
+    source = option["dataset"]["source"]
+    rows = [row for row in ec.selected_rows(event) if row < len(source)]
+    return source.iloc[rows[0]] if rows else None
+
+
+def loc_changes_option(df: pd.DataFrame, *, title: str) -> dict[str, Any]:
+    option = ec.cartesian_chart(df, x="Date", y=list(LOC_COLORS), kind="bar", stack=True, title=title)
+    for series in option["series"]:
+        series["itemStyle"] = {"color": LOC_COLORS[series["name"]]}
+    return option
 
 
 @st.cache_data(
@@ -896,70 +915,51 @@ if selected_metrics == "Contribution Metrics":
             )
 
             with member_tab1:
-                fig_member_prs = px.bar(
-                    member_monthly_stats,
-                    x="Date",
-                    y="Merged PRs",
-                    title=f"Monthly Merged PRs by @{selected_member}",
+                st.echarts_chart(
+                    ec.cartesian_chart(
+                        member_monthly_stats[["Date", "Merged PRs"]],
+                        x="Date",
+                        y="Merged PRs",
+                        kind="bar",
+                        title=f"Monthly Merged PRs by @{selected_member}",
+                    ),
+                    alt=f"Monthly merged PRs by @{selected_member}",
                 )
-                st.plotly_chart(fig_member_prs, width="stretch")
 
             with member_tab2:
-                # Line chart for weekly PRs trend
-                fig_weekly_prs = px.line(
+                weekly_prs_option = ec.cartesian_chart(
                     member_weekly_stats,
                     x="Week",
                     y="Merged PRs",
                     title=f"Weekly Merged PRs by @{selected_member}",
-                    markers=True,
+                    mark_lines=[{"yAxis": round(float(avg_weekly_prs), 2), "name": f"Avg: {avg_weekly_prs:.1f}"}],
                 )
-                # Add a horizontal line for the average
-                fig_weekly_prs.add_hline(
-                    y=avg_weekly_prs,
-                    line_dash="dash",
-                    line_color="red",
-                    annotation_text=f"Avg: {avg_weekly_prs:.1f}",
-                    annotation_position="top right",
+                weekly_prs_option["series"][0]["markLine"]["lineStyle"]["color"] = "#dc3545"
+                st.echarts_chart(
+                    weekly_prs_option,
+                    alt=f"Weekly merged PRs by @{selected_member} compared to the weekly average",
                 )
-                st.plotly_chart(fig_weekly_prs, width="stretch")
 
             with member_tab3:
-                # Melt for LOC chart
-                member_loc_melted = member_monthly_stats.melt(
-                    id_vars="Date",
-                    value_vars=["Additions", "Deletions"],
-                    var_name="Type",
-                    value_name="Lines",
+                st.echarts_chart(
+                    loc_changes_option(
+                        member_monthly_stats[["Date", *LOC_COLORS]],
+                        title=f"Monthly LOC Changes by @{selected_member}",
+                    ),
+                    alt=f"Monthly lines of code added and deleted by @{selected_member}",
                 )
-
-                fig_member_loc = px.bar(
-                    member_loc_melted,
-                    x="Date",
-                    y="Lines",
-                    color="Type",
-                    title=f"Monthly LOC Changes by @{selected_member}",
-                    color_discrete_map={"Additions": "#28a745", "Deletions": "#dc3545"},
-                )
-                st.plotly_chart(fig_member_loc, width="stretch")
 
             with member_tab4:
-                # Melt for Types chart
-                member_types_melted = member_monthly_stats.melt(
-                    id_vars="Date",
-                    value_vars=["Features", "Bugfixes"],
-                    var_name="Type",
-                    value_name="Count",
+                st.echarts_chart(
+                    ec.cartesian_chart(
+                        member_monthly_stats[["Date", "Features", "Bugfixes"]],
+                        x="Date",
+                        y=["Features", "Bugfixes"],
+                        kind="bar",
+                        title=f"Monthly Features vs Bugfixes by @{selected_member}",
+                    ),
+                    alt=f"Monthly feature and bugfix PRs merged by @{selected_member}",
                 )
-
-                fig_member_types = px.bar(
-                    member_types_melted,
-                    x="Date",
-                    y="Count",
-                    color="Type",
-                    title=f"Monthly Features vs Bugfixes by @{selected_member}",
-                    barmode="group",
-                )
-                st.plotly_chart(fig_member_types, width="stretch")
         else:
             st.info(f"No merged PRs found for @{selected_member} in the selected period.")
     elif merged_prs_df.empty:
@@ -1076,23 +1076,33 @@ elif selected_metrics == "Team Productivity Metrics":
         )
 
         with tab1:
-            fig_prs = px.bar(monthly_pr_stats, x="Date", y="Merged PRs", title="Monthly Merged PRs")
-            st.plotly_chart(fig_prs, width="stretch")
+            st.echarts_chart(
+                ec.cartesian_chart(
+                    monthly_pr_stats[["Date", "Merged PRs"]],
+                    x="Date",
+                    y="Merged PRs",
+                    kind="bar",
+                    title="Monthly Merged PRs",
+                ),
+                alt="Monthly merged PRs",
+            )
 
         with tab2:
             st.caption("Excluding PRs open for more than 60 days.")
-            fig_time = px.line(
-                monthly_time_stats,
-                x="Date",
-                y=[
-                    "Median Time to Merge (h)",
-                    "Median Time to First Review (h)",
-                    "Median Time First Review to Merge (h)",
-                ],
-                title="Median Time Trends (Hours)",
-                markers=True,
+            st.echarts_chart(
+                ec.cartesian_chart(
+                    monthly_time_stats,
+                    x="Date",
+                    y=[
+                        "Median Time to Merge (h)",
+                        "Median Time to First Review (h)",
+                        "Median Time First Review to Merge (h)",
+                    ],
+                    title="Median Time Trends (Hours)",
+                    value_format="%.1f h",
+                ),
+                alt="Monthly median hours to merge, to first review, and from first review to merge",
             )
-            st.plotly_chart(fig_time, width="stretch")
 
         with tab3:
             show_avg_loc = st.toggle(
@@ -1141,51 +1151,28 @@ elif selected_metrics == "Team Productivity Metrics":
                 team_monthly_loc["Additions"] /= team_monthly_loc["active_count"]
                 team_monthly_loc["Deletions"] /= team_monthly_loc["active_count"]
 
-                loc_melted = team_monthly_loc.melt(
-                    id_vars="Date",
-                    value_vars=["Additions", "Deletions"],
-                    var_name="Type",
-                    value_name="Lines",
-                )
+                loc_df = team_monthly_loc[["Date", *LOC_COLORS]]
                 chart_title = "Avg Monthly LOC Changes per Active Core Contributor"
             else:
-                # Melt for LOC chart
-                loc_melted = monthly_pr_stats.melt(
-                    id_vars="Date",
-                    value_vars=["Additions", "Deletions"],
-                    var_name="Type",
-                    value_name="Lines",
-                )
+                loc_df = monthly_pr_stats[["Date", *LOC_COLORS]]
                 chart_title = "Monthly LOC Changes"
 
-            fig_loc = px.bar(
-                loc_melted,
-                x="Date",
-                y="Lines",
-                color="Type",
-                title=chart_title,
-                color_discrete_map={"Additions": "#28a745", "Deletions": "#dc3545"},
+            st.echarts_chart(
+                loc_changes_option(loc_df, title=chart_title),
+                alt="Monthly lines of code added and deleted",
             )
-            st.plotly_chart(fig_loc, width="stretch")
 
         with tab4:
-            # Melt for Types chart
-            types_melted = monthly_pr_stats.melt(
-                id_vars="Date",
-                value_vars=["Features", "Bugfixes"],
-                var_name="Type",
-                value_name="Count",
+            st.echarts_chart(
+                ec.cartesian_chart(
+                    monthly_pr_stats[["Date", "Features", "Bugfixes"]],
+                    x="Date",
+                    y=["Features", "Bugfixes"],
+                    kind="bar",
+                    title="Monthly Merged Features vs Bugfixes",
+                ),
+                alt="Monthly merged feature and bugfix PRs",
             )
-
-            fig_types = px.bar(
-                types_melted,
-                x="Date",
-                y="Count",
-                color="Type",
-                title="Monthly Merged Features vs Bugfixes",
-                barmode="group",
-            )
-            st.plotly_chart(fig_types, width="stretch")
 
         with tab5:
             row = st.container()
@@ -1234,26 +1221,24 @@ elif selected_metrics == "Team Productivity Metrics":
                     .rename(columns={"merge_month": "Date"})
                 )
 
-                fig_active = px.bar(
+                active_option = ec.cartesian_chart(
                     active_contributors_stats,
                     x="Date",
                     y="Active Contributors",
+                    kind="bar",
+                    select="single",
                 )
-                active_chart_selection = st.plotly_chart(
-                    fig_active,
-                    width="stretch",
+                active_chart_selection = st.echarts_chart(
+                    active_option,
                     on_select="rerun",
                     key="active_contributors_chart",
+                    alt=f"Monthly number of contributors with at least {min_prs} merged PRs",
                 )
 
                 # Show contributors when a bar is selected
-                if (
-                    active_chart_selection
-                    and active_chart_selection["selection"]
-                    and active_chart_selection["selection"]["point_indices"]
-                ):
-                    selected_active_idx = active_chart_selection["selection"]["point_indices"][0]
-                    selected_active_month = active_contributors_stats.iloc[selected_active_idx]["Date"]
+                selected_active_row = get_selected_row(active_chart_selection, active_option)
+                if selected_active_row is not None:
+                    selected_active_month = selected_active_row["Date"]
 
                     # Get contributors for the selected month
                     month_active_contributors = active_authors_monthly[
@@ -1311,32 +1296,32 @@ elif selected_metrics == "Team Productivity Metrics":
                         .reset_index()
                     )
 
-                    fig_team = px.bar(
-                        avg_prs_per_month,
-                        x="merge_month",
-                        y="avg_prs",
+                    team_option = ec.cartesian_chart(
+                        avg_prs_per_month.round({"avg_prs": 2}).rename(
+                            columns={
+                                "merge_month": "Month",
+                                "avg_prs": "Avg PRs per Contributor",
+                                "active_contributors": "Active contributors",
+                            }
+                        ),
+                        x="Month",
+                        y="Avg PRs per Contributor",
+                        kind="bar",
                         title="Average Merged PRs per Active Core Contributor",
-                        labels={
-                            "merge_month": "Month",
-                            "avg_prs": "Avg PRs per Contributor",
-                        },
-                        hover_data={"active_contributors": True},
+                        tooltip_dims=["Active contributors"],
+                        select="single",
                     )
-                    chart_selection = st.plotly_chart(
-                        fig_team,
-                        width="stretch",
+                    chart_selection = st.echarts_chart(
+                        team_option,
                         on_select="rerun",
                         key="core_team_prs_chart",
+                        alt="Monthly average merged PRs per active core team member",
                     )
 
                     # Show contributors when a bar is selected
-                    if (
-                        chart_selection
-                        and chart_selection["selection"]
-                        and chart_selection["selection"]["point_indices"]
-                    ):
-                        selected_idx = chart_selection["selection"]["point_indices"][0]
-                        selected_month = avg_prs_per_month.iloc[selected_idx]["merge_month"]
+                    selected_team_row = get_selected_row(chart_selection, team_option)
+                    if selected_team_row is not None:
+                        selected_month = selected_team_row["Month"]
 
                         # Get contributors for the selected month
                         month_contributors = active_team_monthly[
@@ -1376,23 +1361,17 @@ elif selected_metrics == "Team Productivity Metrics":
                 value_vars = ["Total Review Comments", "Total Issue Comments"]
                 title = "Monthly Total PR Comments (Review vs Issue)"
 
-            # Melt for Comments chart
-            comments_melted = monthly_pr_stats.melt(
-                id_vars="Date",
-                value_vars=value_vars,
-                var_name="Type",
-                value_name="Count",
+            st.echarts_chart(
+                ec.cartesian_chart(
+                    monthly_pr_stats[["Date", *value_vars]],
+                    x="Date",
+                    y=value_vars,
+                    kind="bar",
+                    stack=not show_median,
+                    title=title,
+                ),
+                alt="Monthly review and issue comments on merged PRs",
             )
-
-            fig_comments = px.bar(
-                comments_melted,
-                x="Date",
-                y="Count",
-                color="Type",
-                title=title,
-                barmode="stack" if not show_median else "group",
-            )
-            st.plotly_chart(fig_comments, width="stretch")
             st.caption("Note: These metrics include comments from bots and automated systems.")
 
         with tab8:
@@ -1474,30 +1453,30 @@ elif selected_metrics == "Team Productivity Metrics":
                         chart_title = "Monthly Total Reactions on Closed Issues"
                         y_label = "Total Reactions"
 
-                    fig_reactions = px.bar(
-                        monthly_reactions,
+                    reactions_option = ec.cartesian_chart(
+                        monthly_reactions[["Month", "Total Reactions"]],
                         x="Month",
                         y="Total Reactions",
+                        kind="bar",
                         title=chart_title,
-                        labels={"Total Reactions": y_label},
+                        y_title=y_label,
+                        series_names={"Total Reactions": y_label},
+                        value_format="%.1f" if show_avg_reactions else None,
+                        select="single",
                     )
-                    reactions_chart_selection = st.plotly_chart(
-                        fig_reactions,
-                        width="stretch",
+                    reactions_chart_selection = st.echarts_chart(
+                        reactions_option,
                         on_select="rerun",
                         key="issue_reactions_chart",
+                        alt="Monthly reactions on issues closed in each month",
                     )
 
                     st.caption("Click on a bar to view the issues closed in that month.")
 
                     # Show issues when a bar is selected
-                    if (
-                        reactions_chart_selection
-                        and reactions_chart_selection["selection"]
-                        and reactions_chart_selection["selection"]["point_indices"]
-                    ):
-                        selected_reactions_idx = reactions_chart_selection["selection"]["point_indices"][0]
-                        selected_reactions_month = monthly_reactions.iloc[selected_reactions_idx]["Month"]
+                    selected_reactions_row = get_selected_row(reactions_chart_selection, reactions_option)
+                    if selected_reactions_row is not None:
+                        selected_reactions_month = selected_reactions_row["Month"]
 
                         # Filter issues for the selected month
                         month_issues = closed_reactions_df[
@@ -1614,23 +1593,16 @@ elif selected_metrics == "Team Productivity Metrics":
         issue_trends["Month"] = issue_trends["Month"].dt.to_timestamp()
         issue_trends = issue_trends.sort_values("Month")
 
-        # Melt for plotting
-        issue_trends_melted = issue_trends.melt(
-            id_vars="Month",
-            value_vars=["Created", "Closed"],
-            var_name="Status",
-            value_name="Count",
+        st.echarts_chart(
+            ec.cartesian_chart(
+                issue_trends,
+                x="Month",
+                y=["Created", "Closed"],
+                kind="bar",
+                title="Monthly Issues: Created vs Closed",
+            ),
+            alt="Monthly issues created and closed",
         )
-
-        fig_issues = px.bar(
-            issue_trends_melted,
-            x="Month",
-            y="Count",
-            color="Status",
-            barmode="group",
-            title="Monthly Issues: Created vs Closed",
-        )
-        st.plotly_chart(fig_issues, width="stretch")
 
         # --- New Visualization: Created Issues by Type ---
         created_by_type = created_in_period.copy()
@@ -1652,15 +1624,18 @@ elif selected_metrics == "Team Productivity Metrics":
             )
             created_by_type_monthly["Month"] = created_by_type_monthly["Month"].dt.to_timestamp()
 
-            fig_created_by_type = px.bar(
-                created_by_type_monthly,
-                x="Month",
-                y="Count",
-                color="Type",
-                title="Monthly Created Issues: Bugs vs Features",
-                barmode="group",
+            st.echarts_chart(
+                ec.cartesian_chart(
+                    created_by_type_monthly,
+                    x="Month",
+                    y="Count",
+                    color="Type",
+                    kind="bar",
+                    title="Monthly Created Issues: Bugs vs Features",
+                    color_order=["Bug", "Feature"],
+                ),
+                alt="Monthly created bug and feature issues",
             )
-            st.plotly_chart(fig_created_by_type, width="stretch")
 
         # Priority Bug Resolution Time
         st.markdown("##### :material/timer: Bug Resolution Time by Priority")
@@ -1688,17 +1663,33 @@ elif selected_metrics == "Team Productivity Metrics":
             # Sort order for priorities
             priority_order = ["P0", "P1", "P2", "P3", "P4"]
 
-            fig_priority = px.box(
-                priority_bugs,
-                x="priority",
-                y="time_to_close_days",
+            priority_points = pd.DataFrame(
+                {
+                    "Priority": priority_bugs["priority"].astype(str),
+                    "Days to Close": priority_bugs["time_to_close_days"].round(1),
+                    "Title": priority_bugs["title"],
+                }
+            ).reset_index(drop=True)
+            priority_option = ec.boxplot_chart(
+                priority_points,
+                x="Priority",
+                y="Days to Close",
                 title="Time to Close by Bug Priority (Days)",
-                labels={"priority": "Priority", "time_to_close_days": "Days to Close"},
-                category_orders={"priority": priority_order},
-                points="all",  # Show all points
-                hover_data=["title", "html_url"],
+                y_title="Days to Close",
+                order=priority_order,
             )
-            st.plotly_chart(fig_priority, width="stretch")
+            # Show every bug as a jittered point (not just outliers) with its title in the tooltip.
+            priority_option["dataset"][1] = {"source": priority_points}
+            priority_option["xAxis"]["jitter"] = 40
+            priority_option["series"][1].update(
+                {
+                    "name": "Bugs",
+                    "encode": {"x": "Priority", "y": "Days to Close", "tooltip": ["Title", "Days to Close"]},
+                    "symbolSize": 5,
+                    "itemStyle": {"opacity": 0.5},
+                }
+            )
+            st.echarts_chart(priority_option, alt="Distribution of days to close bugs by priority")
 
             # Median Time to Close over Time
             priority_bugs["close_month"] = priority_bugs["closed_at"].dt.to_period("M").dt.to_timestamp()
@@ -1715,21 +1706,19 @@ elif selected_metrics == "Team Productivity Metrics":
                 "median_time_to_close"
             ].transform(lambda x: x.rolling(window=3, min_periods=1).mean())
 
-            fig_priority_over_time = px.line(
-                monthly_priority_stats,
-                x="close_month",
-                y="rolling_median",
-                color="priority",
-                title="Median Time to Close over Time (3-month rolling avg)",
-                labels={
-                    "close_month": "Date",
-                    "rolling_median": "Median Days to Close",
-                    "priority": "Priority",
-                },
-                category_orders={"priority": priority_order},
-                markers=True,
+            st.echarts_chart(
+                ec.cartesian_chart(
+                    monthly_priority_stats,
+                    x="close_month",
+                    y="rolling_median",
+                    color="priority",
+                    title="Median Time to Close over Time (3-month rolling avg)",
+                    y_title="Median Days to Close",
+                    value_format="%.1f days",
+                    color_order=priority_order,
+                ),
+                alt="Rolling median days to close bugs over time by priority",
             )
-            st.plotly_chart(fig_priority_over_time, width="stretch")
         else:
             st.info("No priority bugs found in the selected period.")
 

@@ -7,14 +7,45 @@ from typing import Any
 from zipfile import ZipFile
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
+from app.utils import echarts as ec
 from app.utils.github_utils import (
     download_artifact,
     fetch_artifacts,
     fetch_workflow_runs,
 )
+
+BROWSER_COLORS = {"Chromium": "#4285F4", "Firefox": "#FF7139", "Webkit": "#006CFF"}
+REDS = ["#fcbba1", "#fb6a4a", "#cb181d", "#67000d"]
+
+
+def color_by(option: dict[str, Any], *, dimension: str, colors: list[str], title: str | None = None) -> dict[str, Any]:
+    """Color the bars of a single-series chart by a numeric dataset column.
+
+    Shows a color legend on the right when ``title`` is set.
+    """
+    source: pd.DataFrame = option["dataset"]["source"]
+    values = source[dimension]
+    visual_map: dict[str, Any] = {
+        "type": "continuous",
+        "seriesIndex": 0,
+        "dimension": list(source.columns).index(dimension),
+        "min": float(values.min()),
+        "max": float(values.max()),
+        "inRange": {"color": colors},
+        "show": title is not None,
+        "orient": "vertical",
+        "right": 0,
+        "top": "middle",
+        "itemHeight": 120,
+    }
+    if title:
+        visual_map["text"] = [title, ""]
+        option.setdefault("grid", {})["right"] = 110
+    option["visualMap"] = visual_map
+    return option
+
 
 st.set_page_config(page_title="Playwright test stats", page_icon=":material/theater_comedy:", layout="wide")
 
@@ -166,6 +197,7 @@ with st.spinner("Fetching data..."):
 
     df = pd.DataFrame(records)
     df = df.sort_values("created_at")
+    df["date"] = df["created_at"].dt.strftime("%Y-%m-%d %H:%M")
 
 # ── Top-level metrics ────────────────────────────────────────────────────────
 
@@ -250,49 +282,32 @@ with col3:
 
 st.subheader("Total Tests Over Time")
 
-fig_tests = px.line(
-    df,
+fig_tests = ec.cartesian_chart(
+    df[["created_at", "total_tests", "date", "commit_sha"]],
     x="created_at",
     y="total_tests",
-    labels={"created_at": "Date", "total_tests": "Total Tests"},
-    markers=True,
+    x_title="Date",
+    y_title="Total Tests",
+    series_names={"total_tests": "Total Tests"},
 )
-fig_tests.update_traces(
-    hovertemplate="<b>Date:</b> %{x|%Y-%m-%d}<br><b>Commit:</b> %{customdata[0]}<br><b>Total Tests:</b> %{y:,}",
-    customdata=df[["commit_sha"]],
+fig_tests["tooltip"]["formatter"] = (
+    "<b>Date:</b> {@date}<br/><b>Commit:</b> {@commit_sha}<br/><b>Total Tests:</b> {@total_tests}"
 )
-fig_tests.update_layout(xaxis_title="Date", yaxis_title="Total Tests", hovermode="closest")
-st.plotly_chart(fig_tests, width="stretch")
+st.echarts_chart(fig_tests, alt="Total Playwright tests per develop run")
 
 # ── Browser breakdown over time ──────────────────────────────────────────────
 
 st.subheader("Tests by Browser Over Time")
 
-df_browser = pd.melt(
-    df,
-    id_vars=["created_at", "commit_sha"],
-    value_vars=["chromium_total", "firefox_total", "webkit_total"],
-    var_name="Browser",
-    value_name="Test Count",
-)
-df_browser["Browser"] = df_browser["Browser"].map(
-    {
-        "chromium_total": "Chromium",
-        "firefox_total": "Firefox",
-        "webkit_total": "WebKit",
-    }
-)
-
-fig_browser = px.line(
-    df_browser,
+fig_browser = ec.cartesian_chart(
+    df[["created_at", "chromium_total", "firefox_total", "webkit_total"]],
     x="created_at",
-    y="Test Count",
-    color="Browser",
-    labels={"created_at": "Date"},
-    markers=True,
+    y=["chromium_total", "firefox_total", "webkit_total"],
+    x_title="Date",
+    y_title="Test Count",
+    series_names={"chromium_total": "Chromium", "firefox_total": "Firefox", "webkit_total": "WebKit"},
 )
-fig_browser.update_layout(xaxis_title="Date", yaxis_title="Test Count", hovermode="closest")
-st.plotly_chart(fig_browser, width="stretch")
+st.echarts_chart(fig_browser, alt="Playwright test count per browser over time")
 
 # ── Duration trends ──────────────────────────────────────────────────────────
 
@@ -302,76 +317,47 @@ tab_session, tab_test_durations = st.tabs(["Session Duration", "Test Durations"]
 
 with tab_session:
     df["session_duration_min"] = df["session_duration_s"] / 60
-    fig_session = px.line(
-        df,
+    df_session = df[["created_at", "session_duration_min", "date", "commit_sha"]].assign(
+        session_duration_label=df["session_duration_min"].round(1)
+    )
+    fig_session = ec.cartesian_chart(
+        df_session,
         x="created_at",
         y="session_duration_min",
-        labels={"created_at": "Date", "session_duration_min": "Session Duration (min)"},
-        markers=True,
+        x_title="Date",
+        y_title="Duration (min)",
+        series_names={"session_duration_min": "Session Duration (min)"},
     )
-    fig_session.update_traces(
-        hovertemplate="<b>Date:</b> %{x|%Y-%m-%d}<br><b>Commit:</b> %{customdata[0]}<br><b>Duration:</b> %{y:.1f} min",
-        customdata=df[["commit_sha"]],
+    fig_session["tooltip"]["formatter"] = (
+        "<b>Date:</b> {@date}<br/><b>Commit:</b> {@commit_sha}<br/><b>Duration:</b> {@session_duration_label} min"
     )
-    fig_session.update_layout(xaxis_title="Date", yaxis_title="Duration (min)", hovermode="closest")
-    st.plotly_chart(fig_session, width="stretch")
+    st.echarts_chart(fig_session, alt="Playwright session duration per develop run")
 
 with tab_test_durations:
-    df_durations = pd.melt(
-        df,
-        id_vars=["created_at", "commit_sha"],
-        value_vars=["mean_duration_s", "median_duration_s", "max_duration_s"],
-        var_name="Metric",
-        value_name="Duration (s)",
-    )
-    df_durations["Metric"] = df_durations["Metric"].map(
-        {
-            "mean_duration_s": "Mean",
-            "median_duration_s": "Median",
-            "max_duration_s": "Max",
-        }
-    )
-
-    fig_durations = px.line(
-        df_durations,
+    fig_durations = ec.cartesian_chart(
+        df[["created_at", "mean_duration_s", "median_duration_s", "max_duration_s"]],
         x="created_at",
-        y="Duration (s)",
-        color="Metric",
-        labels={"created_at": "Date"},
-        markers=True,
+        y=["mean_duration_s", "median_duration_s", "max_duration_s"],
+        x_title="Date",
+        y_title="Duration (seconds)",
+        value_format="%.2fs",
+        series_names={"mean_duration_s": "Mean", "median_duration_s": "Median", "max_duration_s": "Max"},
     )
-    fig_durations.update_layout(xaxis_title="Date", yaxis_title="Duration (seconds)", hovermode="closest")
-    st.plotly_chart(fig_durations, width="stretch")
+    st.echarts_chart(fig_durations, alt="Mean, median, and max Playwright test duration over time")
 
 # ── Failures & reruns over time ──────────────────────────────────────────────
 
 st.subheader("Failures & Reruns Over Time")
 
-df_failures = pd.melt(
-    df,
-    id_vars=["created_at", "commit_sha"],
-    value_vars=["failed", "errors", "total_reruns"],
-    var_name="Metric",
-    value_name="Count",
-)
-df_failures["Metric"] = df_failures["Metric"].map(
-    {
-        "failed": "Failed",
-        "errors": "Errors",
-        "total_reruns": "Reruns",
-    }
-)
-
-fig_failures = px.line(
-    df_failures,
+fig_failures = ec.cartesian_chart(
+    df[["created_at", "failed", "errors", "total_reruns"]],
     x="created_at",
-    y="Count",
-    color="Metric",
-    labels={"created_at": "Date"},
-    markers=True,
+    y=["failed", "errors", "total_reruns"],
+    x_title="Date",
+    y_title="Count",
+    series_names={"failed": "Failed", "errors": "Errors", "total_reruns": "Reruns"},
 )
-fig_failures.update_layout(xaxis_title="Date", yaxis_title="Count", hovermode="closest")
-st.plotly_chart(fig_failures, width="stretch")
+st.echarts_chart(fig_failures, alt="Failed tests, errors, and reruns per develop run")
 
 # ── Memory usage over time ───────────────────────────────────────────────────
 
@@ -380,30 +366,16 @@ st.subheader("Memory Usage Over Time")
 df["workers_memory_gb"] = df["workers_memory_mb"] / 1024
 df["total_memory_gb"] = df["total_memory_mb"] / 1024
 
-df_memory = pd.melt(
-    df,
-    id_vars=["created_at", "commit_sha"],
-    value_vars=["workers_memory_gb", "total_memory_gb"],
-    var_name="Metric",
-    value_name="Memory (GB)",
-)
-df_memory["Metric"] = df_memory["Metric"].map(
-    {
-        "workers_memory_gb": "Workers",
-        "total_memory_gb": "Total (incl. main process)",
-    }
-)
-
-fig_memory = px.line(
-    df_memory,
+fig_memory = ec.cartesian_chart(
+    df[["created_at", "workers_memory_gb", "total_memory_gb"]],
     x="created_at",
-    y="Memory (GB)",
-    color="Metric",
-    labels={"created_at": "Date"},
-    markers=True,
+    y=["workers_memory_gb", "total_memory_gb"],
+    x_title="Date",
+    y_title="Memory (GB)",
+    value_format="%.2f GB",
+    series_names={"workers_memory_gb": "Workers", "total_memory_gb": "Total (incl. main process)"},
 )
-fig_memory.update_layout(xaxis_title="Date", yaxis_title="Memory (GB)", hovermode="closest")
-st.plotly_chart(fig_memory, width="stretch")
+st.echarts_chart(fig_memory, alt="Playwright worker and total memory usage over time")
 
 # ── Run history table ────────────────────────────────────────────────────────
 
@@ -515,19 +487,15 @@ def display_run_details(stats: dict[str, Any], run_record: pd.Series) -> None:
 
         col1, col2 = st.columns(2)
         with col1:
-            fig_pie = px.pie(
+            fig_pie = ec.pie_chart(
                 browser_df,
                 names="Browser",
                 values="Total",
                 title="Test Distribution by Browser",
-                color="Browser",
-                color_discrete_map={
-                    "Chromium": "#4285F4",
-                    "Firefox": "#FF7139",
-                    "Webkit": "#006CFF",
-                },
+                donut=False,
+                colors=[BROWSER_COLORS.get(name, "#8a8a86") for name in browser_df["Browser"]],
             )
-            st.plotly_chart(fig_pie, width="stretch")
+            st.echarts_chart(fig_pie, alt="Share of Playwright tests per browser")
 
         with col2:
             st.dataframe(
@@ -548,33 +516,30 @@ def display_run_details(stats: dict[str, Any], run_record: pd.Series) -> None:
             + slowest_df["teardown_duration_seconds"]
         )
 
-        fig_slow = px.bar(
-            slowest_df,
-            y="nodeid",
-            x=["setup_duration_seconds", "duration_seconds", "teardown_duration_seconds"],
-            orientation="h",
-            labels={"value": "Duration (s)", "nodeid": "Test"},
+        phases = ["setup_duration_seconds", "duration_seconds", "teardown_duration_seconds"]
+        fig_slow = ec.cartesian_chart(
+            slowest_df.sort_values("total_s", ascending=False)[["nodeid", *phases]],
+            x="nodeid",
+            y=phases,
+            kind="bar",
+            x_type="category",
+            horizontal=True,
+            stack=True,
             title="Slowest Tests (setup + test + teardown)",
-            color_discrete_map={
-                "setup_duration_seconds": "#636EFA",
-                "duration_seconds": "#EF553B",
-                "teardown_duration_seconds": "#00CC96",
+            y_title="Duration (s)",
+            value_format="%.2fs",
+            series_names={
+                "setup_duration_seconds": "Setup",
+                "duration_seconds": "Test",
+                "teardown_duration_seconds": "Teardown",
             },
         )
-        fig_slow.update_layout(
-            yaxis={"categoryorder": "total ascending"},
-            legend_title_text="Phase",
-            barmode="stack",
+        fig_slow["yAxis"]["axisLabel"] = {"width": 360, "overflow": "truncate"}
+        st.echarts_chart(
+            fig_slow,
             height=max(400, len(slowest_df) * 40),
+            alt="Slowest Playwright tests split into setup, test, and teardown time",
         )
-        for trace in fig_slow.data:
-            trace.name = (
-                trace.name.replace("_duration_seconds", "")
-                .replace("_seconds", "")
-                .replace("duration", "test")
-                .capitalize()
-            )
-        st.plotly_chart(fig_slow, width="stretch")
 
     # ── Slowest modules ──────────────────────────────────────────────────
     test_modules = stats.get("test_modules", [])
@@ -587,26 +552,38 @@ def display_run_details(stats: dict[str, Any], run_record: pd.Series) -> None:
         top_n = min(25, len(modules_df))
         top_modules = modules_df.head(top_n)
 
-        fig_modules = px.bar(
-            top_modules,
-            y="module",
-            x="total_duration_seconds",
-            orientation="h",
-            color="avg_duration_seconds",
-            color_continuous_scale="RdYlGn_r",
-            labels={
+        modules_chart_df = top_modules[
+            ["module", "total_duration_seconds", "test_count", "avg_duration_seconds"]
+        ].rename(
+            columns={
                 "total_duration_seconds": "Total Duration (s)",
-                "module": "Module",
+                "test_count": "Tests",
                 "avg_duration_seconds": "Avg Duration (s)",
-            },
-            hover_data=["test_count", "avg_duration_seconds"],
+            }
+        )
+        fig_modules = ec.cartesian_chart(
+            modules_chart_df.round(2),
+            x="module",
+            y="Total Duration (s)",
+            kind="bar",
+            x_type="category",
+            horizontal=True,
             title=f"Top {top_n} Modules by Total Duration",
+            y_title="Total Duration (s)",
+            tooltip_dims=["Tests", "Avg Duration (s)"],
         )
-        fig_modules.update_layout(
-            yaxis={"categoryorder": "total ascending"},
+        fig_modules["yAxis"]["axisLabel"] = {"width": 300, "overflow": "truncate"}
+        color_by(
+            fig_modules,
+            dimension="Avg Duration (s)",
+            colors=ec.RED_TO_GREEN[::-1],
+            title="Avg Duration (s)",
+        )
+        st.echarts_chart(
+            fig_modules,
             height=max(500, top_n * 28),
+            alt="Playwright test modules with the longest total duration, colored by average test duration",
         )
-        st.plotly_chart(fig_modules, width="stretch")
 
         st.caption("Full module list")
         st.dataframe(
@@ -642,28 +619,32 @@ def display_run_details(stats: dict[str, Any], run_record: pd.Series) -> None:
 
         col1, col2 = st.columns(2)
         with col1:
-            fig_worker_tests = px.bar(
-                worker_df,
+            fig_worker_tests = ec.cartesian_chart(
+                worker_df[["Worker", "Tests", "Runtime (s)"]].round(1),
                 x="Worker",
                 y="Tests",
-                color="Runtime (s)",
-                color_continuous_scale="Blues",
+                kind="bar",
+                x_type="category",
                 title="Tests per Worker",
+                y_title="Tests",
+                tooltip_dims=["Runtime (s)"],
             )
-            fig_worker_tests.update_layout(height=400)
-            st.plotly_chart(fig_worker_tests, width="stretch")
+            color_by(fig_worker_tests, dimension="Runtime (s)", colors=ec.BLUES, title="Runtime (s)")
+            st.echarts_chart(fig_worker_tests, height=400, alt="Tests per xdist worker, colored by worker runtime")
 
         with col2:
-            fig_worker_mem = px.bar(
-                worker_df,
+            fig_worker_mem = ec.cartesian_chart(
+                worker_df[["Worker", "Memory (MB)"]],
                 x="Worker",
                 y="Memory (MB)",
-                color="Memory (MB)",
-                color_continuous_scale="Reds",
+                kind="bar",
+                x_type="category",
                 title="Memory per Worker",
+                y_title="Memory (MB)",
+                value_format="%.0f MB",
             )
-            fig_worker_mem.update_layout(height=400)
-            st.plotly_chart(fig_worker_mem, width="stretch")
+            color_by(fig_worker_mem, dimension="Memory (MB)", colors=REDS)
+            st.echarts_chart(fig_worker_mem, height=400, alt="Memory usage per xdist worker")
 
         aggregate = xdist.get("aggregate", {})
         if aggregate:

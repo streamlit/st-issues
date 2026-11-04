@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 
 import humanize
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
+from app.utils import echarts as ec
 from app.utils.github_utils import fetch_artifacts, fetch_workflow_runs
 
 st.set_page_config(page_title="Wheel size", page_icon=":material/package_2:")
@@ -99,22 +99,25 @@ with col3:
 # Create time series chart
 st.subheader("Wheel Size Over Time")
 
-fig = px.line(
-    df,
+size_df = pd.DataFrame(
+    {
+        "created_at": df["created_at"],
+        "Size": df["size_mb"],
+        "Date": df["created_at"].dt.strftime("%Y-%m-%d"),
+        "Commit": df["commit_sha"],
+    }
+)
+size_option = ec.cartesian_chart(
+    size_df,
     x="created_at",
-    y="size_mb",
-    labels={"created_at": "Date", "size_mb": "Size (MB)"},
-    markers=True,
-    hover_data=["commit_sha", "size_human"],
+    y="Size",
+    y_title="Size (MB)",
+    value_format="%.2f MB",
+    series_names={"Size": "Wheel size"},
+    tooltip_dims=["Date", "Commit"],
 )
 
-fig.update_layout(
-    xaxis_title="Date",
-    yaxis_title="Size (MB)",
-    hovermode="closest",
-)
-
-st.plotly_chart(fig, width="stretch")
+st.echarts_chart(size_option, alt="Wheel file size per PR preview build over time")
 
 # Create a table with the data
 st.subheader("Wheel Size Details")
@@ -156,23 +159,36 @@ if len(df) > 1:
         df_changes = df_changes.sort_values("size_change", key=abs, ascending=False)
 
         # Create a bar chart of the top size changes
-        fig_changes = px.bar(
-            df_changes.head(10),
-            x="commit_sha",
-            y="size_change_percent",
-            labels={"commit_sha": "Commit", "size_change_percent": "Size Change (%)"},
-            hover_data=["size_change_human", "created_at"],
-            color="size_change",
-            color_continuous_scale=["red", "gray", "green"],
+        top_changes = df_changes.head(10)
+        changes_df = pd.DataFrame(
+            {
+                "Commit": top_changes["commit_sha"],
+                "Size change": top_changes["size_change_percent"],
+                "Change": top_changes["size_change_human"],
+                "Date": top_changes["created_at"].dt.strftime("%Y-%m-%d"),
+            }
         )
-
-        fig_changes.update_layout(
-            xaxis_title="Commit",
-            yaxis_title="Size Change (%)",
-            coloraxis_showscale=False,
+        changes_option = ec.cartesian_chart(
+            changes_df,
+            x="Commit",
+            y="Size change",
+            kind="bar",
+            x_type="category",
+            x_title="Commit",
+            y_title="Size change (%)",
+            value_format="%+.2f%%",
+            tooltip_dims=["Change", "Date"],
         )
+        max_change = float(changes_df["Size change"].abs().max()) or 1.0
+        changes_option["visualMap"] = {
+            "show": False,
+            "dimension": 1,
+            "min": -max_change,
+            "max": max_change,
+            "inRange": {"color": ["red", "gray", "green"]},
+        }
 
-        st.plotly_chart(fig_changes, width="stretch")
+        st.echarts_chart(changes_option, alt="Top 10 commits by wheel size change")
 
         # Show a table of significant changes
         significant_changes = df_changes[abs(df_changes["size_change_percent"]) > 0.5].copy()

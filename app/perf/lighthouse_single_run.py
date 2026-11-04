@@ -1,10 +1,10 @@
 from datetime import datetime
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
 from app.perf.utils.perf_github_artifacts import process_artifact
+from app.utils import echarts as ec
 from app.utils.github_utils import fetch_artifacts
 
 TITLE = "Lighthouse single run"
@@ -75,18 +75,22 @@ for datetime_str, apps in performance_scores.items():
 df = pd.DataFrame(data)
 
 
-chart = (
-    alt.Chart(df)
-    .mark_point()
-    .encode(  # ty: ignore[unresolved-attribute]
-        x="datetime:T",
-        y=alt.Y("score:Q", scale=alt.Scale(domain=[0, 100])),
-        color="app_name:N",
-    )
-    .properties(title="Lighthouse Scores Over Time")
+st.echarts_chart(
+    ec.cartesian_chart(
+        df,
+        x="datetime",
+        y="score",
+        color="app_name",
+        kind="scatter",
+        agg="mean",
+        title="Lighthouse scores over time",
+        y_title="Score",
+        y_min=0,
+        y_max=100,
+        value_format="%.1f",
+    ),
+    alt="Lighthouse scores per app for this run",
 )
-
-st.altair_chart(chart, width="stretch")
 
 
 with st.expander("Raw Data"):
