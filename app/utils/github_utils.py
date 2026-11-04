@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import json
+import logging
 import urllib.parse
 from datetime import UTC, date, datetime
 from io import BytesIO
@@ -13,6 +14,8 @@ import requests
 import streamlit as st
 
 from app.utils.github_graphql_utils import GitHubGraphQLError, _run_graphql_query
+
+_LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -1265,7 +1268,7 @@ def download_artifact(artifact_url: str) -> bytes | None:
         # The artifact URL is a redirect, so we need to get the real URL.
         redirect_response = requests.get(artifact_url, headers=get_headers(), timeout=60, allow_redirects=False)
         if redirect_response.status_code != 302:
-            st.error(f"Error getting artifact redirect URL: {redirect_response.status_code}")
+            _LOGGER.warning("Error getting artifact redirect URL: %s", redirect_response.status_code)
             return None
 
         download_url = redirect_response.headers["Location"]
@@ -1274,12 +1277,12 @@ def download_artifact(artifact_url: str) -> bytes | None:
         response = requests.get(download_url, timeout=60)
 
         if response.status_code != 200:
-            st.error(f"Error downloading artifact: {response.status_code}")
+            _LOGGER.warning("Error downloading artifact: %s", response.status_code)
             return None
 
         return response.content
-    except Exception as e:
-        st.error(f"Error downloading artifact: {e}")
+    except Exception:
+        _LOGGER.warning("Error downloading artifact", exc_info=True)
         return None
 
 

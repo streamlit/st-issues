@@ -40,6 +40,9 @@ def pivot_series(
     names in display order. Missing combinations become null, so lines can
     connect across them and stacked bars treat them as zero height.
     """
+    if color == x:
+        color = f"{x} (series)"
+        df = df.assign(**{color: df[x]})
     wide = df.pivot_table(index=x, columns=color, values=y, aggfunc=agg, observed=True)
     wide.columns = [str(column) for column in wide.columns]
     series = [str(name) for name in order if str(name) in wide.columns] if order is not None else list(wide.columns)
