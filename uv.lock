@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -1977,7 +1977,7 @@ requires-dist = [
     { name = "pytz" },
     { name = "scipy" },
     { name = "seaborn" },
-    { name = "streamlit", extras = ["performance"], url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.66.0-py3-none-any.whl" },
+    { name = "streamlit", extras = ["performance"], url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-17876/streamlit-1.66.1-py3-none-any.whl" },
     { name = "streamlit-aggrid" },
     { name = "streamlit-extras" },
     { name = "streamlit-folium" },
@@ -2010,8 +2010,8 @@ wheels = [
 
 [[package]]
 name = "streamlit"
-version = "1.66.0"
-source = { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.66.0-py3-none-any.whl" }
+version = "1.66.1"
+source = { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-17876/streamlit-1.66.1-py3-none-any.whl" }
 dependencies = [
     { name = "altair" },
     { name = "anyio" },
@@ -2033,7 +2033,7 @@ dependencies = [
     { name = "websockets" },
 ]
 wheels = [
-    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-16930/streamlit-1.66.0-py3-none-any.whl", hash = "sha256:5f7290e279086057247c4fe4f28a75425d1ce22abbfc54ad0c09f99b876dc636" },
+    { url = "https://core-previews.s3-us-west-2.amazonaws.com/pr-17876/streamlit-1.66.1-py3-none-any.whl", hash = "sha256:6218cfbde67ef6c670c26666ba61ad40bfcc26299413d0b06e875984cd6e3fb5" },
 ]
 
 [package.optional-dependencies]
@@ -2059,10 +2059,10 @@ requires-dist = [
     { name = "orjson", marker = "extra == 'performance'", specifier = ">=3.5.0" },
     { name = "packaging", specifier = ">=20" },
     { name = "pandas", specifier = ">=1.5.3,<4" },
-    { name = "pillow", specifier = ">=9.2.0,<13" },
+    { name = "pillow", specifier = ">=9.2.0,<14" },
     { name = "plotly", marker = "extra == 'charts'", specifier = ">=4.0.0" },
     { name = "protobuf", specifier = ">=5.26.1,<8" },
-    { name = "pyarrow", specifier = ">=10.0.1,!=25.0.0,<27" },
+    { name = "pyarrow", specifier = ">=12.0.0,!=25.0.0,<27" },
     { name = "pydeck", specifier = ">=0.8.0b4,<1" },
     { name = "python-multipart", specifier = ">=0.0.10,<1" },
     { name = "requests", specifier = ">=2.27,<3" },
@@ -2076,7 +2076,7 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.10.0,<5" },
     { name = "uvicorn", specifier = ">=0.30.0,<1" },
     { name = "uvloop", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32' and extra == 'performance'", specifier = ">=0.15.2" },
-    { name = "watchdog", marker = "sys_platform != 'darwin'", specifier = ">=2.1.5,<7" },
+    { name = "watchdog", marker = "sys_platform != 'darwin'", specifier = ">=2.1.5,<8" },
     { name = "websockets", specifier = ">=12.0.0,<18" },
 ]
 provides-extras = ["snowflake", "pdf", "auth", "charts", "sql", "performance", "all"]
