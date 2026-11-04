@@ -133,7 +133,12 @@ def style_markers(option: dict[str, Any]) -> dict[str, Any]:
         mark_line = series.get("markLine")
         if mark_line:
             mark_line["lineStyle"] = {**mark_line.get("lineStyle", {}), "color": MARKER_COLOR, "width": 1}
-            mark_line["label"] = {**mark_line.get("label", {}), "color": MARKER_COLOR, "fontSize": 10}
+            mark_line["label"] = {
+                **mark_line.get("label", {}),
+                "position": "end",
+                "color": MARKER_COLOR,
+                "fontSize": 10,
+            }
     return option
 
 

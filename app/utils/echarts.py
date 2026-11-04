@@ -97,9 +97,7 @@ def _base_option(*, title: str | None, legend: bool, subtitle: str | None = None
         if subtitle:
             option["title"]["subtext"] = subtitle
     if legend:
-        option["legend"] = {"type": "scroll", "top": 32 if title else 0, "right": 0 if title else "center"}
-        if title:
-            option["legend"]["left"] = "center"
+        option["legend"] = {"type": "scroll", "top": 32 if title else 0, "left": "center"}
     if title or legend:
         option["grid"] = {"top": 72 if title and legend else 48}
     return option
@@ -169,7 +167,8 @@ def cartesian_chart(
         series_names: Display names for value columns, keyed by column name.
         legend: Show the legend. Defaults to on with more than one series.
         tooltip_dims: Extra columns listed in an item tooltip next to the value
-            (see ``item_tooltip``).
+            (see ``item_tooltip``). ``value_format`` doesn't apply to these
+            tooltips, so round or pre-format the columns instead.
         mark_lines: ECharts ``markLine.data`` entries added to the first series,
             such as ``{"yAxis": 80, "name": "Target"}``.
     """
@@ -218,8 +217,6 @@ def cartesian_chart(
     series_list: list[dict[str, Any]] = []
     for column in series_columns:
         encode: dict[str, Any] = {"x": column, "y": x} if horizontal else {"x": x, "y": column}
-        if tooltip_dims:
-            encode["tooltip"] = [column, *tooltip_dims]
         series: dict[str, Any] = {
             "type": "line" if kind == "area" else kind,
             "name": (series_names or {}).get(column, column),
@@ -405,6 +402,10 @@ def treemap_chart(
         "type": "treemap",
         "name": name,
         "data": nodes,
+        "left": 0,
+        "top": 0,
+        "width": "100%",
+        "height": "90%",
         "roam": False,
         "nodeClick": "zoomToNode",
         "leafDepth": 2,

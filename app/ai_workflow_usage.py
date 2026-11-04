@@ -562,10 +562,10 @@ with chart_tab_duration:
 
         with st.container(horizontal=True, vertical_alignment="top"):
             avg_bar_option = ec.cartesian_chart(
-                duration_by_workflow.assign(series=duration_by_workflow["workflow"]),
+                duration_by_workflow,
                 x="workflow",
                 y=duration_column,
-                color="series",
+                color="workflow",
                 kind="bar",
                 x_type="category",
                 stack=True,
@@ -576,6 +576,9 @@ with chart_tab_duration:
                 legend=False,
             )
             avg_bar_option["tooltip"]["trigger"] = "item"
+            avg_bar_option["dataset"]["source"] = avg_bar_option["dataset"]["source"].sort_values(
+                "workflow", key=lambda column: column.map({name: rank for rank, name in enumerate(WORKFLOW_LABELS)})
+            )
             st.echarts_chart(
                 _with_series_colors(avg_bar_option, WORKFLOW_COLORS),
                 alt=f"{duration_stat} runtime per AI workflow",

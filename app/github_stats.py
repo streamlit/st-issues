@@ -935,6 +935,7 @@ if selected_metrics == "Contribution Metrics":
                     mark_lines=[{"yAxis": round(float(avg_weekly_prs), 2), "name": f"Avg: {avg_weekly_prs:.1f}"}],
                 )
                 weekly_prs_option["series"][0]["markLine"]["lineStyle"]["color"] = "#dc3545"
+                weekly_prs_option["series"][0]["markLine"]["label"]["position"] = "insideStartTop"
                 st.echarts_chart(
                     weekly_prs_option,
                     alt=f"Weekly merged PRs by @{selected_member} compared to the weekly average",
@@ -1296,21 +1297,27 @@ elif selected_metrics == "Team Productivity Metrics":
                         .reset_index()
                     )
 
+                    team_chart_df = avg_prs_per_month.round({"avg_prs": 2}).rename(
+                        columns={
+                            "merge_month": "Month",
+                            "avg_prs": "Avg PRs per Contributor",
+                            "active_contributors": "Active contributors",
+                        }
+                    )
+                    team_chart_df["Month name"] = team_chart_df["Month"].dt.strftime("%B %Y")
                     team_option = ec.cartesian_chart(
-                        avg_prs_per_month.round({"avg_prs": 2}).rename(
-                            columns={
-                                "merge_month": "Month",
-                                "avg_prs": "Avg PRs per Contributor",
-                                "active_contributors": "Active contributors",
-                            }
-                        ),
+                        team_chart_df,
                         x="Month",
                         y="Avg PRs per Contributor",
                         kind="bar",
                         title="Average Merged PRs per Active Core Contributor",
-                        tooltip_dims=["Active contributors"],
                         select="single",
                     )
+                    team_option["tooltip"] = {
+                        "trigger": "item",
+                        "formatter": "{@Month name}<br/>Avg PRs per contributor: <b>{@Avg PRs per Contributor}</b>"
+                        "<br/>Active contributors: <b>{@Active contributors}</b>",
+                    }
                     chart_selection = st.echarts_chart(
                         team_option,
                         on_select="rerun",
