@@ -28,6 +28,13 @@ st.set_page_config(page_title="GitHub stats", page_icon=":material/bar_chart:", 
 
 LOC_COLORS = {"Additions": "#28a745", "Deletions": "#dc3545"}
 
+# Minimum merged PRs per month for a contributor to count as active.
+MIN_MONTHLY_PRS_FOR_ACTIVE = 5
+ACTIVE_CORE_CONTRIBUTOR_HELP = (
+    "An active core contributor is a Streamlit team member who has merged at least "
+    f"{MIN_MONTHLY_PRS_FOR_ACTIVE} PRs in a given month."
+)
+
 
 def get_issue_emoji(labels: list) -> str:
     return labels_to_type_emoji([label["name"] for label in labels])
@@ -1140,19 +1147,19 @@ elif selected_metrics == "Team Productivity Metrics":
                 "Show average per active core contributor",
                 value=False,
                 key="loc_avg_toggle",
-                help="An active core contributor is a Streamlit team member who has merged at least 3 PRs in a given month.",
+                help=ACTIVE_CORE_CONTRIBUTOR_HELP,
             )
 
             if show_avg_loc:
                 # Filter for team members only
                 team_loc_df = merged_prs_df[merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)].copy()
 
-                # Get active contributors per month (>= 3 PRs)
+                # Get active contributors per month
                 team_monthly_pr_counts = (
                     team_loc_df.groupby(["merge_month", "author"]).size().reset_index(name="pr_count")
                 )
                 active_contributors_per_month = (
-                    team_monthly_pr_counts[team_monthly_pr_counts["pr_count"] >= 3]
+                    team_monthly_pr_counts[team_monthly_pr_counts["pr_count"] >= MIN_MONTHLY_PRS_FOR_ACTIVE]
                     .groupby("merge_month")["author"]
                     .nunique()
                     .reset_index(name="active_count")
@@ -1209,7 +1216,7 @@ elif selected_metrics == "Team Productivity Metrics":
             row = st.container(horizontal=True, vertical_alignment="center")
             title_container = row.container()
             with row.popover("Modify", width="content"):
-                min_prs = st.number_input("Minimum merged PRs", min_value=1, value=5, step=1)
+                min_prs = st.number_input("Minimum merged PRs", min_value=1, value=MIN_MONTHLY_PRS_FOR_ACTIVE, step=1)
 
             with title_container:
                 st.markdown(f"##### Monthly Active Contributors (>= {min_prs} Merged PRs)")
@@ -1302,7 +1309,7 @@ elif selected_metrics == "Team Productivity Metrics":
         with tab6:
             st.caption(
                 "Average merged PRs per active Streamlit core team member per month. "
-                "Only team members with at least 3 merged PRs in a month are considered active. "
+                f"Only team members with at least {MIN_MONTHLY_PRS_FOR_ACTIVE} merged PRs in a month are considered active. "
                 "Click on a bar to see the contributors for that month."
             )
 
@@ -1313,8 +1320,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 # Group by month and author
                 team_monthly_prs = team_prs_df.groupby(["merge_month", "author"]).size().reset_index(name="pr_count")
 
-                # Filter for authors with >= 3 PRs in a month
-                active_team_monthly = team_monthly_prs[team_monthly_prs["pr_count"] >= 3]
+                active_team_monthly = team_monthly_prs[team_monthly_prs["pr_count"] >= MIN_MONTHLY_PRS_FOR_ACTIVE]
 
                 if not active_team_monthly.empty:
                     # Calculate average PRs per active contributor per month
@@ -1384,7 +1390,7 @@ elif selected_metrics == "Team Productivity Metrics":
                             hide_index=True,
                         )
                 else:
-                    st.info("No active core contributors found with >= 3 PRs in any month.")
+                    st.info(f"No active core contributors found with >= {MIN_MONTHLY_PRS_FOR_ACTIVE} PRs in any month.")
             else:
                 st.info("No team member PRs found for the selected period.")
 
@@ -1416,7 +1422,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 "Show average per active core contributor",
                 value=False,
                 key="reactions_avg_toggle",
-                help="An active core contributor is a Streamlit team member who has merged at least 3 PRs in a given month.",
+                help=ACTIVE_CORE_CONTRIBUTOR_HELP,
             )
 
             # Get issue data for reactions
@@ -1460,14 +1466,16 @@ elif selected_metrics == "Team Productivity Metrics":
                             merged_prs_df["author"].isin(STREAMLIT_TEAM_MEMBERS)
                         ].copy()
 
-                        # Get active contributors per month (>= 3 PRs)
+                        # Get active contributors per month
                         team_monthly_pr_counts_reactions = (
                             team_prs_for_reactions.groupby(["merge_month", "author"])
                             .size()
                             .reset_index(name="pr_count")
                         )
                         active_contributors_reactions = (
-                            team_monthly_pr_counts_reactions[team_monthly_pr_counts_reactions["pr_count"] >= 3]
+                            team_monthly_pr_counts_reactions[
+                                team_monthly_pr_counts_reactions["pr_count"] >= MIN_MONTHLY_PRS_FOR_ACTIVE
+                            ]
                             .groupby("merge_month")["author"]
                             .nunique()
                             .reset_index(name="active_count")
