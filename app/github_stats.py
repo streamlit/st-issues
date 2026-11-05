@@ -13,6 +13,7 @@ from app.utils import echarts as ec
 from app.utils.github_graphql_utils import fetch_merged_pr_metrics
 from app.utils.github_utils import (
     ACTIVE_STREAMLIT_TEAM_MEMBERS,
+    GITHUB_ACCOUNT_ALIASES,
     STREAMLIT_TEAM_MEMBERS,
     get_all_github_issues,
     get_count_issues_commented_by_user,
@@ -30,6 +31,23 @@ LOC_COLORS = {"Additions": "#28a745", "Deletions": "#dc3545"}
 
 def get_issue_emoji(labels: list) -> str:
     return labels_to_type_emoji([label["name"] for label in labels])
+
+
+def canonical_login(login: str) -> str:
+    """Return the primary account for logins that belong to the same person."""
+    return GITHUB_ACCOUNT_ALIASES.get(login, login)
+
+
+def login_aliases(login: str) -> tuple[str, ...]:
+    return tuple(alias for alias, primary in GITHUB_ACCOUNT_ALIASES.items() if primary == login)
+
+
+def search_qualifiers(qualifier: str, login: str) -> str:
+    """Build a URL-encoded GitHub search fragment matching any account of the person.
+
+    Repeated user qualifiers are combined with OR by GitHub search.
+    """
+    return "+".join(f"{qualifier}%3A{account}" for account in (login, *login_aliases(login)))
 
 
 def get_selected_row(event: EChartsState, option: dict[str, Any]) -> pd.Series | None:
@@ -105,7 +123,7 @@ def render_issue_closers_by_reactions(since_input: date, effective_until: date, 
         ]
 
         closers_df["closed_by_login"] = closers_df["closed_by"].apply(
-            lambda x: x.get("login", "") if isinstance(x, dict) else ""
+            lambda x: canonical_login(x.get("login", "")) if isinstance(x, dict) else ""
         )
         # Remove entries without a valid closer
         closers_df = closers_df[closers_df["closed_by_login"] != ""]
@@ -269,7 +287,9 @@ def render_issue_authors(since_input: date, effective_until: date, period_label:
         all_issues_df["created_at"] = pd.to_datetime(all_issues_df["created_at"])
 
         authors_df = all_issues_df.copy()
-        authors_df["author"] = authors_df["user"].apply(lambda x: x.get("login", "") if isinstance(x, dict) else "")
+        authors_df["author"] = authors_df["user"].apply(
+            lambda x: canonical_login(x.get("login", "")) if isinstance(x, dict) else ""
+        )
         authors_df = authors_df[authors_df["author"] != ""]
 
         authors_df = authors_df[
@@ -296,7 +316,7 @@ def render_issue_authors(since_input: date, effective_until: date, period_label:
 
             # Add links
             author_counts["Show Issues"] = author_counts["author"].apply(
-                lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue+author%3A{x}"
+                lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue+{search_qualifiers('author', x)}"
             )
             author_counts["author"] = author_counts["author"].apply(lambda x: f"https://github.com/{x}")
 
@@ -326,14 +346,16 @@ def render_issue_commenters() -> None:
         # Fetch data for all team members
         comment_counts = []
         for member in ACTIVE_STREAMLIT_TEAM_MEMBERS:
-            count = get_count_issues_commented_by_user(member)
+            if member in GITHUB_ACCOUNT_ALIASES:
+                continue
+            count = get_count_issues_commented_by_user(member, login_aliases(member))
             if count > 0:
                 comment_counts.append({"User": member, "Issues Commented On": count})
 
         # Create DataFrame
         commenters_df = pd.DataFrame(comment_counts)
         commenters_df["Show Issues"] = commenters_df["User"].apply(
-            lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue%20commenter%3A{x}"
+            lambda x: f"https://github.com/streamlit/streamlit/issues?q=is%3Aissue+{search_qualifiers('commenter', x)}"
         )
         commenters_df["User"] = commenters_df["User"].apply(lambda x: f"https://github.com/{x}")
 
@@ -531,6 +553,14 @@ except Exception as ex:
 if exclude_bot_prs:
     merged_prs_df = merged_prs_df[~merged_prs_df["from_bot"]]
 
+if not merged_prs_df.empty:
+    merged_prs_df = merged_prs_df.assign(
+        author=merged_prs_df["author"].map(canonical_login),
+        reviewers=merged_prs_df["reviewers"].apply(
+            lambda reviewers: sorted({canonical_login(reviewer) for reviewer in reviewers})
+        ),
+    )
+
 if selected_metrics == "Contribution Metrics":
     st.markdown("#### :material/merge: Merged PRs by Authors")
 
@@ -582,7 +612,7 @@ if selected_metrics == "Contribution Metrics":
         # Add links
         author_stats["Show PRs"] = author_stats["author"].apply(
             lambda x: (
-                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+author%3A{x}+{merged_query_suffix}"
+                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+{search_qualifiers('author', x)}+{merged_query_suffix}"
             )
         )
         author_stats["author"] = author_stats["author"].apply(lambda x: f"https://github.com/{x}")
@@ -666,7 +696,7 @@ if selected_metrics == "Contribution Metrics":
         # Add links
         reviewer_counts["Show PRs"] = reviewer_counts["reviewers"].apply(
             lambda x: (
-                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+{merged_query_suffix}"
+                f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+{search_qualifiers('reviewed-by', x)}+{merged_query_suffix}"
             )
         )
         reviewer_counts["reviewers"] = reviewer_counts["reviewers"].apply(lambda x: f"https://github.com/{x}")
@@ -764,7 +794,7 @@ if selected_metrics == "Contribution Metrics":
             # Add links
             community_reviewer_counts["Show PRs"] = community_reviewer_counts["reviewers"].apply(
                 lambda x: (
-                    f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+reviewed-by%3A{x}+{merged_query_suffix}"
+                    f"https://github.com/streamlit/streamlit/pulls?q=is%3Apr+is%3Amerged+{search_qualifiers('reviewed-by', x)}+{merged_query_suffix}"
                 )
             )
             community_reviewer_counts["reviewers"] = community_reviewer_counts["reviewers"].apply(
@@ -835,7 +865,7 @@ if selected_metrics == "Contribution Metrics":
     # Select a team member
     selected_member = st.selectbox(
         "Select Team Member",
-        options=STREAMLIT_TEAM_MEMBERS,
+        options=[member for member in STREAMLIT_TEAM_MEMBERS if member not in GITHUB_ACCOUNT_ALIASES],
         index=0,
         format_func=lambda x: f"@{x}",
     )
@@ -1176,12 +1206,12 @@ elif selected_metrics == "Team Productivity Metrics":
             )
 
         with tab5:
-            row = st.container()
-            col1, col2 = row.columns([1, 0.2])
-            with col2.popover("Modify", width="content"):
-                min_prs = st.number_input("Minimum merged PRs", min_value=1, value=3, step=1)
+            row = st.container(horizontal=True, vertical_alignment="center")
+            title_container = row.container()
+            with row.popover("Modify", width="content"):
+                min_prs = st.number_input("Minimum merged PRs", min_value=1, value=5, step=1)
 
-            with col1:
+            with title_container:
                 st.markdown(f"##### Monthly Active Contributors (>= {min_prs} Merged PRs)")
 
             # Calculate Active Contributors first (needed for both the chart and the JSON export)
@@ -1205,7 +1235,7 @@ elif selected_metrics == "Team Productivity Metrics":
                 for month_key in active_contributors_json:
                     active_contributors_json[month_key] = sorted(active_contributors_json[month_key])
 
-                with col2.popover(":material/data_object: JSON"):
+                with row.popover(":material/data_object: JSON", width="content"):
                     st.json(active_contributors_json, expanded=True)
 
             st.caption(

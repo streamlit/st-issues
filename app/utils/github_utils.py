@@ -36,6 +36,12 @@ ACTIVE_STREAMLIT_TEAM_MEMBERS = [
     "sfc-gh-lmasuch",
 ]
 
+# Secondary GitHub accounts mapped to the primary account of the same person.
+GITHUB_ACCOUNT_ALIASES: Final[dict[str, str]] = {
+    "sfc-gh-lmasuch": "lukasmasuch",
+    "sfc-gh-lwilby-1": "sfc-gh-lwilby",
+}
+
 STREAMLIT_TEAM_MEMBERS = [
     *ACTIVE_STREAMLIT_TEAM_MEMBERS,
     "tconkling",
@@ -1477,10 +1483,14 @@ def fetch_workflow_runs_ids(check_suite_id: str) -> list[str]:
 
 
 @st.cache_data(ttl=60 * 60 * 6, refresh_mode="background")  # cache for 6 hours
-def get_count_issues_commented_by_user(username: str, _repo: str = "streamlit/streamlit") -> int:
-    """Get the number of issues commented on by a user."""
+def get_count_issues_commented_by_user(
+    username: str, aliases: tuple[str, ...] = (), _repo: str = "streamlit/streamlit"
+) -> int:
+    """Get the number of unique issues commented on by a user or any of their alias accounts."""
     headers = get_headers()
-    query = f"repo:streamlit/streamlit is:issue commenter:{username}"
+    # Repeated commenter qualifiers are combined with OR by GitHub search.
+    commenters = " ".join(f"commenter:{login}" for login in (username, *aliases))
+    query = f"repo:streamlit/streamlit is:issue {commenters}"
     # Manually encode the query to ensure compatibility
     # safe="" ensures that slashes are also encoded
     encoded_query = urllib.parse.quote(query, safe="")
