@@ -47,7 +47,7 @@ default-groups = ["dev"]
 [dependency-groups]
 dev = [
   "pytest>=9.0.2",
-  "ruff==0.16.8",
+  "ruff==0.17.5",
   "ty==0.0.82",
   "mypy==2.4.1",
   "watchdog",
